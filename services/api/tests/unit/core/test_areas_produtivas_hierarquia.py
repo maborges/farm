@@ -1,3 +1,4 @@
+from decimal import Decimal
 import uuid
 
 import pytest
@@ -7,8 +8,10 @@ from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
 
 from core.cadastros.propriedades.models import AreaRural, FILHOS_PERMITIDOS, TipoArea, TipoIrrigacao, TipoSolo
+from core.cadastros.propriedades.schemas import AreaRuralUpdate
 from core.cadastros.propriedades.service import AreaRuralService
 from core.exceptions import BusinessRuleError
+from core.models.billing import AssinaturaTenant, PlanoAssinatura
 from core.models.tenant import Tenant
 from core.models.unidade_produtiva import UnidadeProdutiva
 
@@ -36,6 +39,8 @@ async def async_session():
                     TipoSolo.__table__,
                     TipoIrrigacao.__table__,
                     AreaRural.__table__,
+                    PlanoAssinatura.__table__,
+                    AssinaturaTenant.__table__,
                 ],
             )
         )
@@ -85,3 +90,54 @@ async def test_validar_hierarquia_e_listar_apenas_produtivas(async_session: Asyn
     produtivas = await svc.listar(unidade_produtiva_id=fazenda_id, apenas_produtivas=True)
     nomes = {a.nome for a in produtivas}
     assert nomes == {"Talhão 01", "Piquete 01"}
+
+
+@pytest.mark.asyncio
+async def test_desmarcar_geometria_area_rural(async_session: AsyncSession):
+    tenant_id = uuid.uuid4()
+    fazenda_id = uuid.uuid4()
+    gleba_id = uuid.uuid4()
+    talhao_id = uuid.uuid4()
+
+    async_session.add_all([
+        Tenant(id=tenant_id, nome="Fazenda Geo", slug="faz-geo", documento="22222222000102"),
+        UnidadeProdutiva(id=fazenda_id, tenant_id=tenant_id, nome="Unidade Geo"),
+        AreaRural(id=gleba_id, tenant_id=tenant_id, unidade_produtiva_id=fazenda_id, nome="Gleba Geo", tipo="GLEBA", ativo=True),
+        AreaRural(
+            id=talhao_id,
+            tenant_id=tenant_id,
+            unidade_produtiva_id=fazenda_id,
+            parent_id=gleba_id,
+            nome="Talhão Mapeado",
+            tipo="TALHAO",
+            area_hectares=Decimal("25.5000"),
+            area_hectares_manual=Decimal("26.0000"),
+            geometria={
+                "type": "Polygon",
+                "coordinates": [[[-51.9, -23.4], [-51.89, -23.4], [-51.89, -23.39], [-51.9, -23.39], [-51.9, -23.4]]],
+            },
+            centroide_lat=-23.395,
+            centroide_lng=-51.895,
+            ativo=True,
+        ),
+    ])
+    await async_session.commit()
+
+    payload = AreaRuralUpdate(
+        geometria=None,
+        area_hectares=None,
+        centroide_lat=None,
+        centroide_lng=None,
+    ).model_dump(exclude_unset=True)
+
+    assert set(payload.keys()) == {"geometria", "area_hectares", "centroide_lat", "centroide_lng"}
+
+    svc = AreaRuralService(AreaRural, async_session, tenant_id)
+    atualizado = await svc.atualizar_area(talhao_id, payload)
+
+    assert atualizado.geometria is None
+    assert atualizado.area_hectares is None
+    assert atualizado.centroide_lat is None
+    assert atualizado.centroide_lng is None
+    assert atualizado.nome == "Talhão Mapeado"
+    assert atualizado.area_hectares_manual == Decimal("26.0000")

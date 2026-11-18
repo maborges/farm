@@ -106,7 +106,7 @@ async def atualizar(
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     svc = AreaRuralService(AreaRural, session, tenant_id)
-    return await svc.atualizar_area(area_id, data.model_dump(exclude_none=True))
+    return await svc.atualizar_area(area_id, data.model_dump(exclude_unset=True))
 
 
 @router.delete("/{area_id}", status_code=204)

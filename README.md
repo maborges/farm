@@ -612,6 +612,7 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
   1. Em `core/cadastros/propriedades/models.py`, `GLEBA` aceita diretamente `TALHAO`, `PIQUETE` e `AREA_AMBIENTAL`; `TALHAO` aceita diretamente `SUBTALHAO`, `ZONA_MANEJO`, `PIQUETE` (ILPF) e `AREA_OPERACIONAL` (opcional).
   2. O endpoint `GET /api/v1/cadastros/areas-rurais` aceita `apenas_produtivas=true` (`TALHAO`, `PIQUETE`, `SUBTALHAO`, `ZONA_MANEJO`, `AREA_OPERACIONAL`), utilizado por Estoque (`EstoqueDialogs`), Tarefas/App Campo (`campo/service.py`, `tarefa-drawer.tsx`) e Relatórios Financeiros (`relatorio_service.py`).
   3. A tela `/dashboard/pecuaria/piquetes` foi consolidada como painel de consulta zootécnica, direcionando a manutenção estrutural para `/cadastros/propriedades`.
+  4. Na tela de **Georreferenciamento** (`/cadastros/propriedades/talhoes`), todas as áreas produtivas podem ter sua geometria desenhada, editada, limpa em rascunho (`Limpar Desenho`) ou removida permanentemente (`Desmarcar Região`, via `PATCH /api/v1/cadastros/areas-rurais/{area_id}` com `geometria`, `area_hectares`, `centroide_lat` e `centroide_lng` explicitamente zerados como `null`).
 
 ## Conceitos-Chave: Propriedade, Talhão e Unidade Produtiva
 

@@ -288,11 +288,12 @@ class AreaRuralService(BaseService[AreaRural]):
         }
 
     async def atualizar_area(self, area_id: uuid.UUID, data: dict) -> AreaRural:
+        """Atualiza dados e geometria da área rural, permitindo limpeza explícita com None."""
         obj = await self.get_or_fail(area_id)
-        novo_tipo = data.get("tipo", obj.tipo)
-        nova_up_id = data.get("unidade_produtiva_id", obj.unidade_produtiva_id)
-        nova_area_manual = data.get("area_hectares_manual", obj.area_hectares_manual)
-        nova_area_calc = data.get("area_hectares", obj.area_hectares)
+        novo_tipo = data.get("tipo") if data.get("tipo") is not None else obj.tipo
+        nova_up_id = data.get("unidade_produtiva_id") if data.get("unidade_produtiva_id") is not None else obj.unidade_produtiva_id
+        nova_area_manual = data["area_hectares_manual"] if "area_hectares_manual" in data else obj.area_hectares_manual
+        nova_area_calc = data["area_hectares"] if "area_hectares" in data else obj.area_hectares
         area_efetiva = nova_area_manual if nova_area_manual is not None else nova_area_calc
         if (
             "area_hectares_manual" in data
@@ -306,7 +307,10 @@ class AreaRuralService(BaseService[AreaRural]):
                 nova_area_ha=area_efetiva,
                 excluir_area_id=area_id,
             )
+        campos_nao_nulos = {"tipo", "nome", "irrigado", "ativo"}
         for k, v in data.items():
+            if k in campos_nao_nulos and v is None:
+                continue
             setattr(obj, k, v)
         await self.session.commit()
         await self.session.refresh(obj)

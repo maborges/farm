@@ -225,18 +225,18 @@ const ITEM_STATUS_LABELS: Record<ItemStatus, string> = {
 };
 
 const STATUS_CLASSES: Record<SessaoStatus | ItemStatus, string> = {
-  RASCUNHO: "border-slate-200 bg-slate-100 text-slate-700",
-  PREVIEW_GERADO: "border-blue-200 bg-blue-100 text-blue-700",
-  VALIDADO_COM_ERROS: "border-red-200 bg-red-100 text-red-700",
-  PRONTO_PARA_CORRECAO: "border-amber-200 bg-amber-100 text-amber-800",
-  PRONTO_PARA_CONFIRMAR: "border-emerald-200 bg-emerald-100 text-emerald-700",
-  CANCELADO: "border-slate-300 bg-slate-200 text-slate-700",
-  CONFIRMADO: "border-sky-200 bg-sky-100 text-sky-700",
-  VALIDA: "border-emerald-200 bg-emerald-100 text-emerald-700",
-  AVISO: "border-amber-200 bg-amber-100 text-amber-800",
-  ERRO: "border-red-200 bg-red-100 text-red-700",
-  CORRIGIDO: "border-emerald-200 bg-emerald-100 text-emerald-700",
-  IGNORADO: "border-slate-200 bg-slate-100 text-slate-700",
+  RASCUNHO: "border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-300",
+  PREVIEW_GERADO: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300",
+  VALIDADO_COM_ERROS: "border-destructive/30 bg-destructive/10 text-destructive",
+  PRONTO_PARA_CORRECAO: "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300",
+  PRONTO_PARA_CONFIRMAR: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  CANCELADO: "border-border bg-muted text-muted-foreground",
+  CONFIRMADO: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+  VALIDA: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  AVISO: "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300",
+  ERRO: "border-destructive/30 bg-destructive/10 text-destructive",
+  CORRIGIDO: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  IGNORADO: "border-border bg-muted/60 text-muted-foreground",
 };
 
 const ITEM_STATUS_OPTIONS: Array<{ value: string; label: string }> = [
@@ -259,7 +259,7 @@ const SESSION_STATUS_OPTIONS: Array<{ value: string; label: string }> = [
 
 function StatusBadge({ status }: { status: SessaoStatus | ItemStatus }) {
   const label = SESSION_STATUS_LABELS[status as SessaoStatus] ?? ITEM_STATUS_LABELS[status as ItemStatus] ?? status;
-  return <Badge className={cn("border text-[10px] font-semibold uppercase tracking-wide", STATUS_CLASSES[status])}>{label}</Badge>;
+  return <Badge variant="outline" className={cn("rounded-sm border text-[10px] font-semibold uppercase tracking-wide", STATUS_CLASSES[status])}>{label}</Badge>;
 }
 
 function StatCard({
@@ -274,14 +274,14 @@ function StatCard({
   tone?: "slate" | "emerald" | "amber" | "red" | "sky";
 }) {
   const toneMap = {
-    slate: "border-l-slate-400 bg-slate-50/70",
-    emerald: "border-l-emerald-500 bg-emerald-50/70",
-    amber: "border-l-amber-500 bg-amber-50/70",
-    red: "border-l-red-500 bg-red-50/70",
-    sky: "border-l-sky-500 bg-sky-50/70",
+    slate: "border-l-slate-500 bg-card",
+    emerald: "border-l-emerald-500 bg-emerald-500/5",
+    amber: "border-l-amber-500 bg-amber-500/5",
+    red: "border-l-destructive bg-destructive/5",
+    sky: "border-l-sky-500 bg-sky-500/5",
   };
   return (
-    <Card className={cn("border-l-4 shadow-sm", toneMap[tone])}>
+    <Card className={cn("rounded-sm border-l-4 shadow-sm", toneMap[tone])}>
       <CardContent className="p-4">
         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</p>
         <p className="mt-2 text-2xl font-black tracking-tight">{value}</p>
@@ -293,7 +293,7 @@ function StatCard({
 
 function SectionEmpty({ title, description }: { title: string; description: string }) {
   return (
-    <Card className="border-dashed shadow-none">
+    <Card className="rounded-sm border-dashed border-border/70 bg-muted/20 shadow-none">
       <CardContent className="flex flex-col items-center gap-2 py-10 text-center">
         <PackageCheck className="size-8 text-muted-foreground/50" />
         <p className="text-sm font-semibold">{title}</p>
@@ -374,7 +374,7 @@ export function ImplantacaoAssistidaListPage() {
       <PageHeader
         title="Implantação Assistida de Estoque"
         description="Sessões de carga inicial que gravam SALDO_INICIAL, sem misturar a implantação com entradas operacionais comuns."
-        icon={<Warehouse className="size-4 text-primary" />}
+        icon={<Warehouse className="text-primary" size={22} />}
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Suprimentos", href: "/suprimentos" },
@@ -383,17 +383,17 @@ export function ImplantacaoAssistidaListPage() {
         ]}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => void downloadTemplateCsv()} disabled={!canCreate}>
+            <Button variant="outline" size="sm" className="rounded-sm" onClick={() => void downloadTemplateCsv()} disabled={!canCreate}>
               <Download size={14} /> Template CSV
             </Button>
             {canCreate ? (
-              <Button asChild>
+              <Button asChild variant="outline" size="sm" className="rounded-sm">
                 <Link href="/suprimentos/estoque/implantacao-assistida/nova">
                   <Upload size={14} /> Nova implantação
                 </Link>
               </Button>
             ) : (
-              <Button disabled>
+              <Button variant="outline" size="sm" className="rounded-sm" disabled>
                 <Upload size={14} /> Nova implantação
               </Button>
             )}
@@ -415,7 +415,7 @@ export function ImplantacaoAssistidaListPage() {
         <StatCard title="Com Erros" value={String(resumo.comErro)} hint="ainda exigem correção por linha" tone="red" />
       </div> : null}
 
-      {canView && canList ? <Card className="shadow-sm">
+      {canView && canList ? <Card className="rounded-sm shadow-sm">
         <CardHeader className="border-b">
           <CardTitle className="flex items-center gap-2 text-base">
             <Filter className="size-4 text-primary" />
@@ -427,7 +427,7 @@ export function ImplantacaoAssistidaListPage() {
           <div className="space-y-2">
             <Label>Status</Label>
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger>
+              <SelectTrigger className="h-8 text-xs rounded-sm">
                 <SelectValue placeholder="Filtrar status" />
               </SelectTrigger>
               <SelectContent>
@@ -447,14 +447,14 @@ export function ImplantacaoAssistidaListPage() {
                 value={arquivoNome}
                 onChange={(event) => setArquivoNome(event.target.value)}
                 placeholder="Buscar por nome do arquivo"
-                className="pl-9"
+                className="h-8 rounded-sm pl-9 text-xs"
               />
             </div>
           </div>
         </CardContent>
       </Card> : null}
 
-      {canView && canList ? <Card className="shadow-sm">
+      {canView && canList ? <Card className="rounded-sm shadow-sm">
         <CardHeader className="border-b">
           <CardTitle className="text-base">Sessões persistidas</CardTitle>
           <CardDescription>Cada sessão representa uma carga assistida e sua trilha de validação.</CardDescription>
@@ -463,7 +463,7 @@ export function ImplantacaoAssistidaListPage() {
           {isLoading ? (
             <div className="space-y-3">
               {Array.from({ length: 4 }).map((_, index) => (
-                <Skeleton key={index} className="h-16 w-full" />
+                <Skeleton key={index} className="h-16 w-full rounded-sm" />
               ))}
             </div>
           ) : !sessoes.length ? (
@@ -472,46 +472,48 @@ export function ImplantacaoAssistidaListPage() {
               description="Inicie uma nova implantação a partir de um CSV legado para visualizar o preview, corrigir as linhas e confirmar o saldo inicial."
             />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Arquivo</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Linhas</TableHead>
-                  <TableHead>Estimado</TableHead>
-                  <TableHead>Criada em</TableHead>
-                  <TableHead className="text-right">Ação</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sessoes.map((sessao) => (
-                  <TableRow key={sessao.id}>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <p className="font-semibold">{sessao.arquivo_nome}</p>
-                        <p className="text-xs text-muted-foreground">Hash {sessao.arquivo_hash.slice(0, 12)}...</p>
-                      </div>
-                    </TableCell>
-                    <TableCell><StatusBadge status={sessao.status} /></TableCell>
-                    <TableCell>
-                      <div className="text-xs leading-5 text-muted-foreground">
-                        <div>{sessao.total_linhas} total</div>
-                        <div>{sessao.linhas_validas} válidas • {sessao.linhas_com_erro} erro • {sessao.linhas_com_aviso} aviso</div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-semibold">{formatCurrency(sessao.valor_total_estimado)}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{formatDateTime(sessao.criado_em)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button asChild>
-                        <Link href={`/suprimentos/estoque/implantacao-assistida/${sessao.id}`}>
-                          Abrir <ChevronRight size={14} />
-                        </Link>
-                      </Button>
-                    </TableCell>
+            <div className="rounded-sm border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Arquivo</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Linhas</TableHead>
+                    <TableHead>Estimado</TableHead>
+                    <TableHead>Criada em</TableHead>
+                    <TableHead className="w-[100px] text-right" />
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {sessoes.map((sessao) => (
+                    <TableRow key={sessao.id}>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <p className="font-semibold">{sessao.arquivo_nome}</p>
+                          <p className="text-xs text-muted-foreground">Hash {sessao.arquivo_hash.slice(0, 12)}...</p>
+                        </div>
+                      </TableCell>
+                      <TableCell><StatusBadge status={sessao.status} /></TableCell>
+                      <TableCell>
+                        <div className="text-xs leading-5 text-muted-foreground">
+                          <div>{sessao.total_linhas} total</div>
+                          <div>{sessao.linhas_validas} válidas • {sessao.linhas_com_erro} erro • {sessao.linhas_com_aviso} aviso</div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-semibold">{formatCurrency(sessao.valor_total_estimado)}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{formatDateTime(sessao.criado_em)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button asChild variant="ghost" size="sm" className="h-7 gap-1 rounded-sm px-2 text-xs text-primary hover:text-primary">
+                          <Link href={`/suprimentos/estoque/implantacao-assistida/${sessao.id}`}>
+                            Abrir <ChevronRight size={14} />
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card> : null}
@@ -575,7 +577,7 @@ export function ImplantacaoAssistidaNewPage() {
       <PageHeader
         title="Nova Implantação Assistida"
         description="Envie um CSV legado, gere a prévia, persista a sessão e siga para a correção antes de gravar o saldo inicial."
-        icon={<FileSpreadsheet className="size-4 text-primary" />}
+        icon={<FileSpreadsheet className="text-primary" size={22} />}
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Suprimentos", href: "/suprimentos" },
@@ -584,7 +586,7 @@ export function ImplantacaoAssistidaNewPage() {
           { label: "Nova" },
         ]}
         actions={
-          <Button variant="outline" onClick={() => void downloadTemplateCsv()}>
+          <Button variant="outline" size="sm" className="rounded-sm" onClick={() => void downloadTemplateCsv()}>
             <Download size={14} /> Baixar template
           </Button>
         }
@@ -597,7 +599,7 @@ export function ImplantacaoAssistidaNewPage() {
         />
       ) : null}
 
-      {canCreate ? <Card className="shadow-sm">
+      {canCreate ? <Card className="rounded-sm shadow-sm">
         <CardHeader className="border-b">
           <CardTitle className="text-base">Upload do legado</CardTitle>
           <CardDescription>Esta etapa aceita apenas CSV. Nenhum saldo é alterado até a confirmação final da sessão.</CardDescription>
@@ -610,7 +612,7 @@ export function ImplantacaoAssistidaNewPage() {
                 id="csv-upload"
                 type="file"
                 accept=".csv,text/csv"
-                className="mt-3"
+                className="mt-3 h-8 rounded-sm text-xs"
                 data-testid="implantacao-upload-input"
                 onChange={(event) => {
                   const nextFile = event.target.files?.[0] ?? null;
@@ -630,18 +632,20 @@ export function ImplantacaoAssistidaNewPage() {
                 value={mappingText}
                 onChange={(event) => setMappingText(event.target.value)}
                 placeholder='{"descricao":"produto_nome","almoxarifado":"deposito_nome","saldo":"quantidade"}'
-                className="min-h-32 font-mono text-xs"
+                className="min-h-32 rounded-sm font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground">Use apenas quando o arquivo legado não puder ser reconhecido pelos aliases automáticos.</p>
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button data-testid="implantacao-gerar-previa" onClick={() => previewMutation.mutate()} disabled={!file || previewMutation.isPending}>
+              <Button variant="outline" size="sm" className="rounded-sm" data-testid="implantacao-gerar-previa" onClick={() => previewMutation.mutate()} disabled={!file || previewMutation.isPending}>
                 {previewMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Eye size={14} />}
                 Gerar prévia
               </Button>
               <Button
                 variant="outline"
+                size="sm"
+                className="rounded-sm"
                 onClick={() => createMutation.mutate()}
                 disabled={!file || createMutation.isPending || !previewData}
                 data-testid="implantacao-persistir-sessao"
@@ -652,7 +656,7 @@ export function ImplantacaoAssistidaNewPage() {
             </div>
           </div>
 
-          <Card className="border-slate-200 bg-slate-50/70 shadow-none">
+          <Card className="rounded-sm border-border/70 bg-muted/30 shadow-none">
             <CardHeader>
               <CardTitle className="text-sm uppercase tracking-wide">Regra operacional</CardTitle>
               <CardDescription className="text-sm">
@@ -660,11 +664,11 @@ export function ImplantacaoAssistidaNewPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <div className="flex gap-3 rounded-sm border border-amber-200 bg-amber-50 p-3 text-amber-900">
+              <div className="flex gap-3 rounded-sm border border-amber-500/30 bg-amber-500/10 p-3 text-amber-800 dark:text-amber-300">
                 <TriangleAlert className="mt-0.5 size-4 shrink-0" />
                 <p>Persistir a sessão não grava estoque. A gravação definitiva só ocorre no passo de confirmação da sessão apta.</p>
               </div>
-              <div className="flex gap-3 rounded-sm border border-sky-200 bg-sky-50 p-3 text-sky-900">
+              <div className="flex gap-3 rounded-sm border border-sky-500/30 bg-sky-500/10 p-3 text-sky-800 dark:text-sky-300">
                 <ShieldCheck className="mt-0.5 size-4 shrink-0" />
                 <p>O parser e a validação já respeitam o `tenant_id` e o contexto do produtor quando aplicado ao depósito.</p>
               </div>
@@ -682,31 +686,31 @@ export function ImplantacaoAssistidaNewPage() {
             <StatCard title="Com Erro" value={String(previewData.linhas_com_erro)} hint="bloqueiam a confirmação" tone="red" />
           </div>
 
-          <Card className="shadow-sm">
+          <Card className="rounded-sm shadow-sm">
             <CardHeader className="border-b">
               <CardTitle className="text-base">Prévia do upload</CardTitle>
               <CardDescription>Revise a estrutura, o mapeamento efetivo e as primeiras linhas detectadas antes de persistir a sessão.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-sm border p-3">
+                <div className="rounded-sm border border-border/70 bg-muted/20 p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Arquivo</p>
                   <p className="mt-2 font-semibold">{previewData.arquivo_nome}</p>
                 </div>
-                <div className="rounded-sm border p-3">
+                <div className="rounded-sm border border-border/70 bg-muted/20 p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Colunas detectadas</p>
                   <p className="mt-2 text-sm">{previewData.colunas_detectadas.join(", ") || "—"}</p>
                 </div>
-                <div className="rounded-sm border p-3">
+                <div className="rounded-sm border border-border/70 bg-muted/20 p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Valor estimado</p>
                   <p className="mt-2 font-semibold">{formatCurrency(previewData.valor_total_estimado)}</p>
                 </div>
               </div>
 
               {!!previewData.erros_arquivo.length && (
-                <div className="rounded-sm border border-red-200 bg-red-50 p-4">
-                  <p className="text-sm font-semibold text-red-800">Erros de arquivo</p>
-                  <ul className="mt-2 space-y-1 text-sm text-red-700">
+                <div className="rounded-sm border border-destructive/30 bg-destructive/10 p-4">
+                  <p className="text-sm font-semibold text-destructive">Erros de arquivo</p>
+                  <ul className="mt-2 space-y-1 text-sm text-destructive/90">
                     {previewData.erros_arquivo.map((erro, index) => (
                       <li key={`${erro.codigo}-${index}`}>{erro.mensagem}</li>
                     ))}
@@ -714,34 +718,36 @@ export function ImplantacaoAssistidaNewPage() {
                 </div>
               )}
 
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Linha</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Produto</TableHead>
-                    <TableHead>Depósito</TableHead>
-                    <TableHead>Quantidade</TableHead>
-                    <TableHead>Custo</TableHead>
-                    <TableHead>Mensagens</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {previewData.itens.slice(0, 12).map((item) => (
-                    <TableRow key={item.numero_linha}>
-                      <TableCell className="font-semibold">{item.numero_linha}</TableCell>
-                      <TableCell><StatusBadge status={item.status} /></TableCell>
-                      <TableCell>{String(item.dados_normalizados.produto_nome || item.dados_normalizados.produto_codigo || "—")}</TableCell>
-                      <TableCell>{String(item.dados_normalizados.deposito_nome || "—")}</TableCell>
-                      <TableCell>{String(item.dados_normalizados.quantidade || "—")}</TableCell>
-                      <TableCell>{String(item.dados_normalizados.custo_unitario || "—")}</TableCell>
-                      <TableCell className="max-w-sm text-xs text-muted-foreground">
-                        {[...item.erros, ...item.avisos].map((mensagem) => mensagem.mensagem).join(" • ") || "Sem mensagens"}
-                      </TableCell>
+              <div className="rounded-sm border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Linha</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Produto</TableHead>
+                      <TableHead>Depósito</TableHead>
+                      <TableHead>Quantidade</TableHead>
+                      <TableHead>Custo</TableHead>
+                      <TableHead>Mensagens</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {previewData.itens.slice(0, 12).map((item) => (
+                      <TableRow key={item.numero_linha}>
+                        <TableCell className="font-semibold">{item.numero_linha}</TableCell>
+                        <TableCell><StatusBadge status={item.status} /></TableCell>
+                        <TableCell>{String(item.dados_normalizados.produto_nome || item.dados_normalizados.produto_codigo || "—")}</TableCell>
+                        <TableCell>{String(item.dados_normalizados.deposito_nome || "—")}</TableCell>
+                        <TableCell>{String(item.dados_normalizados.quantidade || "—")}</TableCell>
+                        <TableCell>{String(item.dados_normalizados.custo_unitario || "—")}</TableCell>
+                        <TableCell className="max-w-sm text-xs text-muted-foreground">
+                          {[...item.erros, ...item.avisos].map((mensagem) => mensagem.mensagem).join(" • ") || "Sem mensagens"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </>
@@ -791,7 +797,7 @@ function ItemCorrectionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="sm:max-w-3xl rounded-sm">
         <DialogHeader className="border-b pb-4">
           <DialogTitle className="flex items-center gap-2 text-base">
             Corrigir linha {item?.numero_linha}
@@ -805,7 +811,7 @@ function ItemCorrectionDialog({
                 <div className="space-y-2">
                   <Label>Produto resolvido</Label>
                   <Select value={produtoId || "SEM_PRODUTO"} onValueChange={(value) => setProdutoId(value === "SEM_PRODUTO" ? "" : value)}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-8 text-xs rounded-sm">
                       <SelectValue placeholder="Selecionar produto" />
                     </SelectTrigger>
                     <SelectContent>
@@ -821,7 +827,7 @@ function ItemCorrectionDialog({
                 <div className="space-y-2">
                   <Label>Depósito resolvido</Label>
                   <Select value={depositoId || "SEM_DEPOSITO"} onValueChange={(value) => setDepositoId(value === "SEM_DEPOSITO" ? "" : value)}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-8 text-xs rounded-sm">
                       <SelectValue placeholder="Selecionar depósito" />
                     </SelectTrigger>
                     <SelectContent>
@@ -836,26 +842,26 @@ function ItemCorrectionDialog({
                 </div>
                 <div className="space-y-2">
                   <Label>Quantidade</Label>
-                  <Input data-testid="implantacao-campo-quantidade" value={quantidade} onChange={(event) => setQuantidade(event.target.value)} />
+                  <Input className="h-8 text-xs rounded-sm" data-testid="implantacao-campo-quantidade" value={quantidade} onChange={(event) => setQuantidade(event.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Custo unitário</Label>
-                  <Input data-testid="implantacao-campo-custo-unitario" value={custoUnitario} onChange={(event) => setCustoUnitario(event.target.value)} />
+                  <Input className="h-8 text-xs rounded-sm" data-testid="implantacao-campo-custo-unitario" value={custoUnitario} onChange={(event) => setCustoUnitario(event.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Lote</Label>
-                  <Input value={lote} onChange={(event) => setLote(event.target.value)} />
+                  <Input className="h-8 text-xs rounded-sm" value={lote} onChange={(event) => setLote(event.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Validade</Label>
-                  <Input type="date" value={validade} onChange={(event) => setValidade(event.target.value)} />
+                  <Input className="h-8 text-xs rounded-sm" type="date" value={validade} onChange={(event) => setValidade(event.target.value)} />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Observações</Label>
-                <Textarea value={observacoes} onChange={(event) => setObservacoes(event.target.value)} className="min-h-24" />
+                <Textarea value={observacoes} onChange={(event) => setObservacoes(event.target.value)} className="min-h-24 rounded-sm text-xs" />
               </div>
-              <div className="flex items-center gap-3 rounded-sm border bg-slate-50 px-3 py-3">
+              <div className="flex items-center gap-3 rounded-sm border border-border/70 bg-muted/30 px-3 py-3">
                 <Checkbox checked={ignorado} onCheckedChange={setIgnorado} disabled={locked} />
                 <div>
                   <p className="text-sm font-semibold">Ignorar linha</p>
@@ -865,7 +871,7 @@ function ItemCorrectionDialog({
             </div>
 
             <div className="space-y-4">
-              <Card className="border-slate-200 shadow-none">
+              <Card className="rounded-sm border-border/70 shadow-none">
                 <CardHeader>
                   <CardTitle className="text-sm">Origem do arquivo</CardTitle>
                 </CardHeader>
@@ -880,9 +886,9 @@ function ItemCorrectionDialog({
               </Card>
 
               {!!item.erros.length && (
-                <div className="rounded-sm border border-red-200 bg-red-50 p-4">
-                  <p className="text-sm font-semibold text-red-800">Erros</p>
-                  <ul className="mt-2 space-y-1 text-sm text-red-700">
+                <div className="rounded-sm border border-destructive/30 bg-destructive/10 p-4">
+                  <p className="text-sm font-semibold text-destructive">Erros</p>
+                  <ul className="mt-2 space-y-1 text-sm text-destructive/90">
                     {item.erros.map((erro, index) => (
                       <li key={`${erro.codigo}-${index}`}>{erro.mensagem}</li>
                     ))}
@@ -891,9 +897,9 @@ function ItemCorrectionDialog({
               )}
 
               {!!item.avisos.length && (
-                <div className="rounded-sm border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-sm font-semibold text-amber-900">Avisos</p>
-                  <ul className="mt-2 space-y-1 text-sm text-amber-800">
+                <div className="rounded-sm border border-amber-500/30 bg-amber-500/10 p-4 text-amber-800 dark:text-amber-300">
+                  <p className="text-sm font-semibold">Avisos</p>
+                  <ul className="mt-2 space-y-1 text-sm opacity-90">
                     {item.avisos.map((aviso, index) => (
                       <li key={`${aviso.codigo}-${index}`}>{aviso.mensagem}</li>
                     ))}
@@ -902,9 +908,9 @@ function ItemCorrectionDialog({
               )}
 
               {!!Object.keys(item.sugestoes).length && (
-                <div className="rounded-sm border border-sky-200 bg-sky-50 p-4">
-                  <p className="text-sm font-semibold text-sky-900">Sugestões do parser</p>
-                  <div className="mt-2 space-y-2 text-sm text-sky-900">
+                <div className="rounded-sm border border-sky-500/30 bg-sky-500/10 p-4 text-sky-800 dark:text-sky-300">
+                  <p className="text-sm font-semibold">Sugestões do parser</p>
+                  <div className="mt-2 space-y-2 text-sm opacity-90">
                     {Object.entries(item.sugestoes).map(([campo, sugestoes]) => (
                       <div key={campo}>
                         <p className="font-semibold">{campo}</p>
@@ -918,8 +924,11 @@ function ItemCorrectionDialog({
           </div>
         )}
         <DialogFooter className="border-t px-6 pb-6 pt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
+          <Button variant="outline" size="sm" className="rounded-sm" onClick={() => onOpenChange(false)}>Fechar</Button>
           <Button
+            variant="outline"
+            size="sm"
+            className="rounded-sm"
             data-testid="implantacao-salvar-correcao"
             disabled={!item || locked || saving}
             onClick={async () => {
@@ -1082,7 +1091,7 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
       <PageHeader
         title="Sessão de Implantação Assistida"
         description="Corrija as linhas persistidas, revalide a sessão e confirme apenas quando a aptidão estiver liberada para SALDO_INICIAL."
-        icon={<Warehouse className="size-4 text-primary" />}
+        icon={<Warehouse className="text-primary" size={22} />}
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Suprimentos", href: "/suprimentos" },
@@ -1092,14 +1101,14 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
         ]}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setCancelOpen(true)} disabled={!canCancel || locked || cancelMutation.isPending || loadingSession}>
+            <Button variant="outline" size="sm" className="rounded-sm" onClick={() => setCancelOpen(true)} disabled={!canCancel || locked || cancelMutation.isPending || loadingSession}>
               <Ban size={14} /> Cancelar sessão
             </Button>
-            <Button variant="outline" onClick={() => revalidateMutation.mutate()} disabled={!canEdit || locked || revalidateMutation.isPending || loadingSession}>
+            <Button variant="outline" size="sm" className="rounded-sm" onClick={() => revalidateMutation.mutate()} disabled={!canEdit || locked || revalidateMutation.isPending || loadingSession}>
               {revalidateMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw size={14} />}
               Revalidar
             </Button>
-            <Button data-testid="implantacao-abrir-confirmacao" onClick={() => setConfirmOpen(true)} disabled={!canApprove || !aptidao?.apta || locked || confirmMutation.isPending}>
+            <Button variant="outline" size="sm" className="rounded-sm" data-testid="implantacao-abrir-confirmacao" onClick={() => setConfirmOpen(true)} disabled={!canApprove || !aptidao?.apta || locked || confirmMutation.isPending}>
               <ShieldCheck size={14} /> Confirmar saldo inicial
             </Button>
           </div>
@@ -1115,8 +1124,8 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
 
       {canView && loadingSession ? (
         <div className="space-y-4">
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-80 w-full" />
+          <Skeleton className="h-32 w-full rounded-sm" />
+          <Skeleton className="h-80 w-full rounded-sm" />
         </div>
       ) : canView && !session ? (
         <SectionEmpty title="Sessão não encontrada" description="Verifique o identificador informado ou retorne para a listagem de implantações." />
@@ -1130,7 +1139,7 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-            <Card className="shadow-sm">
+            <Card className="rounded-sm shadow-sm">
               <CardHeader className="border-b">
                 <CardTitle className="text-base">Resumo da sessão</CardTitle>
                 <CardDescription>
@@ -1138,11 +1147,11 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 pt-4 md:grid-cols-2">
-                <div className="rounded-sm border p-4">
+                <div className="rounded-sm border border-border/70 bg-muted/20 p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Colunas detectadas</p>
                   <p className="mt-2 text-sm">{session.colunas_detectadas.join(", ") || "—"}</p>
                 </div>
-                <div className="rounded-sm border p-4">
+                <div className="rounded-sm border border-border/70 bg-muted/20 p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Mapeamento utilizado</p>
                   <div className="mt-2 space-y-1 text-sm">
                     {Object.entries(session.mapeamento_colunas).map(([origem, destino]) => (
@@ -1152,20 +1161,20 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
                     ))}
                   </div>
                 </div>
-                <div className="rounded-sm border p-4 md:col-span-2">
+                <div className="rounded-sm border border-border/70 bg-muted/20 p-4 md:col-span-2">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Pós-confirmação</p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button asChild variant="outline">
+                    <Button asChild variant="outline" size="sm" className="rounded-sm">
                       <Link href={`/suprimentos/estoque?aba=historico&origem_tipo=IMPLANTACAO&origem_id=${session.id}`}>
                         <Warehouse size={14} /> Ver movimentações
                       </Link>
                     </Button>
-                    <Button asChild variant="outline">
+                    <Button asChild variant="outline" size="sm" className="rounded-sm">
                       <Link href="/suprimentos/saldos">
                         <PackageCheck size={14} /> Conferir saldos
                       </Link>
                     </Button>
-                    <Button asChild variant="outline">
+                    <Button asChild variant="outline" size="sm" className="rounded-sm">
                       <Link href={`/suprimentos/estoque/implantacao-assistida/${session.id}/auditoria`}>
                         <ShieldCheck size={14} /> Ver auditoria
                       </Link>
@@ -1175,7 +1184,7 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
               </CardContent>
             </Card>
 
-            <Card className="shadow-sm">
+            <Card className="rounded-sm shadow-sm">
               <CardHeader className="border-b">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <ShieldCheck className="size-4 text-primary" />
@@ -1187,21 +1196,21 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
               </CardHeader>
               <CardContent className="space-y-4 pt-4">
                 {loadingAptidao ? (
-                  <Skeleton className="h-40 w-full" />
+                  <Skeleton className="h-40 w-full rounded-sm" />
                 ) : aptidao ? (
                   <>
-                    <div className={cn("rounded-sm border p-4", aptidao.apta ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50")}>
+                    <div className={cn("rounded-sm border p-4", aptidao.apta ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300" : "border-destructive/30 bg-destructive/10 text-destructive")}>
                       <div className="flex items-start gap-3">
                         {aptidao.apta ? (
-                          <CheckCircle2 className="mt-0.5 size-5 text-emerald-700" />
+                          <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
                         ) : (
-                          <CircleAlert className="mt-0.5 size-5 text-red-700" />
+                          <CircleAlert className="mt-0.5 size-5 shrink-0 text-destructive" />
                         )}
                         <div>
-                          <p className={cn("text-sm font-semibold", aptidao.apta ? "text-emerald-900" : "text-red-900")}>
+                          <p className="text-sm font-semibold">
                             {aptidao.apta ? "Sessão apta para confirmação" : "Sessão ainda bloqueada"}
                           </p>
-                          <p className={cn("mt-1 text-sm", aptidao.apta ? "text-emerald-800" : "text-red-800")}>
+                          <p className="mt-1 text-sm opacity-90">
                             {aptidao.total_itens_confirmaveis} itens confirmáveis • {formatCurrency(aptidao.valor_total_confirmavel)}
                           </p>
                         </div>
@@ -1220,9 +1229,9 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
                     )}
 
                     {!!aptidao.avisos.length && (
-                      <div className="rounded-sm border border-amber-500/30 bg-amber-500/10 dark:bg-amber-950/20 p-4">
-                        <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">Avisos</p>
-                        <ul className="mt-2 space-y-1 text-sm text-amber-800 dark:text-amber-300">
+                      <div className="rounded-sm border border-amber-500/30 bg-amber-500/10 p-4 text-amber-800 dark:text-amber-300">
+                        <p className="text-sm font-semibold">Avisos</p>
+                        <ul className="mt-2 space-y-1 text-sm opacity-90">
                           {aptidao.avisos.map((aviso) => (
                             <li key={aviso}>{aviso}</li>
                           ))}
@@ -1235,7 +1244,7 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
             </Card>
           </div>
 
-          <Card className="shadow-sm">
+          <Card className="rounded-sm shadow-sm">
             <CardHeader className="border-b">
               <CardTitle className="text-base">Linhas persistidas</CardTitle>
               <CardDescription>Corrija produto, depósito, quantidade e custo por linha. Após confirmação, a edição é bloqueada.</CardDescription>
@@ -1245,7 +1254,7 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
                 <div className="space-y-2">
                   <Label>Status do item</Label>
                   <Select value={itemStatusFilter} onValueChange={setItemStatusFilter}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-8 text-xs rounded-sm">
                       <SelectValue placeholder="Filtrar item" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1260,10 +1269,20 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
                 <div className="space-y-2">
                   <Label>Atalhos</Label>
                   <div className="flex gap-2">
-                    <Button variant={somenteErros ? "default" : "outline"} onClick={() => { setSomenteErros((current) => !current); if (!somenteErros) setSomenteAvisos(false); }}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={cn("rounded-sm", somenteErros && "border-destructive/50 bg-destructive/10 text-destructive")}
+                      onClick={() => { setSomenteErros((current) => !current); if (!somenteErros) setSomenteAvisos(false); }}
+                    >
                       <AlertTriangle size={14} /> Erros
                     </Button>
-                    <Button variant={somenteAvisos ? "default" : "outline"} onClick={() => { setSomenteAvisos((current) => !current); if (!somenteAvisos) setSomenteErros(false); }}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={cn("rounded-sm", somenteAvisos && "border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-300")}
+                      onClick={() => { setSomenteAvisos((current) => !current); if (!somenteAvisos) setSomenteErros(false); }}
+                    >
                       <TriangleAlert size={14} /> Avisos
                     </Button>
                   </div>
@@ -1271,7 +1290,7 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
                 <div className="space-y-2">
                   <Label>Ignorado</Label>
                   <Select value={ignoradoFilter} onValueChange={setIgnoradoFilter}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-8 text-xs rounded-sm">
                       <SelectValue placeholder="Ignorado" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1281,68 +1300,77 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="rounded-sm border border-slate-200 bg-slate-50 p-3 text-xs text-muted-foreground">
-                  <strong className="text-foreground">Regra de UX:</strong> linhas com <span className="font-semibold text-red-700">ERRO</span> bloqueiam a confirmação; <span className="font-semibold text-amber-800">AVISO</span> exige aceite explícito; <span className="font-semibold text-emerald-700">VALIDA/CORRIGIDO</span> segue para SALDO_INICIAL.
+                <div className="rounded-sm border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
+                  <strong className="text-foreground">Regra de UX:</strong> linhas com <span className="font-semibold text-destructive">ERRO</span> bloqueiam a confirmação; <span className="font-semibold text-amber-700 dark:text-amber-300">AVISO</span> exige aceite explícito; <span className="font-semibold text-emerald-700 dark:text-emerald-300">VALIDA/CORRIGIDO</span> segue para SALDO_INICIAL.
                 </div>
               </div>
 
               {loadingItems ? (
                 <div className="space-y-3">
                   {Array.from({ length: 4 }).map((_, index) => (
-                    <Skeleton key={index} className="h-16 w-full" />
+                    <Skeleton key={index} className="h-16 w-full rounded-sm" />
                   ))}
                 </div>
               ) : !items.length ? (
                 <SectionEmpty title="Nenhum item no filtro atual" description="Ajuste os filtros para voltar a enxergar as linhas da sessão." />
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Linha</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Produto</TableHead>
-                      <TableHead>Depósito</TableHead>
-                      <TableHead>Quantidade</TableHead>
-                      <TableHead>Custo</TableHead>
-                      <TableHead>Mensagens</TableHead>
-                      <TableHead className="text-right">Correção</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {items.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-semibold">{item.numero_linha}</TableCell>
-                        <TableCell><StatusBadge status={item.status} /></TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <p>{String(item.dados_normalizados.produto_nome_resolvido || item.dados_normalizados.produto_nome_original || item.dados_normalizados.produto_codigo_original || "—")}</p>
-                            {item.produto_id_resolvido ? (
-                              <p className="text-xs text-muted-foreground">{item.produto_id_resolvido}</p>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <p>{String(item.dados_normalizados.deposito_nome_resolvido || item.dados_normalizados.deposito_nome || "—")}</p>
-                            {item.deposito_id_resolvido ? (
-                              <p className="text-xs text-muted-foreground">{item.deposito_id_resolvido}</p>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                        <TableCell>{String(item.dados_normalizados.quantidade || "—")}</TableCell>
-                        <TableCell>{item.dados_normalizados.custo_unitario ? formatCurrency(Number(item.dados_normalizados.custo_unitario)) : "—"}</TableCell>
-                        <TableCell className="max-w-md text-xs text-muted-foreground">
-                          {[...item.erros, ...item.avisos].map((mensagem) => mensagem.mensagem).join(" • ") || "Sem mensagens"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button data-testid={`implantacao-corrigir-item-${item.numero_linha}`} variant="outline" onClick={() => setEditingItem(item)} disabled={!canEdit || locked}>
-                            Corrigir
-                          </Button>
-                        </TableCell>
+                <div className="rounded-sm border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Linha</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Produto</TableHead>
+                        <TableHead>Depósito</TableHead>
+                        <TableHead>Quantidade</TableHead>
+                        <TableHead>Custo</TableHead>
+                        <TableHead>Mensagens</TableHead>
+                        <TableHead className="w-[100px] text-right" />
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {items.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-semibold">{item.numero_linha}</TableCell>
+                          <TableCell><StatusBadge status={item.status} /></TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <p>{String(item.dados_normalizados.produto_nome_resolvido || item.dados_normalizados.produto_nome_original || item.dados_normalizados.produto_codigo_original || "—")}</p>
+                              {item.produto_id_resolvido ? (
+                                <p className="text-xs text-muted-foreground">{item.produto_id_resolvido}</p>
+                              ) : null}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <p>{String(item.dados_normalizados.deposito_nome_resolvido || item.dados_normalizados.deposito_nome || "—")}</p>
+                              {item.deposito_id_resolvido ? (
+                                <p className="text-xs text-muted-foreground">{item.deposito_id_resolvido}</p>
+                              ) : null}
+                            </div>
+                          </TableCell>
+                          <TableCell>{String(item.dados_normalizados.quantidade || "—")}</TableCell>
+                          <TableCell>{item.dados_normalizados.custo_unitario ? formatCurrency(Number(item.dados_normalizados.custo_unitario)) : "—"}</TableCell>
+                          <TableCell className="max-w-md text-xs text-muted-foreground">
+                            {[...item.erros, ...item.avisos].map((mensagem) => mensagem.mensagem).join(" • ") || "Sem mensagens"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              data-testid={`implantacao-corrigir-item-${item.numero_linha}`}
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 gap-1 rounded-sm px-2 text-xs text-primary hover:text-primary"
+                              onClick={() => setEditingItem(item)}
+                              disabled={!canEdit || locked}
+                            >
+                              Corrigir
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -1361,7 +1389,7 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
           />
 
           <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-            <AlertDialogContent className="max-w-lg">
+            <AlertDialogContent className="sm:max-w-lg rounded-sm">
               <AlertDialogHeader>
                 <AlertDialogTitle>Confirmar implantação assistida?</AlertDialogTitle>
                 <AlertDialogDescription>
@@ -1369,9 +1397,9 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <div className="space-y-4 px-1 text-sm">
-                <div className="rounded-sm border border-amber-500/30 bg-amber-500/10 dark:bg-amber-950/20 p-4 text-amber-900 dark:text-amber-200">
+                <div className="rounded-sm border border-amber-500/30 bg-amber-500/10 p-4 text-amber-800 dark:text-amber-300">
                   <p className="font-semibold">Aviso operacional</p>
-                  <p className="mt-1">
+                  <p className="mt-1 opacity-90">
                     Após confirmar, a sessão ficará bloqueada para edição e a conferência deve ser feita em saldos/movimentações.
                   </p>
                 </div>
@@ -1393,6 +1421,7 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
                   <Label htmlFor="confirm-observacao">Observação da confirmação</Label>
                   <Textarea
                     id="confirm-observacao"
+                    className="rounded-sm text-xs"
                     value={confirmObservacao}
                     onChange={(event) => setConfirmObservacao(event.target.value)}
                     placeholder="Ex: Carga inicial validada pelo responsável do almoxarifado."
@@ -1400,13 +1429,17 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
                 </div>
               </div>
               <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => {
-                  setConfirmSaldoInicial(false);
-                  setConfirmAvisos(false);
-                }}>
+                <AlertDialogCancel
+                  className="rounded-sm"
+                  onClick={() => {
+                    setConfirmSaldoInicial(false);
+                    setConfirmAvisos(false);
+                  }}
+                >
                   Cancelar
                 </AlertDialogCancel>
                 <AlertDialogAction
+                  className="rounded-sm"
                   data-testid="implantacao-confirmar-final"
                   disabled={!confirmSaldoInicial || (!!aptidao?.avisos.length && !confirmAvisos) || confirmMutation.isPending || !aptidao?.apta}
                   onClick={() => confirmMutation.mutate()}
@@ -1419,7 +1452,7 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
           </AlertDialog>
 
           <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
-            <AlertDialogContent className="max-w-lg">
+            <AlertDialogContent className="sm:max-w-lg rounded-sm">
               <AlertDialogHeader>
                 <AlertDialogTitle>Cancelar sessão de implantação?</AlertDialogTitle>
                 <AlertDialogDescription>
@@ -1427,8 +1460,9 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Voltar</AlertDialogCancel>
+                <AlertDialogCancel className="rounded-sm">Voltar</AlertDialogCancel>
                 <AlertDialogAction
+                  className="rounded-sm"
                   data-testid="implantacao-cancelar-sessao"
                   disabled={cancelMutation.isPending}
                   onClick={() => cancelMutation.mutate()}
@@ -1468,7 +1502,7 @@ export function ImplantacaoAssistidaAuditPage({ sessionId }: { sessionId: string
       <PageHeader
         title="Auditoria da Implantação"
         description="Trilha vinculada ao produtor da sessão de implantação assistida."
-        icon={<ShieldCheck className="size-4 text-primary" />}
+        icon={<ShieldCheck className="text-primary" size={22} />}
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Suprimentos", href: "/suprimentos" },
@@ -1477,7 +1511,7 @@ export function ImplantacaoAssistidaAuditPage({ sessionId }: { sessionId: string
           { label: "Auditoria" },
         ]}
         actions={
-          <Button asChild variant="outline">
+          <Button asChild variant="outline" size="sm" className="rounded-sm">
             <Link href={`/suprimentos/estoque/implantacao-assistida/${sessionId}`}>Voltar à sessão</Link>
           </Button>
         }
@@ -1491,7 +1525,7 @@ export function ImplantacaoAssistidaAuditPage({ sessionId }: { sessionId: string
       ) : null}
 
       {canViewAudit ? (
-        <Card className="shadow-sm">
+        <Card className="rounded-sm shadow-sm">
           <CardHeader className="border-b">
             <CardTitle className="text-base">Eventos da sessão</CardTitle>
             <CardDescription>Criação, correções, revalidação, cancelamento e confirmação.</CardDescription>
@@ -1500,7 +1534,7 @@ export function ImplantacaoAssistidaAuditPage({ sessionId }: { sessionId: string
             {isLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 4 }).map((_, index) => (
-                  <Skeleton key={index} className="h-14 w-full" />
+                  <Skeleton key={index} className="h-14 w-full rounded-sm" />
                 ))}
               </div>
             ) : !logs.length ? (
@@ -1509,26 +1543,28 @@ export function ImplantacaoAssistidaAuditPage({ sessionId }: { sessionId: string
                 description="Ainda não há eventos de auditoria registrados para esta sessão."
               />
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Quando</TableHead>
-                    <TableHead>Ação</TableHead>
-                    <TableHead>Recurso</TableHead>
-                    <TableHead>Usuário</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {logs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell>{formatDateTime(log.created_at)}</TableCell>
-                      <TableCell className="font-semibold">{log.action}</TableCell>
-                      <TableCell>{log.resource}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{log.user_id || "—"}</TableCell>
+              <div className="rounded-sm border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Quando</TableHead>
+                      <TableHead>Ação</TableHead>
+                      <TableHead>Recurso</TableHead>
+                      <TableHead>Usuário</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {logs.map((log) => (
+                      <TableRow key={log.id}>
+                        <TableCell>{formatDateTime(log.created_at)}</TableCell>
+                        <TableCell className="font-semibold">{log.action}</TableCell>
+                        <TableCell>{log.resource}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{log.user_id || "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

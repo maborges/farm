@@ -17,7 +17,7 @@ import {
 import { toast } from "sonner";
 import {
     Save, Pencil, MapPin, Layers,
-    CheckCircle2, XCircle, Square, X
+    CheckCircle2, XCircle, Square, X, Trash2, RotateCcw
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { MapVisualizationToggle } from "@/components/shared/map-visualization-toggle";
@@ -225,11 +225,13 @@ export default function TalhoesPage() {
     const updateMutation = useMutation({
         mutationFn: ({ id, data }: { id: string; data: any }) =>
             apiFetch(`/cadastros/areas-rurais/${id}`, { method: "PATCH", body: data }),
-        onSuccess: () => {
+        onSuccess: (_result, variables) => {
             queryClient.invalidateQueries({ queryKey: ["areas-rurais", activeFazendaId] });
-            toast.success("Geometria salva");
+            const cleared = variables.data?.geometria === null;
+            toast.success(cleared ? "Região desmarcada com sucesso" : "Geometria salva");
             cancelMode();
             setSheetOpen(false);
+            if (cleared) setSelectedTalhao(null);
         },
         onError: (error: Error) => toast.error(error.message || "Erro ao salvar geometria")
     });
@@ -270,9 +272,21 @@ export default function TalhoesPage() {
                         }
                     };
 
+                    const onDelete = () => {
+                        const remaining = draw.getAll()?.features?.[0];
+                        if (remaining) {
+                            const areaM2 = turf.area(remaining);
+                            setDrawnAreaHa(Math.round(areaM2 / 10000 * 100) / 100);
+                            setDrawnGeometry(remaining.geometry);
+                        } else {
+                            setDrawnAreaHa(null);
+                            setDrawnGeometry(null);
+                        }
+                    };
+
                     map.on("draw.create", onChange);
                     map.on("draw.update", onChange);
-                    map.on("draw.delete", onChange);
+                    map.on("draw.delete", onDelete);
                 } catch (e) {
                     console.error("MapboxDraw init error", e);
                 }
@@ -346,6 +360,34 @@ export default function TalhoesPage() {
         setDrawnGeometry(null);
         setDrawnAreaHa(null);
     }, [removeDraw]);
+
+    const clearDrawnPolygon = useCallback(() => {
+        const draw = drawRef.current;
+        if (draw) {
+            draw.deleteAll();
+            draw.changeMode("draw_polygon");
+        }
+        setDrawnGeometry(null);
+        setDrawnAreaHa(null);
+    }, []);
+
+    const unmarkTalhaoRegion = useCallback((talhao: Talhao) => {
+        const draw = drawRef.current;
+        if (draw) {
+            draw.deleteAll();
+        }
+        setDrawnGeometry(null);
+        setDrawnAreaHa(null);
+        updateMutation.mutate({
+            id: talhao.id,
+            data: {
+                geometria: null,
+                area_hectares: null,
+                centroide_lat: null,
+                centroide_lng: null,
+            }
+        });
+    }, [updateMutation]);
 
     // ── Save actions ──────────────────────────────────────────────────────────
     const saveEditGeom = useCallback(() => {
@@ -608,7 +650,7 @@ export default function TalhoesPage() {
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between">
                                         <span className="font-semibold text-sm">Editar Geometria</span>
-                                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={cancelMode}>
+                                        <Button size="icon" variant="ghost" className="h-6 w-6 rounded-sm" onClick={cancelMode}>
                                             <X className="size-4" />
                                         </Button>
                                     </div>
@@ -618,18 +660,51 @@ export default function TalhoesPage() {
                                             Arraste os vértices para editar. Clique em um vértice e pressione <kbd className="bg-muted px-1 rounded">⌫</kbd> para remover.
                                         </p>
                                     </div>
-                                    {drawnAreaHa && (
-                                        <div className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 text-sm rounded-md p-3">
+                                    {drawnAreaHa !== null && (
+                                        <div className="bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-300 text-sm rounded-sm p-3">
                                             Área calculada: <strong>{drawnAreaHa} ha</strong>
                                         </div>
                                     )}
+                                    {(drawnGeometry || selectedTalhao?.geometria) && (
+                                        <div className="space-y-2">
+                                            {drawnGeometry && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="w-full rounded-sm"
+                                                    disabled={updateMutation.isPending}
+                                                    onClick={clearDrawnPolygon}
+                                                >
+                                                    <RotateCcw className="h-4 w-4 mr-2" />
+                                                    Limpar Desenho
+                                                </Button>
+                                            )}
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="w-full rounded-sm text-destructive hover:text-destructive"
+                                                disabled={updateMutation.isPending}
+                                                onClick={() => {
+                                                    if (selectedTalhao?.geometria) {
+                                                        unmarkTalhaoRegion(selectedTalhao);
+                                                    } else {
+                                                        clearDrawnPolygon();
+                                                    }
+                                                }}
+                                            >
+                                                <Trash2 className="h-4 w-4 mr-2" />
+                                                Desmarcar Região
+                                            </Button>
+                                        </div>
+                                    )}
                                     <div className="flex gap-2">
-                                        <Button variant="outline" size="sm" className="flex-1" onClick={cancelMode}>
+                                        <Button variant="outline" size="sm" className="flex-1 rounded-sm" onClick={cancelMode}>
                                             Cancelar
                                         </Button>
                                         <Button
+                                            variant="outline"
                                             size="sm"
-                                            className="flex-1"
+                                            className="flex-1 rounded-sm"
                                             onClick={saveEditGeom}
                                             disabled={!drawnGeometry || updateMutation.isPending}
                                         >
@@ -749,20 +824,35 @@ export default function TalhoesPage() {
                             {/* Actions */}
                             <div className="mt-auto space-y-2 p-4">
                                 <Button
-                                    className="w-full"
+                                    className="w-full rounded-sm"
+                                    variant="outline"
+                                    size="sm"
                                     onClick={() => setEditDialogOpen(true)}
                                 >
                                     <Pencil className="h-4 w-4 mr-2" />
                                     Editar Dados do Talhão
                                 </Button>
                                 <Button
-                                    className="w-full"
+                                    className="w-full rounded-sm"
                                     variant="outline"
+                                    size="sm"
                                     onClick={() => startEditingGeom(selectedTalhao)}
                                 >
                                     <MapPin className="h-4 w-4 mr-2" />
                                     {selectedTalhao.geometria ? "Editar Geometria no Mapa" : "Desenhar Geometria no Mapa"}
                                 </Button>
+                                {selectedTalhao.geometria && (
+                                    <Button
+                                        className="w-full rounded-sm text-destructive hover:text-destructive"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={updateMutation.isPending}
+                                        onClick={() => unmarkTalhaoRegion(selectedTalhao)}
+                                    >
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Desmarcar Região
+                                    </Button>
+                                )}
                             </div>
                         </>
                     )}
