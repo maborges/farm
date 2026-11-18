@@ -606,13 +606,20 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
   2. Com `IA_PROVIDER=auto`, o sistema tenta automaticamente os provedores configurados na ordem **`anthropic` → `openai` → `gemini` → `groq` → `ollama`** com failover em caso de erro ou limite de cota; também é possível fixar um provedor específico (`IA_PROVIDER=groq`, `openai`, `gemini`, `anthropic` ou `ollama`).
   3. Caso nenhum provedor esteja disponível ou a cota mensal do tenant seja atingida, o sistema retorna análises determinísticas (`fonte: "DETERMINISTICO"`) sem interromper o uso da DRE Operacional.
 
+### Hierarquia Territorial Flexível e Áreas Produtivas Unificadas (Agrícola + Pecuária)
+- **Descrição curta:** Flexibilização da hierarquia territorial (`GLEBA → TALHAO / PIQUETE`) e unificação dos fluxos transversais (custeio, estoque e App Campo) por áreas produtivas (`TIPOS_AREA_PRODUTIVA`) em vez de exigir exclusivamente `TALHAO`.
+- **Fluxo de funcionamento:**
+  1. Em `core/cadastros/propriedades/models.py`, `GLEBA` aceita diretamente `TALHAO`, `PIQUETE` e `AREA_AMBIENTAL`; `TALHAO` aceita diretamente `SUBTALHAO`, `ZONA_MANEJO`, `PIQUETE` (ILPF) e `AREA_OPERACIONAL` (opcional).
+  2. O endpoint `GET /api/v1/cadastros/areas-rurais` aceita `apenas_produtivas=true` (`TALHAO`, `PIQUETE`, `SUBTALHAO`, `ZONA_MANEJO`, `AREA_OPERACIONAL`), utilizado por Estoque (`EstoqueDialogs`), Tarefas/App Campo (`campo/service.py`, `tarefa-drawer.tsx`) e Relatórios Financeiros (`relatorio_service.py`).
+  3. A tela `/dashboard/pecuaria/piquetes` foi consolidada como painel de consulta zootécnica, direcionando a manutenção estrutural para `/cadastros/propriedades`.
+
 ## Conceitos-Chave: Propriedade, Talhão e Unidade Produtiva
 
 
 - **Propriedade / Unidade Produtiva**: cadastro mestre da fazenda (nome, tipo, documentos, endereço, áreas, geometria).
-- **Área Rural / Talhão**: divisão física dentro da propriedade — base para solo, caderno de campo, NDVI etc.
+- **Área Rural (Talhão / Piquete / Subtalhão)**: divisão física dentro da gleba — base unificada para solo, caderno de campo, pastagens, estoque, custeio e NDVI.
 - **Production Unit da safra**: vínculo `cultivo + área + participação` dentro de uma safra específica.
-- **Fluxo**: cadastra-se a propriedade → gera/organiza talhões → a safra vincula em `production-units` → módulos agrícolas operam sobre esses vínculos.
+- **Fluxo**: cadastra-se a propriedade em `/cadastros/propriedades` → organiza-se glebas, talhões e/ou piquetes → safras, pecuária, estoque, campo e custeio operam sobre essas áreas produtivas.
 
 Regras completas de fronteira territorial/fundiária: `docs/architecture/agrosaas-domain-map.md`.
 

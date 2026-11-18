@@ -212,8 +212,9 @@ export default function TalhoesPage() {
     const glebas = allAreas.filter(a => a.tipo === "GLEBA");
     const raizes = allAreas.filter(a => a.tipo === "AREA_RURAL");
     
-    // Filtrar apenas TALHAO para a visualização principal desta página
-    const displayAreas = allAreas.filter(a => a.tipo === "TALHAO").sort((a, b) => a.nome.localeCompare(b.nome));
+    // Filtrar áreas produtivas (Talhões, Piquetes, Subtalhões, Zonas de Manejo e Áreas Operacionais)
+    const TIPOS_PRODUTIVOS = new Set(["TALHAO", "PIQUETE", "SUBTALHAO", "ZONA_MANEJO", "AREA_OPERACIONAL"]);
+    const displayAreas = allAreas.filter(a => TIPOS_PRODUTIVOS.has(a.tipo)).sort((a, b) => a.nome.localeCompare(b.nome));
 
     // Mapa de gleba_id → gleba
     const glebaMap = glebas.reduce<Record<string, Talhao>>((acc, g) => {
@@ -413,7 +414,7 @@ export default function TalhoesPage() {
     const geojson: GeoJSON.FeatureCollection = {
         type: "FeatureCollection",
         features: allAreas
-            .filter(t => t.tipo === "TALHAO" && t.geometria && !(mode === "editing_geom" && t.id === selectedTalhao?.id))
+            .filter(t => TIPOS_PRODUTIVOS.has(t.tipo) && t.geometria && !(mode === "editing_geom" && t.id === selectedTalhao?.id))
             .map(t => ({
                 type: "Feature",
                 geometry: t.geometria,
@@ -434,7 +435,7 @@ export default function TalhoesPage() {
         <div className="p-6 space-y-6 h-full flex flex-col">
             <PageHeader
                 title="Georreferenciamento"
-                description="Visualize e edite a geometria dos talhões no mapa"
+                description="Visualize e edite a geometria de talhões, piquetes e áreas produtivas no mapa"
                 icon={<MapPin className="text-primary" size={22} />}
                 breadcrumbs={[{ label: "Cadastros", href: "/cadastros" }, { label: "Propriedades", href: "/cadastros/propriedades" }, { label: "Georreferenciamento" }]}
             />
@@ -488,6 +489,7 @@ export default function TalhoesPage() {
                                             <div className="flex items-center gap-1.5 mb-0.5">
                                                {t.tipo === "GLEBA" && <Layers size={12} className="text-amber-500" />}
                                                {t.tipo === "TALHAO" && <Square size={12} className="text-green-500" />}
+                                               {t.tipo === "PIQUETE" && <Square size={12} className="text-amber-600" />}
                                                {t.tipo === "AREA_RURAL" && <MapPin size={12} className="text-blue-500" />}
                                                <span className="text-[9px] font-bold uppercase text-muted-foreground">
                                                   {t.tipo?.replace("_", " ")}

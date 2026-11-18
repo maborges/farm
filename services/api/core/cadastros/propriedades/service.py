@@ -23,6 +23,7 @@ class AreaRuralService(BaseService[AreaRural]):
         tipo: str | None = None,
         parent_id: uuid.UUID | None = None,
         apenas_ativos: bool = True,
+        apenas_produtivas: bool = False,
     ) -> list[AreaRural]:
         stmt = (
             select(AreaRural, TipoSolo.nome.label("tipo_solo_nome"), TipoIrrigacao.nome.label("tipo_irrigacao_nome"))
@@ -36,6 +37,8 @@ class AreaRuralService(BaseService[AreaRural]):
             stmt = stmt.where(AreaRural.unidade_produtiva_id == unidade_produtiva_id)
         if tipo:
             stmt = stmt.where(AreaRural.tipo == tipo)
+        elif apenas_produtivas:
+            stmt = stmt.where(AreaRural.tipo.in_([t.value for t in TIPOS_AREA_PRODUTIVA]))
         if parent_id is not None:
             stmt = stmt.where(AreaRural.parent_id == parent_id)
 

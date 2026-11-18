@@ -101,7 +101,7 @@ export default function TarefasCampoPage() {
 
   const { data: areas = [] } = useQuery<AreaRural[]>({
     queryKey: ["areas-rurais-talhoes"],
-    queryFn: () => apiFetch("/cadastros/areas-rurais?tipo=TALHAO"),
+    queryFn: () => apiFetch("/cadastros/areas-rurais?apenas_produtivas=true"),
   });
   const nomeTalhao = (id: string | null) => areas.find((a) => a.id === id)?.nome;
 

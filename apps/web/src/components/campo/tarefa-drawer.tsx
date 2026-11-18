@@ -194,7 +194,7 @@ export function TarefaDrawer({ open, onOpenChange, mode = "create", tarefa = nul
   const { data: talhoes = [] } = useQuery<Talhao[]>({
     queryKey: ["talhoes-list", fazendaId],
     queryFn: () =>
-      apiFetch(`/cadastros/areas-rurais?unidade_produtiva_id=${fazendaId}&tipo=TALHAO&limit=100`),
+      apiFetch(`/cadastros/areas-rurais?unidade_produtiva_id=${fazendaId}&apenas_produtivas=true&limit=100`),
     enabled: !!fazendaId && open,
   });
 

@@ -429,9 +429,11 @@ class RelatorioService:
             for s in (await self.session.execute(safras_stmt)).scalars().all()
         }
 
+        from core.cadastros.propriedades.models import AreaRural, TIPOS_AREA_PRODUTIVA
+
         talhoes_stmt = select(AreaRural).where(
             AreaRural.tenant_id == self.tenant_id,
-            AreaRural.tipo == "TALHAO",
+            AreaRural.tipo.in_([t.value for t in TIPOS_AREA_PRODUTIVA]),
         )
         talhoes = {
             t.id: t

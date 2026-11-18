@@ -48,7 +48,7 @@ class TipoArea(str, enum.Enum):
 # None = raiz (vinculado diretamente à UnidadeProdutiva)
 # ---------------------------------------------------------------------------
 
-# Camada TERRITORIAL (terra física): GLEBA → TALHAO → AREA_OPERACIONAL → folhas
+# Camada TERRITORIAL (terra física): GLEBA → TALHAO / PIQUETE (com SUBTALHAO / ZONA_MANEJO / AREA_OPERACIONAL opcionais)
 # Camada AMBIENTAL (preservação): GLEBA → AREA_AMBIENTAL → APP / RESERVA_LEGAL
 # Camada OPERACIONAL (infraestrutura): INFRAESTRUTURA → SEDE / ARMAZEM / CURRAL / OUTROS
 FILHOS_PERMITIDOS: dict[str | None, set[str]] = {
@@ -59,8 +59,8 @@ FILHOS_PERMITIDOS: dict[str | None, set[str]] = {
     TipoArea.AREA_RURAL:       {TipoArea.GLEBA},
 
     # Camada territorial
-    TipoArea.GLEBA:            {TipoArea.TALHAO, TipoArea.AREA_AMBIENTAL},
-    TipoArea.TALHAO:           {TipoArea.AREA_OPERACIONAL},
+    TipoArea.GLEBA:            {TipoArea.TALHAO, TipoArea.PIQUETE, TipoArea.AREA_AMBIENTAL},
+    TipoArea.TALHAO:           {TipoArea.AREA_OPERACIONAL, TipoArea.SUBTALHAO, TipoArea.ZONA_MANEJO, TipoArea.PIQUETE},
     TipoArea.AREA_OPERACIONAL: {TipoArea.PIQUETE, TipoArea.ZONA_MANEJO, TipoArea.SUBTALHAO},
 
     # Camada ambiental

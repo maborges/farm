@@ -745,12 +745,14 @@ class SyncService:
         )
         fazendas_rows = (await self.session.execute(stmt_f)).scalars().all()
 
-        # Talhões das fazendas autorizadas
+        from core.cadastros.propriedades.models import TIPOS_AREA_PRODUTIVA
+
+        # Áreas produtivas das fazendas autorizadas (talhões, piquetes, subtalhões, etc.)
         stmt_t = select(AreaRural).where(
             and_(
                 AreaRural.tenant_id == self.tenant_id,
                 AreaRural.unidade_produtiva_id.in_(fazenda_ids),
-                AreaRural.tipo == "TALHAO",
+                AreaRural.tipo.in_([t.value for t in TIPOS_AREA_PRODUTIVA]),
             )
         )
         talhoes_rows = (await self.session.execute(stmt_t)).scalars().all()

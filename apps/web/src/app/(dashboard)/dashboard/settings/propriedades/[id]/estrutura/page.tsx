@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
     Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle,
@@ -280,63 +281,70 @@ function AreaFormSheet({
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent className="w-full sm:max-w-md">
-                <SheetHeader>
+            <SheetContent className="w-full max-w-[calc(100vw-2rem)] gap-0 p-0 sm:max-w-md">
+                <SheetHeader className="shrink-0 border-b px-4 py-4 pr-12">
                     <SheetTitle>{mode === "add" ? "Nova Área" : "Editar Área"}</SheetTitle>
                     <SheetDescription>
                         {mode === "add" ? "Adicione uma nova área à hierarquia territorial." : "Atualize os dados desta área."}
                     </SheetDescription>
                 </SheetHeader>
 
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
-                    <div className="space-y-1.5">
-                        <Label>Tipo *</Label>
-                        <Select
-                            value={watch("tipo")}
-                            onValueChange={(v: string) => setValue("tipo", v)}
-                            disabled={isPending || mode === "edit"}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Selecione o tipo..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {allowedTypes.map((t) => (
-                                    <SelectItem key={t} value={t}>{TIPO_LABELS[t] ?? t}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        {errors.tipo && <p className="text-xs text-destructive">{errors.tipo.message}</p>}
-                    </div>
+                <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
+                        <div className="flex flex-col gap-1.5">
+                            <Label>Tipo *</Label>
+                            <Select
+                                value={watch("tipo")}
+                                onValueChange={(v: string) => setValue("tipo", v)}
+                                disabled={isPending || mode === "edit"}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione o tipo..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {allowedTypes.map((t) => (
+                                        <SelectItem key={t} value={t}>{TIPO_LABELS[t] ?? t}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {errors.tipo && <p className="text-xs text-destructive">{errors.tipo.message}</p>}
+                        </div>
 
-                    <div className="space-y-1.5">
-                        <Label>Nome *</Label>
-                        <Input {...register("nome")} placeholder="Ex: Gleba Norte, Talhão 01..." disabled={isPending} />
-                        {errors.nome && <p className="text-xs text-destructive">{errors.nome.message}</p>}
-                    </div>
+                        <div className="flex flex-col gap-1.5">
+                            <Label>Nome *</Label>
+                            <Input {...register("nome")} placeholder="Ex: Gleba Norte, Talhão 01..." disabled={isPending} />
+                            {errors.nome && <p className="text-xs text-destructive">{errors.nome.message}</p>}
+                        </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                            <Label>Área (ha)</Label>
-                            <Input
-                                type="number" step="0.0001"
-                                className="tabular-nums"
-                                {...register("area_hectares")}
-                                placeholder="0.0000"
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="flex flex-col gap-1.5">
+                                <Label>Área (ha)</Label>
+                                <Input
+                                    type="number" step="0.0001"
+                                    className="tabular-nums"
+                                    {...register("area_hectares")}
+                                    placeholder="0.0000"
+                                    disabled={isPending}
+                                />
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                                <Label>Código / Sigla</Label>
+                                <Input {...register("codigo")} placeholder="T01, G-A..." disabled={isPending} />
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                            <Label>Descrição</Label>
+                            <Textarea
+                                {...register("descricao")}
+                                className="min-h-20 resize-y"
+                                placeholder="Observações opcionais..."
                                 disabled={isPending}
                             />
                         </div>
-                        <div className="space-y-1.5">
-                            <Label>Código / Sigla</Label>
-                            <Input {...register("codigo")} placeholder="T01, G-A..." disabled={isPending} />
-                        </div>
                     </div>
 
-                    <div className="space-y-1.5">
-                        <Label>Descrição</Label>
-                        <Input {...register("descricao")} placeholder="Observações opcionais..." disabled={isPending} />
-                    </div>
-
-                    <SheetFooter className="pt-4 border-t">
+                    <SheetFooter className="shrink-0 border-t px-4 py-3 sm:flex-row sm:justify-end">
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
                             Cancelar
                         </Button>

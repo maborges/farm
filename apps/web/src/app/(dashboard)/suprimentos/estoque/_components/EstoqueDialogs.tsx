@@ -556,7 +556,7 @@ export function AjusteDialog({ produtos, depositos, saldos, onClose, onSuccess }
 
   const { data: talhoes = [] } = useQuery<{ id: string; nome: string }[]>({
     queryKey: ["talhoes-ajuste-perda", activeFazendaId],
-    queryFn: () => apiFetch(`/cadastros/areas-rurais?tipo=TALHAO&unidade_produtiva_id=${activeFazendaId}`),
+    queryFn: () => apiFetch(`/cadastros/areas-rurais?apenas_produtivas=true&unidade_produtiva_id=${activeFazendaId}`),
     enabled: ehPerda && !!activeFazendaId,
     staleTime: 60_000,
   });

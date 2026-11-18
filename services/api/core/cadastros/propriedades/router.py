@@ -46,18 +46,25 @@ async def arvore_areas(
 
 @router.get("", response_model=list[AreaRuralResponse])
 async def listar(
-    tipo: Optional[str] = Query(None, description="Filtrar por tipo (ex: TALHAO, PASTAGEM)"),
+    tipo: Optional[str] = Query(None, description="Filtrar por tipo (ex: TALHAO, PIQUETE)"),
     unidade_produtiva_id: Optional[uuid.UUID] = Query(None),
     parent_id: Optional[uuid.UUID] = Query(None, description="Filhos diretos de um parent"),
     apenas_raizes: bool = Query(False, description="Retorna apenas áreas sem parent"),
     apenas_ativos: bool = Query(True),
+    apenas_produtivas: bool = Query(False, description="Retorna áreas produtivas (TALHAO, PIQUETE, SUBTALHAO, ZONA_MANEJO, AREA_OPERACIONAL)"),
     session=Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     svc = AreaRuralService(AreaRural, session, tenant_id)
     if apenas_raizes:
         return await svc.listar_raizes(unidade_produtiva_id=unidade_produtiva_id)
-    return await svc.listar(unidade_produtiva_id=unidade_produtiva_id, tipo=tipo, parent_id=parent_id, apenas_ativos=apenas_ativos)
+    return await svc.listar(
+        unidade_produtiva_id=unidade_produtiva_id,
+        tipo=tipo,
+        parent_id=parent_id,
+        apenas_ativos=apenas_ativos,
+        apenas_produtivas=apenas_produtivas,
+    )
 
 
 @router.post("", response_model=AreaRuralResponse, status_code=201)
