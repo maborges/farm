@@ -150,6 +150,14 @@ def test_invalid_model_json_is_rejected_by_write_schema():
             "nivel_medio_pct": 70,
             "nivel_alto_pct": 60,
         },
+        {
+            "condicoes": [{"variavel": "temp_media_c", "operador": ">=", "valor": 20}],
+            "metadados": "invalido",
+        },
+        {
+            "condicoes": [{"variavel": "temp_media_c", "operador": ">=", "valor": 20}],
+            "metadados": {"fonte_url": "javascript:alert(1)"},
+        },
     ],
 )
 def test_invalid_model_rule_shapes_are_rejected(rules):
@@ -157,9 +165,25 @@ def test_invalid_model_rule_shapes_are_rejected(rules):
         ModeloFitossanitarioCreate(cultura="Café", doenca="Ferrugem", regras_risco=rules)
 
 
+def test_metadata_with_safe_url_scheme_is_accepted():
+    created = ModeloFitossanitarioCreate(
+        cultura="Café",
+        doenca="Ferrugem",
+        regras_risco={
+            "condicoes": [{"variavel": "temp_media_c", "operador": ">=", "valor": 20}],
+            "metadados": {
+                "fonte_parametros": "Embrapa Café",
+                "fonte_url": "https://www.embrapa.br/cafe",
+            },
+        },
+    )
+
+    assert created.regras_risco["metadados"]["fonte_url"] == "https://www.embrapa.br/cafe"
+
+
 @pytest.mark.asyncio
 async def test_active_crop_without_models_has_explicit_status():
-    session = _Session([("Café",)], [], [])
+    session = _Session([("Café",)], [])
     result = await ClimaService(session, TENANT_A)._calcular_risco_doencas(
         uuid4(), _seven_days(temp_media_c=22)
     )
@@ -180,7 +204,7 @@ async def test_no_active_crop_has_distinct_status():
 
 @pytest.mark.asyncio
 async def test_public_intelligence_response_exposes_insufficient_history_state():
-    session = _Session(None, [], [], [("Café",)], [], [_model(None, "Café", "Ferrugem", 18)])
+    session = _Session(None, [], [], [("Café",)], [_model(TENANT_A, "Café", "Ferrugem", 18)])
     raw = await ClimaService(session, TENANT_A).get_analise_avancada(uuid4())
     response = ClimaInteligenciaResponse.model_validate(raw)
 
@@ -190,8 +214,8 @@ async def test_public_intelligence_response_exposes_insufficient_history_state()
 
 @pytest.mark.asyncio
 async def test_insufficient_history_does_not_emit_a_low_score():
-    global_model = _model(None, "Café", "Ferrugem", 18)
-    session = _Session([("Café",)], [], [global_model])
+    tenant_model = _model(TENANT_A, "Café", "Ferrugem", 18)
+    session = _Session([("Café",)], [tenant_model])
     result = await ClimaService(session, TENANT_A)._calcular_risco_doencas(
         uuid4(), _seven_days(temp_media_c=22)[:3]
     )
@@ -202,8 +226,8 @@ async def test_insufficient_history_does_not_emit_a_low_score():
 
 @pytest.mark.asyncio
 async def test_invalid_required_climate_value_has_explicit_status():
-    global_model = _model(None, "Café", "Ferrugem", 18)
-    session = _Session([("Café",)], [], [global_model])
+    tenant_model = _model(TENANT_A, "Café", "Ferrugem", 18)
+    session = _Session([("Café",)], [tenant_model])
     result = await ClimaService(session, TENANT_A)._calcular_risco_doencas(
         uuid4(), _seven_days(temp_media_c=float("nan"))
     )
@@ -213,14 +237,21 @@ async def test_invalid_required_climate_value_has_explicit_status():
 
 
 @pytest.mark.asyncio
-async def test_tenant_rule_overrides_only_matching_disease_and_is_tenant_scoped():
-    tenant_model = _model(TENANT_A, "Café", "Ferrugem", 30)
-    global_rust = _model(None, "Café", "Ferrugem", 10)
-    global_cercospora = _model(None, "Café", "Cercosporiose", 10)
+async def test_only_tenant_models_are_evaluated_and_global_templates_are_ignored():
+    session_sem_personalizado = _Session([("Café",)], [])
+    sem_modelo = await ClimaService(session_sem_personalizado, TENANT_A)._calcular_risco_doencas(
+        uuid4(), _seven_days(temp_media_c=22)
+    )
+
+    assert sem_modelo.status == "SEM_MODELO_APLICAVEL"
+    assert sem_modelo.resultados == []
+    assert len(session_sem_personalizado.statements) == 2
+
+    tenant_rust = _model(TENANT_A, "Café", "Ferrugem", 30)
+    tenant_cercospora = _model(TENANT_A, "Café", "Cercosporiose", 10)
     session = _Session(
         [("Café",)],
-        [tenant_model],
-        [global_rust, global_cercospora],
+        [tenant_rust, tenant_cercospora],
     )
 
     result = await ClimaService(session, TENANT_A)._calcular_risco_doencas(
@@ -229,8 +260,12 @@ async def test_tenant_rule_overrides_only_matching_disease_and_is_tenant_scoped(
 
     by_disease = {item["doenca"]: item for item in result.resultados}
     assert result.status == "CALCULADO"
+    assert len(session.statements) == 2
     assert by_disease["Ferrugem"]["favorabilidade_pct"] == 0
     assert by_disease["Cercosporiose"]["favorabilidade_pct"] == 100
     tenant_query = session.statements[1].compile(dialect=postgresql.dialect())
+    tenant_sql = str(tenant_query)
+    assert "modelos_fitossanitarios.tenant_id =" in tenant_sql
+    assert "tenant_id IS NULL" not in tenant_sql
     assert str(TENANT_A) in str(tenant_query.params)
     assert str(TENANT_B) not in str(tenant_query.params)

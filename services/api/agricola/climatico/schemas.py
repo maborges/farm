@@ -95,6 +95,19 @@ def validar_regras_fitossanitarias(regras: dict) -> dict:
     if not (niveis["nivel_medio_pct"] <= niveis["nivel_alto_pct"] <= niveis["nivel_critico_pct"]):
         raise ValueError("limiares devem obedecer medio <= alto <= critico")
 
+    if "metadados" in regras and regras["metadados"] is not None:
+        metadados = regras["metadados"]
+        if not isinstance(metadados, dict):
+            raise ValueError("regras_risco.metadados deve ser um objeto JSON")
+        if "fonte_url" in metadados and metadados["fonte_url"] is not None:
+            fonte_url = metadados["fonte_url"]
+            if not isinstance(fonte_url, str) or (
+                fonte_url != "" and not fonte_url.startswith(("https://", "http://"))
+            ):
+                raise ValueError(
+                    "regras_risco.metadados.fonte_url deve usar protocolo http:// ou https://"
+                )
+
     return regras
 
 

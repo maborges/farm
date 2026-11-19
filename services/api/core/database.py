@@ -159,6 +159,31 @@ if DISPATCHER_DB_URL:
         },
     )
 
+# Dedicated connection pool for global catalog administration (Backoffice / seeds)
+# when runtime operates under restricted tenant-only roles.
+catalog_admin_engine = None
+catalog_admin_async_session_maker = None
+CATALOG_ADMIN_DB_URL = str(settings.catalog_admin_database_url or "").strip()
+if CATALOG_ADMIN_DB_URL:
+    if "postgresql" not in CATALOG_ADMIN_DB_URL:
+        raise ValueError("CATALOG_ADMIN_DATABASE_URL must use PostgreSQL")
+    catalog_admin_engine = create_async_engine(
+        CATALOG_ADMIN_DB_URL,
+        echo=False,
+        future=True,
+        pool_size=max(1, min(settings.db_pool_size, 2)),
+        max_overflow=0,
+        pool_pre_ping=True,
+        pool_recycle=1800,
+        pool_timeout=settings.db_pool_timeout,
+        connect_args={
+            "server_settings": {
+                "search_path": "farms",
+                "options": "-c idle_in_transaction_session_timeout=30000 -c statement_timeout=60000",
+            }
+        },
+    )
+
 # Credential lookup has a dedicated pool and does not share the tenant runtime.
 authentication_engine = None
 authentication_async_session_maker = None
@@ -254,6 +279,25 @@ if authentication_engine is not None:
             future=True,
         )
 
+if catalog_admin_engine is not None:
+    try:
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        catalog_admin_async_session_maker = async_sessionmaker(
+            bind=catalog_admin_engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+            autoflush=False,
+        )
+    except ImportError:
+        catalog_admin_async_session_maker = sessionmaker(
+            bind=catalog_admin_engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+            autoflush=False,
+            future=True,
+        )
+
 # Base para os Models do ORM
 Base = declarative_base()
 
@@ -297,6 +341,15 @@ if dispatcher_engine is not None:
         "connect",
         lambda dbapi_connection, connection_record: _configure_postgresql_connection(
             dbapi_connection, "postgresql" in DISPATCHER_DB_URL
+        ),
+    )
+
+if catalog_admin_engine is not None:
+    event.listen(
+        catalog_admin_engine.sync_engine,
+        "connect",
+        lambda dbapi_connection, connection_record: _configure_postgresql_connection(
+            dbapi_connection, "postgresql" in CATALOG_ADMIN_DB_URL
         ),
     )
 

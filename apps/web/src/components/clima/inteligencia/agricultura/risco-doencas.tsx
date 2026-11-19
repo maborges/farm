@@ -43,7 +43,7 @@ export function RiscoDoencasCard({ data, status }: Props) {
 
   const statusText: Record<RiscoFitossanitarioStatus, string> = {
     SEM_CULTURA_ATIVA: "Nenhuma cultura ativa foi encontrada para esta unidade.",
-    SEM_MODELO_APLICAVEL: "Não há modelo de favorabilidade cadastrado para as culturas ativas.",
+    SEM_MODELO_APLICAVEL: "Não há modelo personalizado cadastrado para as culturas ativas. Cadastre um modelo próprio ou copie um modelo-base do sistema em Modelos Fitossanitários.",
     DADOS_CLIMATICOS_INSUFICIENTES: "Histórico climático insuficiente para avaliar os modelos disponíveis.",
     DADOS_CLIMATICOS_INVALIDOS: "Há medições climáticas inválidas para as variáveis exigidas pelos modelos.",
     CONFIGURACAO_INVALIDA: "Um ou mais modelos possuem regras inválidas e não foram avaliados.",

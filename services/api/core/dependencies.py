@@ -15,6 +15,7 @@ from sqlalchemy import text, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from core.database import (
     async_session_maker,
+    catalog_admin_async_session_maker,
     rls_dev_async_session_maker,
     DB_URL,
 )
@@ -153,6 +154,24 @@ async def get_session(request: Request = None) -> AsyncGenerator[AsyncSession, N
     async with session_maker() as session:
         if restricted:
             session.info["rls_dev_restricted_route"] = True
+        yield session
+
+
+async def get_catalog_admin_session(
+    request: Request = None,
+) -> AsyncGenerator[AsyncSession, None]:
+    """Abre sessão dedicada para administração de catálogos globais sob RLS."""
+    if catalog_admin_async_session_maker is not None:
+        session_maker = catalog_admin_async_session_maker
+    elif settings.require_restricted_runtime_role or uses_restricted_route_session(request):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Conexão administrativa de catálogo não configurada para escrita global.",
+        )
+    else:
+        session_maker = async_session_maker
+
+    async with session_maker() as session:
         yield session
 
 def _verify_csrf_for_cookie(request: Request) -> None:

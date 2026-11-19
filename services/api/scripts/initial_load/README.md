@@ -56,6 +56,23 @@ O template global de checklists pode ser carregado manualmente com
 `python scripts/initial_load/seed_checklist_templates.py`. Ele não faz parte do
 runner porque a adoção destes itens de processo é opcional por módulo.
 
+De forma equivalente, a biblioteca opcional de modelos-base fitossanitários pode
+ser carregada com `python scripts/initial_load/seed_modelos_fitossanitarios.py`
+(suporta `--dry-run` para prévia sem escrita e `--replace-legacy-globals`,
+bloqueado em produção, para substituir registros globais legados sem
+`metadados.fonte_parametros`). Ela registra 78 modelos globais cobrindo 37 das
+38 culturas canônicas de `seed_culturas.py` (`Sisal` fica fora porque sua
+principal doença é oportunista de ferimentos e déficit hídrico, e não de
+favorabilidade climática diária; `tenant_id = NULL`, `is_global = True`),
+referenciados em publicações técnicas da Embrapa e UFV como material de consulta
+e ponto de partida para cópia; o motor climático nunca avalia modelos globais
+automaticamente antes que a fazenda os copie e personalize em Modelos
+Fitossanitários. Como a tabela utiliza `FORCE ROW LEVEL SECURITY`, a gravação de
+registros globais requer a migration `20261119_rls_global_catalog_admin_write`
+(`alembic upgrade head`) aplicada; em ambientes que operam sob runtime restrito
+(`REQUIRE_RESTRICTED_RUNTIME_ROLE=true`), configure `CATALOG_ADMIN_DATABASE_URL`
+com uma role administrativa autorizada (`df_catalog_admin`).
+
 ## Execução
 
 Por padrão, o comando apenas mostra o plano. Para gravar as cargas:

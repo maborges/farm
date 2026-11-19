@@ -10,11 +10,22 @@ export interface CondicaoFitossanitario {
   max?: number;
 }
 
+export interface MetadadosModeloFitossanitario {
+  tipo_resultado?: string;
+  somente_referencia?: boolean;
+  agente_causal?: string;
+  fonte_parametros?: string;
+  fonte_url?: string;
+  versao_regra?: string;
+  observacao?: string;
+}
+
 export interface RegrasFitossanitarias {
   condicoes?: CondicaoFitossanitario[];
   nivel_critico_pct?: number;
   nivel_alto_pct?: number;
   nivel_medio_pct?: number;
+  metadados?: MetadadosModeloFitossanitario;
 }
 
 export interface ClimaResponse {

@@ -671,6 +671,18 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
   2. Headings (`h1–h6`) e descrições dentro de cartões coloridos ou institucionais (`variant="brand"`, `info`, `warning`, `success`, `destructive`) recebem automaticamente cores de alto contraste (WCAG AA), evitando títulos escuros ilegíveis sobre fundos verdes ou alertas.
   3. A consistência visual e de contraste é protegida continuamente pela suíte de contratos e guardrails em `apps/web/src/components/ui/card.test.tsx`.
 
+### Modelos Fitossanitários Base (Referência Embrapa/UFV) e Trava de Uso Personalizado
+- **Descrição curta:** Biblioteca opcional de 78 modelos-base globais (37 das 38 culturas canônicas de `seed_culturas.py`; apenas `Sisal` fica de fora por ter patossistema oportunista de ferimentos e déficit hídrico) referenciados em literatura pública da Embrapa e UFV (`scripts/initial_load/seed_modelos_fitossanitarios.py`), acompanhada de trava no motor climático para que modelos globais atuem exclusivamente como templates para cópia, nunca como cálculo automático em produção.
+- **Fluxo de funcionamento:**
+  1. Os modelos globais (`tenant_id IS NULL`) carregam agente causal, fonte institucional, URL de referência (`http://`/`https://` validado no backend e frontend) e observação de triagem dentro de `regras_risco.metadados`, exibidos nos modais de Modelos Fitossanitários (`/dashboard/agricola/clima/inteligencia/modelos` e `/backoffice/clima/modelos`) e preservados nas edições.
+  2. O produtor visualiza os modelos padrão do sistema ao habilitar *"Listar itens do sistema"*, copia um modelo-base para o seu tenant e ajusta os limiares com o responsável agronômico antes de utilizá-lo no painel fitossanitário.
+- **Bugfix Focado:**
+  * **Problema corrigido:** o aviso em `/dashboard/agricola/clima/inteligencia/modelos` informava que somente modelos personalizados entram na inteligência agrícola, mas `ClimaService._calcular_risco_doencas()` consultava e avaliava modelos globais automaticamente mesmo quando o tenant não havia copiado nenhum modelo.
+  * **Comportamento esperado:** `_calcular_risco_doencas()` avalia estritamente os modelos do tenant atual (`SEM_MODELO_APLICAVEL` quando o tenant ainda não personalizou regras), garantindo que modelos globais sirvam apenas como referência.
+- **Bugfix Focado (RLS de Catálogo Global no Backoffice e Seeds):**
+  * **Problema corrigido:** sob `FORCE ROW LEVEL SECURITY`, todas as policies de escrita (`INSERT`, `UPDATE`, `DELETE`) de `modelos_fitossanitarios` e `modelos_zoosanitarios` exigiam `tenant_id = current_tenant_id`, bloqueando também a carga inicial de modelos globais (`tenant_id IS NULL`) e a gestão via Backoffice administrativo.
+  * **Comportamento esperado:** a migration `20261119_rls_global_catalog_admin_write` cria policies permissivas nominativas restritas ao owner da tabela e roles dedicadas de catálogo (`df_catalog_admin`, `deepfarms_catalog_admin`) exigindo `tenant_id IS NULL` e ausência de `app.current_tenant_id`, enquanto rotas de Backoffice utilizam `get_catalog_admin_session` (`CATALOG_ADMIN_DATABASE_URL`, fail-closed com HTTP 503 em modo restrito) e tenants comuns permanecem impedidos de escrever registros globais.
+
 ## Conceitos-Chave: Propriedade, Talhão e Unidade Produtiva
 
 

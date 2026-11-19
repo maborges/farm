@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     authentication_database_url: str = ""
     authentication_database_role: str = "deepfarms_auth"
     recommendation_dispatcher_database_url: str = ""
+    catalog_admin_database_url: str = ""
     redis_url: str = "redis://localhost:6379/0"
     ptax_cache_ttl_seconds: int = 900
     ptax_single_worker_fallback: bool = True

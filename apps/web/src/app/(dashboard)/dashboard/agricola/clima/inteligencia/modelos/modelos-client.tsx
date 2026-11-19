@@ -30,6 +30,7 @@ import {
   Form, FormField, FormItem, FormLabel, FormControl, FormMessage,
 } from "@/components/ui/form";
 import { Card, CardContent } from "@/components/ui/card";
+import { ModeloMetadadosCard } from "@/components/clima/inteligencia/agricultura/modelo-metadados-card";
 
 const condicaoSchema = z.object({
   variavel: z.string().min(1, "Obrigatório"),
@@ -172,6 +173,7 @@ export default function ModelosFitossanitariosClient() {
   };
 
   const onSubmit = (data: FormData) => {
+    const metadados = editingModelo?.regras_risco?.metadados;
     const payload = {
       cultura: data.cultura,
       doenca: data.doenca,
@@ -180,6 +182,7 @@ export default function ModelosFitossanitariosClient() {
         nivel_critico_pct: data.nivel_critico_pct,
         nivel_alto_pct: data.nivel_alto_pct,
         nivel_medio_pct: data.nivel_medio_pct,
+        ...(metadados ? { metadados } : {}),
       }
     };
     
@@ -364,6 +367,8 @@ export default function ModelosFitossanitariosClient() {
                     )} />
                   </div>
                 </div>
+
+                <ModeloMetadadosCard metadados={editingModelo?.regras_risco?.metadados} />
 
                 {/* Limiares de Risco */}
                 <div className="space-y-3">

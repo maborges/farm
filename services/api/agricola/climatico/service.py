@@ -1,3 +1,4 @@
+import copy
 import math
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -310,30 +311,17 @@ class ClimaService(BaseService[RegistroClima]):
         if not culturas_ativas:
             return ResultadoRiscoFitossanitario("SEM_CULTURA_ATIVA", [])
 
-        modelos_personalizados = []
-        if self.tenant_id is not None:
-            stmt_personalizados = select(ModeloFitossanitario).where(
-                ModeloFitossanitario.tenant_id == self.tenant_id,
-                ModeloFitossanitario.cultura.in_(culturas_ativas),
-            )
-            res_pers = await self.session.execute(stmt_personalizados)
-            modelos_personalizados = list(res_pers.scalars().all())
+        # Modelos globais (tenant_id IS NULL) servem apenas como biblioteca de
+        # referência e só são avaliados após o tenant copiá-los/personalizá-los.
+        if self.tenant_id is None:
+            return ResultadoRiscoFitossanitario("SEM_MODELO_APLICAVEL", [])
 
-        stmt_globais = select(ModeloFitossanitario).where(
-            ModeloFitossanitario.tenant_id.is_(None),
+        stmt_personalizados = select(ModeloFitossanitario).where(
+            ModeloFitossanitario.tenant_id == self.tenant_id,
             ModeloFitossanitario.cultura.in_(culturas_ativas),
         )
-        res_glob = await self.session.execute(stmt_globais)
-        modelos_globais = res_glob.scalars().all()
-
-        # Resolve somente a chave exata; uma regra local para outra doença não
-        # remove os modelos globais restantes da cultura.
-        modelos_por_chave = {
-            (modelo.cultura, modelo.doenca): modelo for modelo in modelos_globais
-        }
-        for modelo in modelos_personalizados:
-            modelos_por_chave[(modelo.cultura, modelo.doenca)] = modelo
-        modelos_finais = list(modelos_por_chave.values())
+        res_pers = await self.session.execute(stmt_personalizados)
+        modelos_finais = list(res_pers.scalars().all())
 
         if not modelos_finais:
             return ResultadoRiscoFitossanitario("SEM_MODELO_APLICAVEL", [])
@@ -676,10 +664,12 @@ class ModeloFitossanitarioService:
             ModeloFitossanitario.doenca == global_modelo.doenca,
             ModeloFitossanitario.tenant_id == self.tenant_id
         )
+        regras_copia = copy.deepcopy(global_modelo.regras_risco)
         existing = (await self.session.execute(existing_stmt)).scalar_one_or_none()
         if existing:
             # Já existe, vamos apenas atualizar as regras
-            existing.regras_risco = global_modelo.regras_risco
+            existing.regras_risco = regras_copia
+            existing.is_global = False
             modelo = existing
         else:
             # Cria novo
@@ -687,7 +677,8 @@ class ModeloFitossanitarioService:
                 tenant_id=self.tenant_id,
                 cultura=global_modelo.cultura,
                 doenca=global_modelo.doenca,
-                regras_risco=global_modelo.regras_risco
+                regras_risco=regras_copia,
+                is_global=False,
             )
             self.session.add(modelo)
             
