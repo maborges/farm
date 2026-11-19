@@ -646,6 +646,20 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
   1. O endpoint `POST /api/v1/financeiro/viabilidade/preco-equilibrio-tma` (`ViabilidadeFinanceiraService.calcular_preco_equilibrio_tma`) capitaliza o custo total da safra pela TMA no ciclo produtivo, calcula `preco_equilibrio_contabil_sc`, `preco_equilibrio_tma_sc`, `vpl_safra_atual` e gera cenários cambiais (`Dólar -10%`, `Base`, `Dólar +10%`) com ação recomendada (`TRAVAR_MARGEM`, `ATENCAO_TMA` ou `DEFESA_CAIXA`).
   2. O componente reutilizável `PrecoEquilibrioTmaCard` integra o cálculo diretamente em **Exposição Física × Financeira (Hedge)** e na tela de **Viabilidade (VPL/TIR)**.
 
+### Correção: Erro de Renderização em Custeio Agrícola (`/agricola/custos`)
+- **Problema corrigido:** ao acessar `/agricola/custos` sem safras cadastradas, durante a transição inicial da consulta dependente ou em falha da API `/api/v1/custos/safra/{safra_id}`, o componente lia `relatorio.fonte_apuracao` antes de validar a existência de `relatorio`, lançando `TypeError: Cannot read properties of undefined (reading 'fonte_apuracao')`.
+- **Comportamento esperado:** a tela protege a renderização do selo de fonte de apuração, aguarda corretamente o carregamento da safra selecionada, exibe estados vazios ou de erro amigáveis quando não há safras ou há falha na consulta, e ordena as categorias de custo sem mutar o cache em memória.
+
+### Monitoramento Vegetativo NDVI (`/dashboard/agricola/ndvi` e `/agricola/safras/[id]/ndvi`)
+- **Descrição curta:** Consolidação real do vigor vegetativo por propriedade e área produtiva (`Talhão`, `Piquete`, `Subtalhão`, `Zona de Manejo`), com mapa georreferenciado MapLibre colorido por faixa de NDVI, gráfico de série temporal, alertas automáticos de queda/estresse/nuvem, registro e exclusão manual (`POST /api/v1/ndvi/registro-manual`, `DELETE /api/v1/ndvi/{id}`) e exportação via `DataTable` para PDF/Excel.
+- **Fluxo de funcionamento:**
+  1. Ao abrir `/dashboard/agricola/ndvi` (ou via menu **Agrícola → Índices de Vegetação (NDVI)**), `NdviDashboardClient` consulta `GET /api/v1/ndvi/resumo` filtrado pela propriedade ativa e período selecionado (30, 90, 180 dias ou completo) juntamente com os polígonos de áreas produtivas em `GET /api/v1/cadastros/areas-rurais?apenas_produtivas=true`.
+  2. `NdviMapView` renderiza os polígonos no MapLibre coloridos pelo último índice registrado de cada área; clicar no polígono, em um alerta ou na tabela consolidada foca o respectivo talhão na seção de análise temporal (`NdviTalhao`).
+  3. Produtores e agrônomos registram ou removem leituras NDVI calculadas externamente (QGIS, drone ou provedor) no componente `NdviTalhao`, recalculando automaticamente média da propriedade, tendência e alertas.
+- **Bugfix focado:**
+  * **Problema corrigido:** a tela `/dashboard/agricola/ndvi` exibia dados mockados fixos e botões sem ação; o componente `NdviTalhao` acionava um endpoint mock de sincronização satelital retornando sucesso fictício; e `/agricola/safras/[id]/ndvi` enviava o `id` do vínculo `safra_talhoes` em vez de `area_id` (`cadastros_areas_rurais.id`) ao consultar ou salvar `ImagemNDVI`.
+  * **Comportamento esperado:** `/dashboard/agricola/ndvi` opera integralmente com dados reais do PostgreSQL; `/agricola/safras/[id]/ndvi` mapeia `area_id` corretamente via `mapSafraTalhoesParaNdvi`; e `POST /api/v1/ndvi/sincronizar/{talhao_id}` retorna HTTP 501 orientando o registro manual enquanto a integração automática Sentinel-2 não está configurada.
+
 ## Conceitos-Chave: Propriedade, Talhão e Unidade Produtiva
 
 

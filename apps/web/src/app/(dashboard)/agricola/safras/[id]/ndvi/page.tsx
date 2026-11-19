@@ -1,29 +1,29 @@
 "use client";
 
-import { use } from "react";
+import { use, useMemo } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
-import { PageHeader } from "@/components/shared/page-header";
+import { Lock, Satellite } from "lucide-react";
+
 import { NdviTalhao } from "@/components/agricola/ndvi-talhao";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/shared/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Lock } from "lucide-react";
-import { Satellite } from "lucide-react";
-import Link from "next/link";
+import { Skeleton } from "@/components/ui/skeleton";
+
 import { useHasTier } from "@/hooks/use-has-tier";
+import { apiFetch } from "@/lib/api";
 import { trackMonetizationEvent, useMonetizationPromptTracking } from "@/lib/monetization";
 import { getSafraLabel } from "@/lib/safra-label";
+import {
+    mapSafraTalhoesParaNdvi,
+    type SafraTalhaoApiItem,
+} from "@/app/(dashboard)/dashboard/agricola/ndvi/ndvi-view-model";
 
 interface Safra {
     id: string;
     cultura: string | null;
     ano_safra: string;
-}
-
-interface Talhao {
-    id: string;
-    nome: string;
 }
 
 export default function NdviPage({ params }: { params: Promise<{ id: string }> }) {
@@ -42,17 +42,19 @@ export default function NdviPage({ params }: { params: Promise<{ id: string }> }
     });
     const safraLabel = safra ? getSafraLabel(safra) : "";
 
-    const { data: talhoes = [], isLoading: loadingTalhoes } = useQuery<Talhao[]>({
+    const { data: talhoes = [], isLoading: loadingTalhoes } = useQuery<SafraTalhaoApiItem[]>({
         queryKey: ["safra-talhoes", id],
         queryFn: () => apiFetch(`/safras/${id}/talhoes`),
-        enabled: !!safra,
+        enabled: Boolean(safra),
     });
+
+    const talhoesParaNdvi = useMemo(() => mapSafraTalhoesParaNdvi(talhoes), [talhoes]);
 
     if (loadingSafra || loadingTalhoes || !safra) {
         return (
             <div className="space-y-4 p-8">
-                <Skeleton className="h-10 w-72" />
-                <Skeleton className="h-64 w-full" />
+                <Skeleton className="h-10 w-72 rounded-sm" />
+                <Skeleton className="h-64 w-full rounded-sm" />
             </div>
         );
     }
@@ -63,23 +65,29 @@ export default function NdviPage({ params }: { params: Promise<{ id: string }> }
                 <PageHeader
                     title="NDVI — Índice de Vegetação"
                     icon={<Satellite className="text-sky-600" size={22} />}
-                    description={`${safraLabel} · Dados Sentinel-2`}
+                    description={`${safraLabel} · Registros NDVI`}
                 />
                 <Alert className="rounded-sm">
                     <Lock className="size-4" />
                     <AlertTitle>NDVI disponível no PROFISSIONAL</AlertTitle>
                     <AlertDescription className="space-y-3">
-                        <p>O plano atual mantém o acesso à safra. Série temporal, sincronização Sentinel-2 e análise de vegetação exigem plano Profissional.</p>
+                        <p>
+                            O plano atual mantém o acesso à safra. Série temporal, histórico de
+                            índices e análise de vegetação exigem plano Profissional.
+                        </p>
                         <Button
                             asChild
+                            variant="outline"
                             size="sm"
                             className="rounded-sm"
-                            onClick={() => trackMonetizationEvent("monetization_cta_clicked", {
-                                feature: "agricola.ndvi",
-                                surface: "agricola.ndvi.page",
-                                requiredTier: "PROFISSIONAL",
-                                ctaLabel: "Ver planos",
-                            })}
+                            onClick={() =>
+                                trackMonetizationEvent("monetization_cta_clicked", {
+                                    feature: "agricola.ndvi",
+                                    surface: "agricola.ndvi.page",
+                                    requiredTier: "PROFISSIONAL",
+                                    ctaLabel: "Ver planos",
+                                })
+                            }
                         >
                             <Link href="/dashboard/settings/billing">Ver planos</Link>
                         </Button>
@@ -94,12 +102,14 @@ export default function NdviPage({ params }: { params: Promise<{ id: string }> }
             <PageHeader
                 title="NDVI — Índice de Vegetação"
                 icon={<Satellite className="text-sky-600" size={22} />}
-                description={`${safraLabel} · Dados Sentinel-2`}
+                description={`${safraLabel} · Série temporal e registro manual`}
             />
-            {talhoes.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum talhão vinculado a esta safra.</p>
+            {talhoesParaNdvi.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                    Nenhum talhão vinculado a esta safra.
+                </p>
             ) : (
-                <NdviTalhao talhoes={talhoes} />
+                <NdviTalhao talhoes={talhoesParaNdvi} />
             )}
         </div>
     );
