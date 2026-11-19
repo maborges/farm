@@ -1,8 +1,9 @@
 from decimal import Decimal
+from typing import Any
 import uuid
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, aliased
 
 from core.base_service import BaseService
 from core.exceptions import EntityNotFoundError, BusinessRuleError
@@ -132,30 +133,121 @@ class AreaRuralService(BaseService[AreaRural]):
                     ativo=True,
                 ))
 
+    @staticmethod
+    def _tipos_area_produtiva_valores() -> list[str]:
+        return [t.value for t in TIPOS_AREA_PRODUTIVA]
+
+    def _filtro_areas_produtivas_primarias(self) -> tuple[Any, list[str]]:
+        """Retorna cláusula que seleciona áreas produtivas cujo pai não é outra área produtiva."""
+        tipos_vals = self._tipos_area_produtiva_valores()
+        pai_produtivo = aliased(AreaRural)
+        subquery_pais = select(pai_produtivo.id).where(
+            pai_produtivo.tenant_id == self.tenant_id,
+            pai_produtivo.tipo.in_(tipos_vals),
+        )
+        return (
+            or_(
+                AreaRural.parent_id.is_(None),
+                ~AreaRural.parent_id.in_(subquery_pais),
+            ),
+            tipos_vals,
+        )
+
+    async def _validar_subarea_em_pai_produtivo(
+        self,
+        parent_id: uuid.UUID,
+        tipo: str,
+        nova_area_dec: Decimal,
+        excluir_area_id: uuid.UUID | None = None,
+    ) -> bool:
+        """
+        Verifica se a área é subdivisão/ILPF de outra área produtiva e valida contra a área do pai.
+
+        Args:
+            parent_id: ID da área pai na hierarquia territorial.
+            tipo: Tipo da subárea sendo criada ou atualizada.
+            nova_area_dec: Área da subárea em hectares (Decimal).
+            excluir_area_id: ID da subárea a desconsiderar na soma em atualizações.
+
+        Returns:
+            bool: True quando o pai pertence a TIPOS_AREA_PRODUTIVA (não soma novamente no plano).
+
+        Raises:
+            BusinessRuleError: Se a soma das subáreas irmãs do mesmo tipo exceder a área do pai.
+        """
+        pai = await self.get(parent_id)
+        if not pai or pai.tipo not in TIPOS_AREA_PRODUTIVA:
+            return False
+
+        area_pai = pai.area_hectares_manual if pai.area_hectares_manual is not None else pai.area_hectares
+        if area_pai is not None and float(area_pai) > 0:
+            soma_filhos_stmt = select(
+                func.coalesce(
+                    func.sum(
+                        func.coalesce(
+                            AreaRural.area_hectares_manual,
+                            AreaRural.area_hectares,
+                            0,
+                        )
+                    ),
+                    0,
+                )
+            ).where(
+                AreaRural.tenant_id == self.tenant_id,
+                AreaRural.parent_id == parent_id,
+                AreaRural.tipo == tipo,
+                AreaRural.ativo == True,
+            )
+            if excluir_area_id is not None:
+                soma_filhos_stmt = soma_filhos_stmt.where(AreaRural.id != excluir_area_id)
+
+            soma_filhos_atual = Decimal(str((await self.session.execute(soma_filhos_stmt)).scalar_one() or 0))
+            limite_pai_dec = Decimal(str(area_pai))
+            if soma_filhos_atual + nova_area_dec > limite_pai_dec:
+                disponivel_pai = max(Decimal("0"), limite_pai_dec - soma_filhos_atual)
+                raise BusinessRuleError(
+                    f"A soma das subáreas de '{tipo}' em '{pai.nome}' ({soma_filhos_atual + nova_area_dec:.2f} ha) "
+                    f"ultrapassa a área da área pai ({limite_pai_dec:.2f} ha). "
+                    f"Saldo disponível em '{pai.nome}': {disponivel_pai:.2f} ha."
+                )
+        return True
+
     async def _validar_limite_hectares_area(
         self,
         unidade_produtiva_id: uuid.UUID,
         tipo: str,
         nova_area_ha: Decimal | float | None,
         excluir_area_id: uuid.UUID | None = None,
+        parent_id: uuid.UUID | None = None,
     ) -> None:
         """
-        Valida se a soma dos hectares das áreas produtivas (ex.: TALHAO) não excede
-        a área total da propriedade (UnidadeProdutiva) nem o limite_hectares do pacote contratado.
+        Valida se a soma dos hectares das áreas produtivas não excede a área pai (quando subdivisão/ILPF),
+        a área total da propriedade (UnidadeProdutiva) ou o limite_hectares do pacote contratado.
 
         Args:
             unidade_produtiva_id: ID da propriedade vinculada.
             tipo: Tipo da área rural sendo criada ou atualizada.
             nova_area_ha: Área em hectares da área rural.
             excluir_area_id: ID da área a excluir da soma em caso de atualização.
+            parent_id: ID da área pai na hierarquia territorial (opcional).
 
         Raises:
-            BusinessRuleError: Se o somatório ultrapassar a área da propriedade ou o limite do pacote.
+            BusinessRuleError: Se o somatório ultrapassar a área pai, a propriedade ou o limite do pacote.
         """
         if tipo not in TIPOS_AREA_PRODUTIVA or not nova_area_ha or float(nova_area_ha) <= 0:
             return
 
         nova_area_dec = Decimal(str(nova_area_ha))
+
+        if parent_id is not None and await self._validar_subarea_em_pai_produtivo(
+            parent_id=parent_id,
+            tipo=tipo,
+            nova_area_dec=nova_area_dec,
+            excluir_area_id=excluir_area_id,
+        ):
+            return
+
+        filtro_primaria, tipos_produtivos_vals = self._filtro_areas_produtivas_primarias()
 
         # 1. Validar contra área total da propriedade (UnidadeProdutiva)
         up_stmt = select(
@@ -184,7 +276,8 @@ class AreaRuralService(BaseService[AreaRural]):
                 ).where(
                     AreaRural.tenant_id == self.tenant_id,
                     AreaRural.unidade_produtiva_id == unidade_produtiva_id,
-                    AreaRural.tipo == tipo,
+                    AreaRural.tipo.in_(tipos_produtivos_vals),
+                    filtro_primaria,
                     AreaRural.ativo == True,
                 )
                 if excluir_area_id is not None:
@@ -195,7 +288,7 @@ class AreaRuralService(BaseService[AreaRural]):
                 if soma_prop_atual + nova_area_dec > limite_prop_dec:
                     disponivel_prop = max(Decimal("0"), limite_prop_dec - soma_prop_atual)
                     raise BusinessRuleError(
-                        f"A soma das áreas de '{tipo}' ({soma_prop_atual + nova_area_dec:.2f} ha) "
+                        f"A soma das áreas produtivas ({soma_prop_atual + nova_area_dec:.2f} ha) "
                         f"ultrapassa a área total da propriedade ({limite_prop_dec:.2f} ha). "
                         f"Saldo disponível na propriedade: {disponivel_prop:.2f} ha."
                     )
@@ -230,7 +323,8 @@ class AreaRuralService(BaseService[AreaRural]):
                 )
             ).where(
                 AreaRural.tenant_id == self.tenant_id,
-                AreaRural.tipo == tipo,
+                AreaRural.tipo.in_(tipos_produtivos_vals),
+                filtro_primaria,
                 AreaRural.ativo == True,
             )
             if excluir_area_id is not None:
@@ -241,8 +335,8 @@ class AreaRuralService(BaseService[AreaRural]):
             if soma_tenant_atual + nova_area_dec > limite_plano_dec:
                 disponivel_plano = max(Decimal("0"), limite_plano_dec - soma_tenant_atual)
                 raise BusinessRuleError(
-                    f"Limite de área do pacote atingido para '{tipo}' ({limite_plano_dec:.2f} ha). "
-                    f"Área já utilizada: {soma_tenant_atual:.2f} ha. "
+                    f"Limite de área do pacote atingido ({limite_plano_dec:.2f} ha). "
+                    f"Área produtiva já utilizada: {soma_tenant_atual:.2f} ha. "
                     f"Disponível no pacote: {disponivel_plano:.2f} ha."
                 )
 
@@ -254,6 +348,7 @@ class AreaRuralService(BaseService[AreaRural]):
                 unidade_produtiva_id=data["unidade_produtiva_id"],
                 tipo=data["tipo"],
                 nova_area_ha=area_efetiva,
+                parent_id=data.get("parent_id"),
             )
         area = AreaRural(tenant_id=self.tenant_id, **data)
         self.session.add(area)
@@ -275,8 +370,9 @@ class AreaRuralService(BaseService[AreaRural]):
             v = area.area_hectares_manual or area.area_hectares
             return float(v) if v else 0.0
 
+        ids_produtivos = {a.id for a in areas if a.tipo in TIPOS_AREA_PRODUTIVA}
         total = sum(ha(a) for a in areas if a.parent_id is None or a.tipo in TIPOS_AREA_PRODUTIVA | TIPOS_AREA_AMBIENTAL | TIPOS_INFRAESTRUTURA)
-        produtiva = sum(ha(a) for a in areas if a.tipo in TIPOS_AREA_PRODUTIVA)
+        produtiva = sum(ha(a) for a in areas if a.tipo in TIPOS_AREA_PRODUTIVA and a.parent_id not in ids_produtivos)
         ambiental = sum(ha(a) for a in areas if a.tipo in TIPOS_AREA_AMBIENTAL)
         infraestrutura = sum(ha(a) for a in areas if a.tipo in TIPOS_INFRAESTRUTURA)
 
@@ -292,6 +388,7 @@ class AreaRuralService(BaseService[AreaRural]):
         obj = await self.get_or_fail(area_id)
         novo_tipo = data.get("tipo") if data.get("tipo") is not None else obj.tipo
         nova_up_id = data.get("unidade_produtiva_id") if data.get("unidade_produtiva_id") is not None else obj.unidade_produtiva_id
+        novo_parent_id = data["parent_id"] if "parent_id" in data else obj.parent_id
         nova_area_manual = data["area_hectares_manual"] if "area_hectares_manual" in data else obj.area_hectares_manual
         nova_area_calc = data["area_hectares"] if "area_hectares" in data else obj.area_hectares
         area_efetiva = nova_area_manual if nova_area_manual is not None else nova_area_calc
@@ -300,12 +397,14 @@ class AreaRuralService(BaseService[AreaRural]):
             or "area_hectares" in data
             or "tipo" in data
             or "unidade_produtiva_id" in data
+            or "parent_id" in data
         ) and nova_up_id and area_efetiva:
             await self._validar_limite_hectares_area(
                 unidade_produtiva_id=nova_up_id,
                 tipo=novo_tipo,
                 nova_area_ha=area_efetiva,
                 excluir_area_id=area_id,
+                parent_id=novo_parent_id,
             )
         campos_nao_nulos = {"tipo", "nome", "irrigado", "ativo"}
         for k, v in data.items():

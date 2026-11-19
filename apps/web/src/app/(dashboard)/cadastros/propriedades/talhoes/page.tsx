@@ -391,7 +391,13 @@ export default function TalhoesPage() {
 
     // ── Save actions ──────────────────────────────────────────────────────────
     const saveEditGeom = useCallback(() => {
-        if (!drawnGeometry || !selectedTalhao) return;
+        if (!selectedTalhao) return;
+        if (!drawnGeometry) {
+            if (selectedTalhao.geometria) {
+                unmarkTalhaoRegion(selectedTalhao);
+            }
+            return;
+        }
  
         // Calcular nova área e centroide
         const feature: any = { type: "Feature", geometry: drawnGeometry, properties: {} };
@@ -408,7 +414,7 @@ export default function TalhoesPage() {
                 centroide_lng: centroid.geometry.coordinates[0],
             }
         });
-    }, [drawnGeometry, selectedTalhao, updateMutation]);
+    }, [drawnGeometry, selectedTalhao, unmarkTalhaoRegion, updateMutation]);
 
     // ── Map helpers ───────────────────────────────────────────────────────────
     const flyToTalhao = useCallback((t: Talhao) => {
@@ -706,7 +712,7 @@ export default function TalhoesPage() {
                                             size="sm"
                                             className="flex-1 rounded-sm"
                                             onClick={saveEditGeom}
-                                            disabled={!drawnGeometry || updateMutation.isPending}
+                                            disabled={(!drawnGeometry && !selectedTalhao?.geometria) || updateMutation.isPending}
                                         >
                                             <Save className="h-4 w-4 mr-2" />
                                             Salvar

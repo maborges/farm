@@ -100,4 +100,20 @@ test.describe("buildOperationalCadastroPayload", () => {
       },
     });
   });
+
+  test("preserva geometria null na edição para limpar polígono salvo", () => {
+    const payload = buildOperationalCadastroPayload({
+      id: "up-1",
+      nome: "UP Sem Polígono",
+      tipo_propriedade: "fazenda",
+      geometria: null,
+      ativo: true,
+    });
+
+    expect(payload.unidade_produtiva).toMatchObject({
+      id: "up-1",
+      nome: "UP Sem Polígono",
+      geometria: null,
+    });
+  });
 });

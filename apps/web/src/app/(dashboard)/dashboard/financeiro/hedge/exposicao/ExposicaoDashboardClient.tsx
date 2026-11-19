@@ -18,6 +18,7 @@ import { ExposicaoHistoricoChart } from "./ExposicaoHistoricoChart";
 import { SimulacaoPainel } from "./SimulacaoPainel";
 import { useAppStore } from "@/lib/stores/app-store";
 import { TierUpgradeCard } from "@/components/shared/tier-upgrade-card";
+import { PrecoEquilibrioTmaCard } from "@/components/financeiro/preco-equilibrio-tma-card";
 import { RecomendacoesInteligentes } from "./RecomendacoesInteligentes";
 import {
     Table,
@@ -379,6 +380,13 @@ export function ExposicaoDashboardClient({
                             />
                         </div>
                     </div>
+
+                    {/* ── Preço de Equilíbrio Econômico (TMA) e Trava Cambial ── */}
+                    <PrecoEquilibrioTmaCard
+                        key={`${exposicao?.safra_id ?? "default"}-${exposicao?.producao_estimada_sc ?? 0}-${exposicao?.percentual_cobertura ?? 0}`}
+                        defaultProducaoSc={exposicao?.producao_estimada_sc}
+                        defaultCoberturaPct={exposicao?.percentual_cobertura}
+                    />
 
                     {/* ── Gráfico Histórico de Exposição (ENTERPRISE) ── */}
                     <ExposicaoHistoricoChart />

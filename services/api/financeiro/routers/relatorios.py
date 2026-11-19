@@ -42,15 +42,29 @@ async def fluxo_caixa(
     data_inicio: date = Query(..., description="Início do período (YYYY-MM-DD)"),
     data_fim: date = Query(..., description="Fim do período (YYYY-MM-DD)"),
     unidade_produtiva_id: Optional[uuid.UUID] = Query(None),
+    saldo_inicial: float = Query(0.0, description="Saldo inicial de caixa/bancos"),
+    taxa_credito_planejado_aa: float = Query(
+        8.5, ge=0, le=100, description="Taxa anual crédito planejado / Plano Safra (%)"
+    ),
+    taxa_credito_reativo_aa: float = Query(
+        24.0, ge=0, le=200, description="Taxa anual crédito emergencial reativo (%)"
+    ),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_session),
 ):
     """
-    Fluxo de Caixa mensal: realizado (pagos/recebidos) + previsto (a vencer).
-    Retorna um registro por mês dentro do período informado.
+    Fluxo de Caixa mensal: realizado (pagos/recebidos) + previsto (a vencer),
+    incluindo projeção de vales de capital de giro e custo da decisão reativa.
     """
     svc = RelatorioService(db, tenant_id)
-    return await svc.fluxo_caixa(data_inicio, data_fim, unidade_produtiva_id)
+    return await svc.fluxo_caixa(
+        data_inicio,
+        data_fim,
+        unidade_produtiva_id,
+        saldo_inicial=saldo_inicial,
+        taxa_credito_planejado_aa=taxa_credito_planejado_aa,
+        taxa_credito_reativo_aa=taxa_credito_reativo_aa,
+    )
 
 
 @router.get("/livro-caixa", response_model=LivroCaixaResponse)

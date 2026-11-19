@@ -55,7 +55,7 @@ export function buildOperationalCadastroPayload(
       uf: toNullableText(input.uf),
       ibge_municipio_codigo: toNullableText(input.ibge_municipio_codigo),
       coordenadas_sede: toNullableText(input.coordenadas_sede) ?? undefined,
-      geometria: input.geometria ?? undefined,
+      geometria: input.id && input.geometria === null ? null : (input.geometria ?? undefined),
       ativo: input.ativo,
     },
   };

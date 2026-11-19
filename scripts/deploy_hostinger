@@ -1,0 +1,206 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_URL="${DEEPFARMS_REPO_URL:-https://github.com/maborges/farm.git}"
+REGISTRY_OWNER="${DEEPFARMS_GHCR_OWNER:-maborges}"
+COMPOSE_FILE="${DEEPFARMS_COMPOSE_FILE:-/opt/deepfarms/farm/docker-compose.hostinger.yml}"
+PROJECT="${DEEPFARMS_PROJECT:-farm}"
+ALL_COMPONENTS=(backend web campo agro)
+
+usage() {
+  cat <<'EOF'
+Uso: deploy_hostinger [COMMIT_SHA] [COMPONENTES...] [OPCOES]
+
+Automatiza o deploy na VPS Hostinger:
+  1. Resolve o commit alvo (ou usa o HEAD atual da branch main no GitHub).
+  2. Baixa as imagens publicadas no GHCR e extrai os digests sha256.
+  3. Faz backup e atualiza o docker-compose.hostinger.yml.
+  4. Executa docker compose up -d (e opcionalmente alembic upgrade head).
+  5. Exibe o status final dos containers.
+
+Argumentos:
+  COMMIT_SHA              Hash SHA completo (40 caracteres) do commit publicado no GHCR.
+                          Se omitido, busca automaticamente o HEAD da branch main.
+  COMPONENTES             Lista opcional entre: backend web campo agro.
+                          Se omitida, detecta automaticamente quais dos 4 possuem
+                          imagem publicada para o COMMIT_SHA.
+
+Opcoes:
+  -m, --migrate           Executa "alembic upgrade head" no container api apos subir.
+  -c, --compose CAMINHO   Caminho do docker-compose (padrao: /opt/deepfarms/farm/docker-compose.hostinger.yml).
+  -n, --dry-run           Simula a resolucao de argumentos e mostra os comandos sem alterar a VPS.
+  -h, --help              Exibe esta ajuda.
+
+Exemplos:
+  deploy_hostinger
+  deploy_hostinger d97e0a36891af84ee276fef8cd39cbbbf020c709
+  deploy_hostinger d97e0a36891af84ee276fef8cd39cbbbf020c709 backend web --migrate
+  deploy_hostinger --migrate
+EOF
+}
+
+log() {
+  printf '[deploy_hostinger] %s\n' "$*"
+}
+
+fail() {
+  printf '[deploy_hostinger] ERRO: %s\n' "$*" >&2
+  exit 1
+}
+
+resolve_main_sha() {
+  local sha
+  sha="$(git ls-remote "$REPO_URL" refs/heads/main 2>/dev/null | awk 'NR==1 {print $1}')"
+  if [[ ! "$sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    fail "Nao foi possivel resolver o SHA da branch main em $REPO_URL. Informe o COMMIT_SHA de 40 caracteres."
+  fi
+  printf '%s\n' "$sha"
+}
+
+update_compose_digest() {
+  local compose_path="$1"
+  local component="$2"
+  local digest="$3"
+
+  python3 - "$compose_path" "$REGISTRY_OWNER" "$component" "$digest" <<'PYEOF'
+import re
+import sys
+from pathlib import Path
+
+compose_path = Path(sys.argv[1])
+owner = sys.argv[2]
+component = sys.argv[3]
+digest = sys.argv[4]
+
+pattern = re.compile(rf"(ghcr\.io/{re.escape(owner)}/deepfarms-{re.escape(component)}@)sha256:[0-9a-f]{{64}}")
+content = compose_path.read_text(encoding="utf-8")
+updated, count = pattern.subn(rf"\g<1>{digest}", content)
+if count == 0:
+    raise SystemExit(
+        f"Referencia ghcr.io/{owner}/deepfarms-{component}@sha256:... nao encontrada em {compose_path}"
+    )
+compose_path.write_text(updated, encoding="utf-8")
+print(f"Atualizado {component} ({count} ocorrencia(s)) -> {digest}")
+PYEOF
+}
+
+extract_digest() {
+  local image_ref="$1"
+  local repo_digest
+  repo_digest="$(docker inspect --format='{{index .RepoDigests 0}}' "$image_ref")"
+  if [[ "$repo_digest" != *@sha256:* ]]; then
+    fail "Nao foi possivel extrair digest sha256 de $image_ref (obtido: $repo_digest)"
+  fi
+  printf '%s\n' "${repo_digest#*@}"
+}
+
+main() {
+  local commit_sha=""
+  local run_migrate=false
+  local dry_run=false
+  local explicit_components=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      -m|--migrate)
+        run_migrate=true
+        shift
+        ;;
+      -n|--dry-run)
+        dry_run=true
+        shift
+        ;;
+      -c|--compose)
+        [[ $# -lt 2 ]] && fail "Falta o caminho apos $1"
+        COMPOSE_FILE="$2"
+        shift 2
+        ;;
+      backend|web|campo|agro)
+        explicit_components+=("$1")
+        shift
+        ;;
+      *)
+        if [[ "$1" =~ ^[0-9a-fA-F]{40}$ ]] && [[ -z "$commit_sha" ]]; then
+          commit_sha="$1"
+          shift
+        elif [[ "$1" =~ ^[0-9a-fA-F]{7,39}$ ]]; then
+          fail "Informe o COMMIT_SHA completo de 40 caracteres (tag usada pelo GHCR), recebido: $1"
+        else
+          usage >&2
+          fail "Argumento invalido: $1"
+        fi
+        ;;
+    esac
+  done
+
+  if [[ -z "$commit_sha" ]]; then
+    log "Resolvendo ultimo commit da branch main em $REPO_URL..."
+    commit_sha="$(resolve_main_sha)"
+  fi
+
+  local targets=("${ALL_COMPONENTS[@]}")
+  local strict_pull=false
+  if [[ ${#explicit_components[@]} -gt 0 ]]; then
+    targets=("${explicit_components[@]}")
+    strict_pull=true
+  fi
+
+  log "Commit alvo: $commit_sha"
+  log "Compose:     $COMPOSE_FILE (projeto: $PROJECT)"
+  log "Componentes: ${targets[*]}"
+
+  if [[ "$dry_run" == true ]]; then
+    log "[dry-run] Nenhuma alteracao aplicada."
+    exit 0
+  fi
+
+  [[ -f "$COMPOSE_FILE" ]] || fail "Arquivo Compose nao encontrado: $COMPOSE_FILE"
+  command -v docker >/dev/null 2>&1 || fail "Docker CLI nao encontrado no host."
+  command -v python3 >/dev/null 2>&1 || fail "python3 nao encontrado no host."
+
+  declare -A pulled_digests=()
+  for comp in "${targets[@]}"; do
+    local image_ref="ghcr.io/${REGISTRY_OWNER}/deepfarms-${comp}:${commit_sha}"
+    log "Baixando $image_ref..."
+    if docker pull "$image_ref"; then
+      pulled_digests["$comp"]="$(extract_digest "$image_ref")"
+      log "Digest ${comp}: ${pulled_digests[$comp]}"
+    else
+      if [[ "$strict_pull" == true ]]; then
+        fail "Falha ao baixar $image_ref. Verifique se o workflow publish-images.yml concluiu no GitHub."
+      fi
+      log "Sem nova imagem para '$comp' neste commit (mantendo versao atual)."
+    fi
+  done
+
+  if [[ ${#pulled_digests[@]} -eq 0 ]]; then
+    fail "Nenhuma imagem encontrada no GHCR para o commit $commit_sha. Confirme se publish-images.yml ja concluiu."
+  fi
+
+  local backup_file="${COMPOSE_FILE}.bak.$(date +%Y%m%d%H%M%S)"
+  cp "$COMPOSE_FILE" "$backup_file"
+  log "Backup criado: $backup_file"
+
+  for comp in "${targets[@]}"; do
+    if [[ -n "${pulled_digests[$comp]:-}" ]]; then
+      update_compose_digest "$COMPOSE_FILE" "$comp" "${pulled_digests[$comp]}"
+    fi
+  done
+
+  log "Subindo containers atualizados..."
+  docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d
+
+  if [[ "$run_migrate" == true ]]; then
+    log "Executando migrations Alembic (alembic upgrade head)..."
+    docker compose -p "$PROJECT" -f "$COMPOSE_FILE" exec -T api alembic upgrade head
+  fi
+
+  log "Status atual dos containers:"
+  docker compose -p "$PROJECT" -f "$COMPOSE_FILE" ps
+}
+
+main "$@"

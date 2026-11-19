@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Literal, Optional, List
 from datetime import date
 import uuid
 
@@ -76,6 +76,30 @@ class FluxoCaixaPeriodo(BaseModel):
     # Saldo acumulado (running total do realizado)
     saldo_acumulado: float = 0.0
 
+    # Projeção de caixa (realizado + previsto) e detector de vale de capital de giro
+    saldo_projetado: float = 0.0
+    saldo_acumulado_projetado: float = 0.0
+    em_vale_caixa: bool = False
+
+
+class AnaliseDecisaoReativa(BaseModel):
+    """Diagnóstico de vales de capital de giro e custo da decisão reativa."""
+
+    possui_vale_caixa: bool
+    pior_vale_valor: float
+    mes_pior_vale: Optional[date] = None
+    primeiro_mes_vale: Optional[date] = None
+    meses_em_deficit: int
+    dias_antecedencia_primeiro_vale: Optional[int] = None
+    saldo_inicial_considerado: float = 0.0
+    taxa_credito_planejado_aa: float
+    taxa_credito_reativo_aa: float
+    custo_juros_planejado: float
+    custo_juros_reativo: float
+    custo_decisao_reativa: float
+    nivel_risco: Literal["SAUDAVEL", "ALERTA", "CRITICO"]
+    recomendacao: str
+
 
 class FluxoCaixaTotais(BaseModel):
     total_receitas_realizadas: float
@@ -92,6 +116,7 @@ class FluxoCaixaResponse(BaseModel):
     unidade_produtiva_id: Optional[uuid.UUID]
     periodos: List[FluxoCaixaPeriodo]
     totais: FluxoCaixaTotais
+    analise_decisao_reativa: Optional[AnaliseDecisaoReativa] = None
 
 
 # ── Livro Caixa ───────────────────────────────────────────────────────────────

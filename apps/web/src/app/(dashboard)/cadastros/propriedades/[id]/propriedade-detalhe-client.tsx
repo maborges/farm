@@ -16,7 +16,7 @@ import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import * as turf from "@turf/turf";
 import {
   ArrowLeft, Map as MapIcon, Building2, Plus, Trash2, MapPin, Layers,
-  Ruler, MoreVertical, PowerOff, Power, Trees, Sprout, Wheat, FolderTree, X,
+  Ruler, MoreVertical, PowerOff, Power, Trees, Sprout, Wheat, FolderTree, X, Fence,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
@@ -296,11 +296,11 @@ const DRAW_STYLES: any[] = [
 
 // Tipos que exigem área obrigatória
 const TIPOS_AREA_OBRIGATORIA = new Set([
-  "TALHAO", "AREA_AMBIENTAL", "SEDE", "ARMAZEM", "CURRAL", "OUTROS", "APP", "RESERVA_LEGAL",
+  "TALHAO", "PIQUETE", "SUBTALHAO", "ZONA_MANEJO", "AREA_AMBIENTAL", "SEDE", "ARMAZEM", "CURRAL", "OUTROS", "APP", "RESERVA_LEGAL",
 ]);
 
 const TIPOS_COM_GEOMETRIA = new Set([
-  "TALHAO", "GLEBA", "APP", "RESERVA_LEGAL", "PIQUETE", "AREA_AMBIENTAL", "AREA_OPERACIONAL",
+  "TALHAO", "GLEBA", "APP", "RESERVA_LEGAL", "PIQUETE", "SUBTALHAO", "ZONA_MANEJO", "AREA_AMBIENTAL", "AREA_OPERACIONAL",
 ]);
 
 const areaFormSchema = z.object({
@@ -1126,19 +1126,20 @@ export function PropriedadeDetalheClient({ propriedadeId }: { propriedadeId: str
         <TabsContent value="estrutura" className="pt-4">
           <div className="space-y-4">
             {/* KPIs */}
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
               {[
                 { label: "Área Total Informada", value: areaTotalInformada > 0 ? `${areaTotalInformada.toFixed(1)} ha` : "—", icon: <Ruler className="size-5 text-primary" />, bg: "bg-primary/10" },
-                { label: "Área Geométrica (Polígono)", value: areaTotalCalculada > 0 ? `${areaTotalCalculada.toFixed(1)} ha` : "—", icon: <MapIcon className="size-5 text-emerald-600" />, bg: "bg-emerald-100" },
-                { label: "Glebas", value: allAreas.filter((a) => a.tipo === "GLEBA").length, icon: <Layers className="size-5 text-emerald-600" />, bg: "bg-emerald-100" },
-                { label: "Talhões", value: allAreas.filter((a) => a.tipo === "TALHAO").length, icon: <Sprout className="size-5 text-teal-600" />, bg: "bg-teal-100" },
-                { label: "Infraestruturas", value: allAreas.filter((a) => ["INFRAESTRUTURA", "SEDE", "ARMAZEM", "CURRAL", "OUTROS"].includes(a.tipo)).length, icon: <Building2 className="size-5 text-blue-600" />, bg: "bg-blue-100" },
-                { label: "Áreas Informadas", value: allAreas.length > 0 ? `${allAreas.reduce((acc, a) => acc + ((a.area_hectares_manual ?? a.area_hectares) ?? 0), 0).toFixed(1)} ha` : "—", icon: <MapPin className="size-5 text-amber-600" />, bg: "bg-amber-100" },
+                { label: "Área Geométrica (Polígono)", value: areaTotalCalculada > 0 ? `${areaTotalCalculada.toFixed(1)} ha` : "—", icon: <MapIcon className="size-5 text-emerald-600" />, bg: "bg-emerald-500/10" },
+                { label: "Glebas", value: allAreas.filter((a) => a.tipo === "GLEBA").length, icon: <Layers className="size-5 text-emerald-600" />, bg: "bg-emerald-500/10" },
+                { label: "Talhões", value: allAreas.filter((a) => a.tipo === "TALHAO").length, icon: <Sprout className="size-5 text-teal-600" />, bg: "bg-teal-500/10" },
+                { label: "Piquetes", value: allAreas.filter((a) => a.tipo === "PIQUETE").length, icon: <Fence className="size-5 text-cyan-600" />, bg: "bg-cyan-500/10" },
+                { label: "Infraestruturas", value: allAreas.filter((a) => ["INFRAESTRUTURA", "SEDE", "ARMAZEM", "CURRAL", "OUTROS"].includes(a.tipo)).length, icon: <Building2 className="size-5 text-blue-600" />, bg: "bg-blue-500/10" },
+                { label: "Áreas Informadas", value: allAreas.length > 0 ? `${allAreas.reduce((acc, a) => acc + ((a.area_hectares_manual ?? a.area_hectares) ?? 0), 0).toFixed(1)} ha` : "—", icon: <MapPin className="size-5 text-amber-600" />, bg: "bg-amber-500/10" },
               ].map(({ label, value, icon, bg }) => (
-                <Card key={label}>
+                <Card key={label} className="rounded-sm">
                   <CardContent className="pt-6">
                     <div className="flex items-center gap-3">
-                      <div className={`size-10 rounded-lg ${bg} flex items-center justify-center`}>{icon}</div>
+                      <div className={`size-10 rounded-sm ${bg} flex items-center justify-center shrink-0`}>{icon}</div>
                       <div>
                         <p className="text-xs text-muted-foreground">{label}</p>
                         <p className="font-semibold">{value}</p>

@@ -1009,9 +1009,8 @@ function PropertyGeolocationDialog({
         if (!open) return;
         const nextGeometry = normalizeGeometry(initialGeometry);
         setGeometry(nextGeometry);
-        onGeometryChange(nextGeometry?.geometry ?? null);
-        onAreaChange(geometryAreaHa(nextGeometry));
-    }, [initialGeometry, open, onAreaChange, onGeometryChange]);
+        setCalculatedArea(geometryAreaHa(nextGeometry));
+    }, [initialGeometry, open]);
 
     useEffect(() => {
         if (!open) return;
@@ -1185,7 +1184,7 @@ function PropertyGeolocationDialog({
                                         size="sm"
                                         className="flex-1"
                                         onClick={handleConfirm}
-                                        disabled={!geometry}
+                                        disabled={!geometry && !initialGeometry}
                                     >
                                         <Save className="h-4 w-4 mr-2" />
                                         Confirmar
@@ -1861,7 +1860,7 @@ function PropriedadeDialog({
             <PropertyGeolocationDialog
                 open={geoDialogOpen}
                 onOpenChange={setGeoDialogOpen}
-                initialGeometry={geometry ? { type: "Feature", properties: {}, geometry } : fazenda?.geometria ?? null}
+                initialGeometry={geometry ? { type: "Feature", properties: {}, geometry } : null}
                 coordenadasSede={fazenda?.coordenadas_sede}
                 onGeometryChange={setGeometry}
                 onAreaChange={setCalculatedArea}

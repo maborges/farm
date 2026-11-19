@@ -460,6 +460,7 @@ export const MODULOS_OPERACIONAIS: SidebarModuleGroup[] = [
           { href: '/dashboard/financeiro/fluxo-caixa', icon: BarChart3, label: 'Fluxo de Caixa', tip: 'Caixa', permission: 'financeiro:fluxo_caixa:view' },
           { href: '/dashboard/financeiro/lancamentos', icon: ClipboardList, label: 'Lançamentos Operacionais', tip: 'Análise por Safra', permission: 'financeiro:lancamentos:view' },
           { href: '/dashboard/financeiro/dre', icon: FileText, label: 'DRE Operacional', tip: 'Resultado por Safra', permission: 'financeiro:dre:view' },
+          { href: '/dashboard/financeiro/viabilidade', icon: TrendingUp, label: 'Viabilidade (VPL/TIR)', tip: 'Payback, VPL, TIR e TMA', permission: 'financeiro:dre:view' },
         ],
       },
       {

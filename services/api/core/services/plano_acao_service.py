@@ -6,7 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.exceptions import EntityNotFoundError
 from core.models.plano_acao import PlanoAcaoGerencial
-from core.schemas.plano_acao_schemas import PlanoAcaoCreate, PlanoAcaoUpdate
+from core.schemas.plano_acao_schemas import (
+    PlanoAcaoCreate,
+    PlanoAcaoUpdate,
+    PlanoAcaoViabilidadeResumo,
+)
+from financeiro.schemas.viabilidade_schema import ProjetoInvestimentoInput
+from financeiro.services.viabilidade_service import ViabilidadeFinanceiraService
 
 
 class PlanoAcaoService:
@@ -40,6 +46,7 @@ class PlanoAcaoService:
         for item in itens:
             if item.prazo and item.prazo < hoje and item.status in ("ABERTO", "EM_ANDAMENTO"):
                 item.status = "ATRASADO"
+            self._anexar_viabilidade(item)
 
         if status:
             return [i for i in itens if i.status == status]
@@ -52,7 +59,7 @@ class PlanoAcaoService:
             dados: Payload validado de criação.
 
         Returns:
-            PlanoAcaoGerencial: Registro persistido.
+            PlanoAcaoGerencial: Registro persistido com resumo de viabilidade se houver CapEx.
         """
         status_inicial = "ATRASADO" if dados.prazo and dados.prazo < date.today() else "ABERTO"
         plano = PlanoAcaoGerencial(
@@ -63,7 +70,7 @@ class PlanoAcaoService:
         self.session.add(plano)
         await self.session.flush()
         await self.session.refresh(plano)
-        return plano
+        return self._anexar_viabilidade(plano)
 
     async def atualizar(self, plano_id: UUID, dados: PlanoAcaoUpdate) -> PlanoAcaoGerencial:
         """Atualiza campos ou status de um plano de ação do tenant.
@@ -73,7 +80,7 @@ class PlanoAcaoService:
             dados: Campos a atualizar.
 
         Returns:
-            PlanoAcaoGerencial: Registro atualizado.
+            PlanoAcaoGerencial: Registro atualizado com resumo de viabilidade recalculado.
 
         Raises:
             EntityNotFoundError: Quando o plano não pertence ao tenant ou não existe.
@@ -90,6 +97,45 @@ class PlanoAcaoService:
 
         await self.session.flush()
         await self.session.refresh(plano)
+        return self._anexar_viabilidade(plano)
+
+    @staticmethod
+    def _anexar_viabilidade(plano: PlanoAcaoGerencial) -> PlanoAcaoGerencial:
+        """Calcula e anexa indicadores VPL/TIR/Payback quando o plano possui CapEx e retorno."""
+        invest = getattr(plano, "investimento_estimado", None)
+        retorno = getattr(plano, "retorno_anual_estimado", None)
+        if not invest or invest <= 0 or not retorno or retorno <= 0:
+            setattr(plano, "viabilidade", None)
+            return plano
+
+        horizonte = int(getattr(plano, "horizonte_anos", None) or 5)
+        tma = float(getattr(plano, "tma_aa", None) if getattr(plano, "tma_aa", None) is not None else 12.0)
+        prazo_max = float(getattr(plano, "prazo_maximo_payback_anos", None) or horizonte)
+
+        analise = ViabilidadeFinanceiraService().analisar_projeto(
+            ProjetoInvestimentoInput(
+                id=str(plano.id),
+                nome=plano.titulo,
+                categoria="OUTROS",
+                investimento_inicial=float(invest),
+                tma_aa=tma,
+                prazo_maximo_aceitavel_anos=prazo_max,
+                fluxos_caixa_anuais=[float(retorno)] * horizonte,
+                valor_residual_final=0.0,
+            )
+        )
+        setattr(
+            plano,
+            "viabilidade",
+            PlanoAcaoViabilidadeResumo(
+                vpl=analise.vpl,
+                tir_aa=analise.tir_aa,
+                payback_simples_anos=analise.payback_simples_anos,
+                payback_descontado_anos=analise.payback_descontado_anos,
+                veredito_final=analise.veredito_final,
+                resumo_executivo=analise.resumo_executivo,
+            ),
+        )
         return plano
 
     async def excluir(self, plano_id: UUID) -> None:

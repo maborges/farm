@@ -39,6 +39,15 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/api";
 
+interface PlanoAcaoViabilidade {
+    vpl: number;
+    tir_aa: number | null;
+    payback_simples_anos: number | null;
+    payback_descontado_anos: number | null;
+    veredito_final: "VIAVEL" | "INVIAVEL" | "ATENCAO_LIQUIDEZ";
+    resumo_executivo: string;
+}
+
 interface PlanoAcao {
     id: string;
     titulo: string;
@@ -49,6 +58,22 @@ interface PlanoAcao {
     prazo: string | null;
     status: "ABERTO" | "EM_ANDAMENTO" | "CONCLUIDO" | "ATRASADO";
     resultado_obtido: string | null;
+    investimento_estimado?: number | null;
+    retorno_anual_estimado?: number | null;
+    horizonte_anos?: number | null;
+    tma_aa?: number | null;
+    prazo_maximo_payback_anos?: number | null;
+    viabilidade?: PlanoAcaoViabilidade | null;
+}
+
+const VEREDITO_CAPEX_BADGE: Record<PlanoAcaoViabilidade["veredito_final"], { label: string; className: string }> = {
+    VIAVEL: { label: "Viável", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30" },
+    ATENCAO_LIQUIDEZ: { label: "Liquidez", className: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30" },
+    INVIAVEL: { label: "Inviável", className: "bg-destructive/15 text-destructive border-destructive/30" },
+};
+
+function formatBrl(v: number): string {
+    return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 const STATUS_BADGE: Record<PlanoAcao["status"], { label: string; className: string }> = {
@@ -77,6 +102,11 @@ export function PlanosAcaoClient() {
         meta: "",
         prazo: "",
         descricao: "",
+        investimento_estimado: "",
+        retorno_anual_estimado: "",
+        horizonte_anos: "5",
+        tma_aa: "12",
+        prazo_maximo_payback_anos: "4",
     });
 
     const { data: planos = [], isLoading } = useQuery<PlanoAcao[]>({
@@ -91,7 +121,18 @@ export function PlanosAcaoClient() {
             toast.success("Plano de ação criado.");
             qc.invalidateQueries({ queryKey: ["planos-acao"] });
             setOpenNew(false);
-            setForm({ titulo: "", responsavel_nome: "", meta: "", prazo: "", descricao: "" });
+            setForm({
+                titulo: "",
+                responsavel_nome: "",
+                meta: "",
+                prazo: "",
+                descricao: "",
+                investimento_estimado: "",
+                retorno_anual_estimado: "",
+                horizonte_anos: "5",
+                tma_aa: "12",
+                prazo_maximo_payback_anos: "4",
+            });
         },
         onError: () => toast.error("Erro ao criar plano de ação."),
     });
@@ -135,12 +176,24 @@ export function PlanosAcaoClient() {
             toast.error("Informe um título com pelo menos 3 caracteres.");
             return;
         }
+        const invest = Number(form.investimento_estimado);
+        const retorno = Number(form.retorno_anual_estimado);
+        const temCapex = Number.isFinite(invest) && invest > 0 && Number.isFinite(retorno) && retorno > 0;
         criar.mutate({
             titulo: form.titulo.trim(),
             responsavel_nome: form.responsavel_nome.trim() || null,
             meta: form.meta.trim() || null,
             prazo: form.prazo || null,
             descricao: form.descricao.trim() || null,
+            ...(temCapex
+                ? {
+                      investimento_estimado: invest,
+                      retorno_anual_estimado: retorno,
+                      horizonte_anos: Math.max(1, Number(form.horizonte_anos) || 5),
+                      tma_aa: Math.max(0, Number(form.tma_aa) || 12),
+                      prazo_maximo_payback_anos: Math.max(0.5, Number(form.prazo_maximo_payback_anos) || 4),
+                  }
+                : {}),
         });
     }
 
@@ -258,6 +311,7 @@ export function PlanosAcaoClient() {
                                         <TableHead className="h-8">Origem</TableHead>
                                         <TableHead className="h-8">Responsável</TableHead>
                                         <TableHead className="h-8">Meta</TableHead>
+                                        <TableHead className="h-8">Viabilidade CapEx</TableHead>
                                         <TableHead className="h-8">Prazo</TableHead>
                                         <TableHead className="h-8">Status</TableHead>
                                         <TableHead className="h-8 text-right" />
@@ -281,6 +335,28 @@ export function PlanosAcaoClient() {
                                                 </TableCell>
                                                 <TableCell>{item.responsavel_nome ?? "—"}</TableCell>
                                                 <TableCell>{item.meta ?? "—"}</TableCell>
+                                                <TableCell>
+                                                    {item.viabilidade ? (
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Badge className={`rounded-sm text-[10px] ${VEREDITO_CAPEX_BADGE[item.viabilidade.veredito_final].className}`}>
+                                                                    {VEREDITO_CAPEX_BADGE[item.viabilidade.veredito_final].label}
+                                                                </Badge>
+                                                                <span className="tabular-nums font-medium">
+                                                                    VPL {formatBrl(item.viabilidade.vpl)}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[10px] text-muted-foreground tabular-nums">
+                                                                {item.viabilidade.tir_aa !== null ? `TIR ${item.viabilidade.tir_aa.toFixed(1)}%` : "TIR —"}
+                                                                {item.viabilidade.payback_descontado_anos !== null
+                                                                    ? ` • Payback ${item.viabilidade.payback_descontado_anos.toFixed(1)}a`
+                                                                    : ""}
+                                                            </p>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-muted-foreground">—</span>
+                                                    )}
+                                                </TableCell>
                                                 <TableCell>{formatDateBr(item.prazo)}</TableCell>
                                                 <TableCell>
                                                     <Badge className={`rounded-sm text-[11px] ${badge.className}`}>
@@ -378,6 +454,71 @@ export function PlanosAcaoClient() {
                                 onChange={(e) => setForm({ ...form, descricao: e.target.value })}
                                 className="text-xs rounded-sm"
                             />
+                        </div>
+                        <div className="rounded-sm border bg-muted/20 p-3 space-y-2.5">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                Viabilidade Financeira (Opcional — CapEx)
+                            </p>
+                            <div className="grid grid-cols-2 gap-2.5">
+                                <div className="space-y-1">
+                                    <Label className="text-xs">Investimento (R$)</Label>
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        step="1000"
+                                        placeholder="Ex.: 500000"
+                                        value={form.investimento_estimado}
+                                        onChange={(e) => setForm({ ...form, investimento_estimado: e.target.value })}
+                                        className="h-8 text-xs rounded-sm tabular-nums"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs">Retorno Anual (R$)</Label>
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        step="1000"
+                                        placeholder="Ex.: 180000"
+                                        value={form.retorno_anual_estimado}
+                                        onChange={(e) => setForm({ ...form, retorno_anual_estimado: e.target.value })}
+                                        className="h-8 text-xs rounded-sm tabular-nums"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs">Horizonte (anos)</Label>
+                                    <Input
+                                        type="number"
+                                        min="1"
+                                        max="25"
+                                        value={form.horizonte_anos}
+                                        onChange={(e) => setForm({ ...form, horizonte_anos: e.target.value })}
+                                        className="h-8 text-xs rounded-sm tabular-nums"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs">TMA (% a.a.) / Payback Máx.</Label>
+                                    <div className="grid grid-cols-2 gap-1.5">
+                                        <Input
+                                            type="number"
+                                            min="0"
+                                            step="0.5"
+                                            value={form.tma_aa}
+                                            onChange={(e) => setForm({ ...form, tma_aa: e.target.value })}
+                                            className="h-8 text-xs rounded-sm tabular-nums"
+                                            title="TMA (% a.a.)"
+                                        />
+                                        <Input
+                                            type="number"
+                                            min="0.5"
+                                            step="0.5"
+                                            value={form.prazo_maximo_payback_anos}
+                                            onChange={(e) => setForm({ ...form, prazo_maximo_payback_anos: e.target.value })}
+                                            className="h-8 text-xs rounded-sm tabular-nums"
+                                            title="Payback Máximo (anos)"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <DialogFooter>

@@ -23,6 +23,7 @@ from financeiro.schemas.relatorio_schema import (
     CentroCusto,
     CentroCustoResponse,
 )
+from financeiro.services.viabilidade_service import ViabilidadeFinanceiraService
 
 STATUS_REALIZADO_RECEITA = {"RECEBIDO", "RECEBIDO_PARCIAL"}
 STATUS_REALIZADO_DESPESA = {"PAGO", "PAGO_PARCIAL"}
@@ -58,7 +59,11 @@ class RelatorioService:
         data_inicio: date,
         data_fim: date,
         unidade_produtiva_id: uuid.UUID | None = None,
+        saldo_inicial: float = 0.0,
+        taxa_credito_planejado_aa: float = 8.5,
+        taxa_credito_reativo_aa: float = 24.0,
     ) -> FluxoCaixaResponse:
+        """Consolida o fluxo de caixa mensal (realizado + previsto) com diagnóstico de decisão reativa."""
         meses = _meses_entre(data_inicio, data_fim)
         periodos_map: dict[date, FluxoCaixaPeriodo] = {
             m: FluxoCaixaPeriodo(periodo=m) for m in meses
@@ -84,8 +89,9 @@ class RelatorioService:
             item.receitas_previstas = float(row.receitas_previstas or 0.0)
             item.despesas_previstas = float(row.despesas_previstas or 0.0)
 
-        # Calcula saldos e acumulado
+        # Calcula saldos e acumulado (realizado + projeção completa para capital de giro)
         saldo_acumulado = 0.0
+        saldo_acumulado_projetado = float(saldo_inicial)
         for mes in meses:
             p = periodos_map[mes]
             p.receitas_realizadas = round(p.receitas_realizadas, 2)
@@ -96,6 +102,10 @@ class RelatorioService:
             p.saldo_previsto = round(p.receitas_previstas - p.despesas_previstas, 2)
             saldo_acumulado += p.saldo_realizado
             p.saldo_acumulado = round(saldo_acumulado, 2)
+            p.saldo_projetado = round(p.saldo_realizado + p.saldo_previsto, 2)
+            saldo_acumulado_projetado += p.saldo_projetado
+            p.saldo_acumulado_projetado = round(saldo_acumulado_projetado, 2)
+            p.em_vale_caixa = p.saldo_acumulado_projetado < 0
 
         periodos = [periodos_map[m] for m in meses]
 
@@ -108,12 +118,18 @@ class RelatorioService:
             total_saldo_previsto=round(sum(p.saldo_previsto for p in periodos), 2),
         )
 
+        analise_decisao_reativa = ViabilidadeFinanceiraService.analisar_decisao_reativa_fluxo(
+            periodos,
+            (saldo_inicial, taxa_credito_planejado_aa, taxa_credito_reativo_aa),
+        )
+
         return FluxoCaixaResponse(
             data_inicio=data_inicio,
             data_fim=data_fim,
             unidade_produtiva_id=unidade_produtiva_id,
             periodos=periodos,
             totais=totais,
+            analise_decisao_reativa=analise_decisao_reativa,
         )
 
     def _consultas_fluxo_caixa(

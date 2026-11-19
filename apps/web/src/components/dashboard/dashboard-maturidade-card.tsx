@@ -24,6 +24,16 @@ interface PontoMelhoria {
     href: string;
 }
 
+interface GovernancaFinanceiraESG {
+    projetos_capex_avaliados: number;
+    projetos_capex_viaveis: number;
+    projetos_capex_inviaveis: number;
+    projetos_inviaveis_abertos: number;
+    vpl_carteira_capex: number;
+    status_governanca_esg: "SEM_CAPEX" | "SOLIDA" | "ATENCAO";
+    recomendacao_esg: string;
+}
+
 interface MaturidadeResponse {
     competencia: string;
     unidade_produtiva_id: string | null;
@@ -31,6 +41,7 @@ interface MaturidadeResponse {
     tendencia_mes_anterior: number | null;
     pilares: PilarMaturidade[];
     pontos_melhoria: PontoMelhoria[];
+    governanca_financeira?: GovernancaFinanceiraESG;
 }
 
 interface Props {
@@ -108,6 +119,49 @@ export function DashboardMaturidadeCard({ unidadeProdutivaId }: Props) {
                         </Link>
                     ))}
                 </div>
+
+                {data.governanca_financeira && (
+                    <div className="rounded-sm border bg-muted/20 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <div className="space-y-0.5 text-xs">
+                            <div className="flex items-center gap-2">
+                                <span className="font-semibold">Governança Financeira (Pilar G — ESG)</span>
+                                <Badge
+                                    variant="outline"
+                                    className={`rounded-sm text-[10px] ${
+                                        data.governanca_financeira.status_governanca_esg === "SOLIDA"
+                                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                            : data.governanca_financeira.status_governanca_esg === "ATENCAO"
+                                              ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                              : ""
+                                    }`}
+                                >
+                                    {data.governanca_financeira.status_governanca_esg === "SOLIDA"
+                                        ? `Sólida (${data.governanca_financeira.projetos_capex_viaveis}/${data.governanca_financeira.projetos_capex_avaliados} viáveis)`
+                                        : data.governanca_financeira.status_governanca_esg === "ATENCAO"
+                                          ? `Atenção (${data.governanca_financeira.projetos_capex_inviaveis} inviável)`
+                                          : "Sem CapEx"}
+                                </Badge>
+                                {data.governanca_financeira.projetos_capex_avaliados > 0 && (
+                                    <span className="font-semibold tabular-nums">
+                                        VPL:{" "}
+                                        {data.governanca_financeira.vpl_carteira_capex.toLocaleString("pt-BR", {
+                                            style: "currency",
+                                            currency: "BRL",
+                                        })}
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">
+                                {data.governanca_financeira.recomendacao_esg}
+                            </p>
+                        </div>
+                        <Button asChild variant="outline" size="sm" className="rounded-sm h-7 text-xs shrink-0">
+                            <Link href="/dashboard/financeiro/viabilidade">
+                                Viabilidade (VPL/TIR) <ArrowRight className="size-3 ml-1" />
+                            </Link>
+                        </Button>
+                    </div>
+                )}
 
                 {data.pontos_melhoria.length > 0 && (
                     <div className="rounded-sm border bg-muted/20 p-3 space-y-2">

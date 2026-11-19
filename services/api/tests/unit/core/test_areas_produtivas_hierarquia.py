@@ -141,3 +141,168 @@ async def test_desmarcar_geometria_area_rural(async_session: AsyncSession):
     assert atualizado.centroide_lng is None
     assert atualizado.nome == "Talhão Mapeado"
     assert atualizado.area_hectares_manual == Decimal("26.0000")
+
+
+@pytest.mark.asyncio
+async def test_limite_hectares_soma_talhao_e_piquete_primarios_na_gleba(async_session: AsyncSession):
+    tenant_id = uuid.uuid4()
+    fazenda_id = uuid.uuid4()
+    gleba_id = uuid.uuid4()
+    plano_id = uuid.uuid4()
+
+    async_session.add_all([
+        Tenant(id=tenant_id, nome="Fazenda Mista Limite", slug="faz-mista-lim", documento="33333333000103"),
+        PlanoAssinatura(
+            id=plano_id,
+            nome="Plano 500ha",
+            limite_hectares=Decimal("500.00"),
+            ativo=True,
+        ),
+        AssinaturaTenant(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            plano_id=plano_id,
+            status="ATIVA",
+        ),
+        UnidadeProdutiva(
+            id=fazenda_id,
+            tenant_id=tenant_id,
+            nome="Unidade Mista",
+            area_total_ha=Decimal("500.00"),
+        ),
+        AreaRural(
+            id=gleba_id,
+            tenant_id=tenant_id,
+            unidade_produtiva_id=fazenda_id,
+            nome="Gleba Principal",
+            tipo="GLEBA",
+            ativo=True,
+        ),
+    ])
+    await async_session.commit()
+
+    svc = AreaRuralService(AreaRural, async_session, tenant_id)
+
+    await svc.criar_area({
+        "unidade_produtiva_id": fazenda_id,
+        "parent_id": gleba_id,
+        "tipo": "TALHAO",
+        "nome": "Talhão 01",
+        "area_hectares_manual": Decimal("300.00"),
+        "ativo": True,
+    })
+
+    await svc.criar_area({
+        "unidade_produtiva_id": fazenda_id,
+        "parent_id": gleba_id,
+        "tipo": "PIQUETE",
+        "nome": "Piquete 01",
+        "area_hectares_manual": Decimal("200.00"),
+        "ativo": True,
+    })
+
+    with pytest.raises(BusinessRuleError) as exc_info:
+        await svc.criar_area({
+            "unidade_produtiva_id": fazenda_id,
+            "parent_id": gleba_id,
+            "tipo": "PIQUETE",
+            "nome": "Piquete 02",
+            "area_hectares_manual": Decimal("50.00"),
+            "ativo": True,
+        })
+
+    assert "500" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_piquete_ilpf_dentro_de_talhao_nao_duplica_consumo_do_plano_e_respeita_area_do_talhao(async_session: AsyncSession):
+    tenant_id = uuid.uuid4()
+    fazenda_id = uuid.uuid4()
+    gleba_id = uuid.uuid4()
+    plano_id = uuid.uuid4()
+
+    async_session.add_all([
+        Tenant(id=tenant_id, nome="Fazenda ILPF", slug="faz-ilpf", documento="44444444000104"),
+        PlanoAssinatura(
+            id=plano_id,
+            nome="Plano 500ha ILPF",
+            limite_hectares=Decimal("500.00"),
+            ativo=True,
+        ),
+        AssinaturaTenant(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            plano_id=plano_id,
+            status="ATIVA",
+        ),
+        UnidadeProdutiva(
+            id=fazenda_id,
+            tenant_id=tenant_id,
+            nome="Unidade ILPF",
+            area_total_ha=Decimal("500.00"),
+        ),
+        AreaRural(
+            id=gleba_id,
+            tenant_id=tenant_id,
+            unidade_produtiva_id=fazenda_id,
+            nome="Gleba ILPF",
+            tipo="GLEBA",
+            ativo=True,
+        ),
+    ])
+    await async_session.commit()
+
+    svc = AreaRuralService(AreaRural, async_session, tenant_id)
+
+    talhao = await svc.criar_area({
+        "unidade_produtiva_id": fazenda_id,
+        "parent_id": gleba_id,
+        "tipo": "TALHAO",
+        "nome": "Talhão 01",
+        "area_hectares_manual": Decimal("300.00"),
+        "ativo": True,
+    })
+
+    await svc.criar_area({
+        "unidade_produtiva_id": fazenda_id,
+        "parent_id": gleba_id,
+        "tipo": "PIQUETE",
+        "nome": "Piquete 01",
+        "area_hectares_manual": Decimal("200.00"),
+        "ativo": True,
+    })
+
+    # Com os 500 ha do plano já ocupados pelas áreas primárias (300 ha Talhão + 200 ha Piquete),
+    # criar Piquetes ILPF dentro do Talhão 01 (até 300 ha) NÃO deve duplicar o consumo do plano.
+    await svc.criar_area({
+        "unidade_produtiva_id": fazenda_id,
+        "parent_id": talhao.id,
+        "tipo": "PIQUETE",
+        "nome": "Piquete ILPF A",
+        "area_hectares_manual": Decimal("180.00"),
+        "ativo": True,
+    })
+
+    await svc.criar_area({
+        "unidade_produtiva_id": fazenda_id,
+        "parent_id": talhao.id,
+        "tipo": "PIQUETE",
+        "nome": "Piquete ILPF B",
+        "area_hectares_manual": Decimal("120.00"),
+        "ativo": True,
+    })
+
+    with pytest.raises(BusinessRuleError) as exc_info:
+        await svc.criar_area({
+            "unidade_produtiva_id": fazenda_id,
+            "parent_id": talhao.id,
+            "tipo": "PIQUETE",
+            "nome": "Piquete ILPF C",
+            "area_hectares_manual": Decimal("10.00"),
+            "ativo": True,
+        })
+
+    assert "Talhão 01" in str(exc_info.value)
+
+    sumario = await svc.sumario_areas(fazenda_id)
+    assert sumario["area_produtiva_ha"] == 500.0

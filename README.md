@@ -613,6 +613,38 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
   2. O endpoint `GET /api/v1/cadastros/areas-rurais` aceita `apenas_produtivas=true` (`TALHAO`, `PIQUETE`, `SUBTALHAO`, `ZONA_MANEJO`, `AREA_OPERACIONAL`), utilizado por Estoque (`EstoqueDialogs`), Tarefas/App Campo (`campo/service.py`, `tarefa-drawer.tsx`) e Relatórios Financeiros (`relatorio_service.py`).
   3. A tela `/dashboard/pecuaria/piquetes` foi consolidada como painel de consulta zootécnica, direcionando a manutenção estrutural para `/cadastros/propriedades`.
   4. Na tela de **Georreferenciamento** (`/cadastros/propriedades/talhoes`), todas as áreas produtivas podem ter sua geometria desenhada, editada, limpa em rascunho (`Limpar Desenho`) ou removida permanentemente (`Desmarcar Região`, via `PATCH /api/v1/cadastros/areas-rurais/{area_id}` com `geometria`, `area_hectares`, `centroide_lat` e `centroide_lng` explicitamente zerados como `null`).
+  5. **Cadastro de Áreas, Limite Ciente da Hierarquia (ILPF) e Limpeza de Polígono (`/cadastros/propriedades` e `/cadastros/propriedades/[id]`):**
+     - *Área obrigatória e indicador para Piquetes:* `PIQUETE`, `SUBTALHAO` e `ZONA_MANEJO` passaram a exigir o campo `Área (ha) *` no formulário de áreas da propriedade (`/cadastros/propriedades/[id]`), acompanhados do card contador de **Piquetes** na aba de Estrutura de Áreas.
+     - *Validação de limite ciente da hierarquia (`AreaRuralService._validar_limite_hectares_area`):* áreas produtivas primárias ligadas diretamente à `GLEBA` (`TALHAO`, `PIQUETE`, etc.) somam seus hectares entre si contra a área total da propriedade e o `limite_hectares` do pacote contratado; subdivisões internas/ILPF (como `PIQUETE`, `SUBTALHAO` ou `ZONA_MANEJO` filhos de um `TALHAO`) validam apenas contra a área do próprio `TALHAO` pai, evitando dupla contagem no limite do plano e em `sumario_areas`.
+     - *Problema corrigido (Limpar Área Geométrica):* ao clicar em **Limpar desenho** no mapa da Unidade Produtiva ou em **Limpar Desenho** em `/cadastros/propriedades/talhoes`, o botão **Confirmar** / **Salvar** ficava desabilitado e o payload omitia `geometria: null` na edição.
+     - *Comportamento esperado:* quando havia polígono prévio, o botão **Confirmar** / **Salvar** permanece habilitado após limpar o desenho, preservando `geometria: null` no payload (`PUT /unidades-produtivas/{id}/cadastro-completo` e `PATCH /cadastros/areas-rurais/{id}`) para remover o polígono salvo e zerar a área geométrica calculada.
+
+### Simulador Comparativo de Viabilidade de Investimentos Agro (VPL, TIR, Payback e TMA)
+- **Descrição curta:** Analisador financeiro de CapEx integrado ao módulo Financeiro (`④ Gestão Financeira` → `/dashboard/financeiro/viabilidade`), com composição da **TMA** (capital próprio + Plano Safra + risco agro), cálculo de **Payback Simples/Descontado**, **VPL**, **TIR**, **TIRM** (para fluxos não convencionais), comparativo lado a lado de projetos e exportação PDF/Excel.
+- **Fluxo de funcionamento:**
+  1. O usuário acessa **Viabilidade (VPL/TIR)** na seção `④ Gestão Financeira` (`/dashboard/financeiro/viabilidade`), onde pode compor e aplicar a **TMA** ponderando participação e custo do capital próprio vs. financiamento rural + prêmio de risco (`POST /api/v1/financeiro/viabilidade/calcular-tma`).
+  2. O portfólio permite carregar templates prontos do agro (*Pivô Central*, *Expansão de Silo*, *Pulverizador Autopropelido*, *Abertura de Área*) via `GET /api/v1/financeiro/viabilidade/templates` ou personalizar investimento inicial, prazo máximo aceitável, valor residual e fluxos anuais.
+  3. Ao clicar em **Simular Comparativo** (`POST /api/v1/financeiro/viabilidade/simular`), `ViabilidadeFinanceiraService` calcula VPL, TIR, TIRM, Índice de Lucratividade, Payback Simples e Payback Descontado, sinalizando fluxos não convencionais (múltiplas inversões de sinal) e recomendando o projeto com maior VPL positivo.
+  4. A interface exibe o resumo executivo, gráfico comparativo de VPL, curva de recuperação do capital e tabelas `DataTable` com busca e exportação para PDF e Excel.
+
+### Detector de Custo da Decisão Reativa e Vales de Capital de Giro (`/dashboard/financeiro/fluxo-caixa`)
+- **Descrição curta:** Evolução do Fluxo de Caixa mensal para antecipar meses com saldo acumulado projetado negativo ("Vales de Caixa") e quantificar o custo financeiro de recorrer a crédito emergencial caro em vez de planejar o capital de giro via Plano Safra.
+- **Fluxo de funcionamento:**
+  1. O endpoint `GET /api/v1/relatorios/fluxo-caixa` (`RelatorioService.fluxo_caixa` + `ViabilidadeFinanceiraService.analisar_decisao_reativa_fluxo`) aceita `saldo_inicial`, `taxa_credito_planejado_aa` (padrão `8,5%`) e `taxa_credito_reativo_aa` (padrão `24,0%`), calculando mês a mês `saldo_projetado`, `saldo_acumulado_projetado` e a flag `em_vale_caixa`.
+  2. Quando há déficit projetado (`saldo_acumulado_projetado < 0`), o retorno inclui `analise_decisao_reativa` com o valor do pior vale, meses em déficit, antecedência até o primeiro vale, nível de risco (`SAUDAVEL`, `ALERTA` ou `CRITICO`) e economia obtida ao antecipar o crédito planejado (`custo_decisao_reativa`).
+  3. Em `/dashboard/financeiro/fluxo-caixa`, o usuário visualiza um horizonte padrão de 6 meses (alternável para Mês Atual ou 12 Meses), ajusta saldo inicial e taxas de crédito em tempo real, acompanha a curva de caixa em gráfico e exporta o detalhamento mensal via `DataTable` em PDF ou Excel.
+
+### Governança Financeira CapEx nos Planos de Ação e Maturidade ESG (`/dashboard/planos-acao` e `/dashboard`)
+- **Descrição curta:** Integração do motor de viabilidade (`VPL`, `TIR`, `Payback Descontado`) aos Planos de Ação Gerenciais e ao pilar Financeiro ("G" de Governança ESG) do Score Consolidado de Maturidade.
+- **Fluxo de funcionamento:**
+  1. Ao cadastrar ou editar um plano em `/dashboard/planos-acao`, o usuário pode informar investimento estimado, retorno anual, horizonte, TMA e payback máximo (`PlanoAcaoCreate`/`PlanoAcaoUpdate`); `PlanoAcaoService` retorna automaticamente o resumo `viabilidade` (`vpl`, `tir_aa`, `payback_descontado_anos`, `veredito_final`).
+  2. No cálculo do Score de Maturidade (`GET /api/v1/dashboard/maturidade`), `MaturidadeService._avaliar_governanca_capex` avalia a carteira CapEx do tenant, exibe o status `governanca_financeira` (`SEM_CAPEX`, `SOLIDA` ou `ATENCAO`) em `DashboardMaturidadeCard` e ajusta a nota do pilar Financeiro quando há aportes avaliados (`+15` para carteira viável ou `-15` para projetos inviáveis em aberto).
+
+### Preço de Equilíbrio Econômico por TMA (`VPL = 0`) e Sensibilidade Cambial (`/dashboard/financeiro/hedge/exposicao`)
+- **Descrição curta:** Calculadora de preço mínimo por saca remunerando o custo de oportunidade (`TMA`) versus equilíbrio contábil, com simulação de sensibilidade cambial e recomendação comercial de trava em Hedge.
+- **Fluxo de funcionamento:**
+  1. O endpoint `POST /api/v1/financeiro/viabilidade/preco-equilibrio-tma` (`ViabilidadeFinanceiraService.calcular_preco_equilibrio_tma`) capitaliza o custo total da safra pela TMA no ciclo produtivo, calcula `preco_equilibrio_contabil_sc`, `preco_equilibrio_tma_sc`, `vpl_safra_atual` e gera cenários cambiais (`Dólar -10%`, `Base`, `Dólar +10%`) com ação recomendada (`TRAVAR_MARGEM`, `ATENCAO_TMA` ou `DEFESA_CAIXA`).
+  2. O componente reutilizável `PrecoEquilibrioTmaCard` integra o cálculo diretamente em **Exposição Física × Financeira (Hedge)** e na tela de **Viabilidade (VPL/TIR)**.
 
 ## Conceitos-Chave: Propriedade, Talhão e Unidade Produtiva
 

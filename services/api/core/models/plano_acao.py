@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 import uuid
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, Text
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy import Uuid as UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -39,6 +39,13 @@ class PlanoAcaoGerencial(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="ABERTO", index=True)
     resultado_obtido: Mapped[str | None] = mapped_column(Text, nullable=True)
     concluido_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Parâmetros opcionais de viabilidade financeira (CapEx)
+    investimento_estimado: Mapped[float | None] = mapped_column(Float, nullable=True)
+    retorno_anual_estimado: Mapped[float | None] = mapped_column(Float, nullable=True)
+    horizonte_anos: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tma_aa: Mapped[float | None] = mapped_column(Float, nullable=True)
+    prazo_maximo_payback_anos: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)

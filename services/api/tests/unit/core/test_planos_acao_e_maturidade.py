@@ -184,3 +184,62 @@ async def test_maturidade_fazenda_vazia_nao_falha(async_session: AsyncSession):
     assert resumo["score_geral"] == 0.0
     assert resumo["tendencia_mes_anterior"] is None
     assert len(resumo["pontos_melhoria"]) == 4
+    assert resumo["governanca_financeira"]["status_governanca_esg"] == "SEM_CAPEX"
+
+
+@pytest.mark.asyncio
+async def test_plano_acao_com_capex_calcula_viabilidade_e_reflete_na_maturidade(async_session: AsyncSession):
+    tenant_id = uuid.uuid4()
+    async_session.add_all([
+        Tenant(id=tenant_id, nome="Fazenda Governança", slug="faz-gov", documento="55555555000105"),
+        LancamentoFinanceiro(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            descricao="Adubo",
+            valor=10000.0,
+            data=date(2026, 11, 1),
+            tipo="CUSTO",
+        ),
+    ])
+    await async_session.commit()
+
+    svc_plano = PlanoAcaoService(async_session, tenant_id)
+    plano_viavel = await svc_plano.criar(
+        PlanoAcaoCreate(
+            titulo="Instalar Pivô Leste",
+            prazo=date.today() + timedelta(days=30),
+            investimento_estimado=500_000.0,
+            retorno_anual_estimado=200_000.0,
+            horizonte_anos=5,
+            tma_aa=12.0,
+            prazo_maximo_payback_anos=4.0,
+        )
+    )
+    assert getattr(plano_viavel, "viabilidade", None) is not None
+    assert plano_viavel.viabilidade.vpl > 0
+    assert plano_viavel.viabilidade.veredito_final == "VIAVEL"
+
+    maturidade_solida = await MaturidadeService(async_session, tenant_id).calcular_e_registrar()
+    fin_solido = next(p for p in maturidade_solida["pilares"] if p["chave"] == "financeiro")
+    assert maturidade_solida["governanca_financeira"]["status_governanca_esg"] == "SOLIDA"
+    assert fin_solido["score"] == 65.0  # 50.0 (custo) + 15.0 bônus governança CapEx
+
+    # Adiciona plano inviável aberto e verifica penalização no pilar financeiro
+    plano_inviavel = await svc_plano.criar(
+        PlanoAcaoCreate(
+            titulo="Armazém Superdimensionado",
+            prazo=date.today() + timedelta(days=30),
+            investimento_estimado=1_000_000.0,
+            retorno_anual_estimado=120_000.0,
+            horizonte_anos=5,
+            tma_aa=15.0,
+        )
+    )
+    assert plano_inviavel.viabilidade.vpl < 0
+    assert plano_inviavel.viabilidade.veredito_final == "INVIAVEL"
+
+    maturidade_atencao = await MaturidadeService(async_session, tenant_id).calcular_e_registrar()
+    fin_atencao = next(p for p in maturidade_atencao["pilares"] if p["chave"] == "financeiro")
+    assert maturidade_atencao["governanca_financeira"]["status_governanca_esg"] == "ATENCAO"
+    assert maturidade_atencao["governanca_financeira"]["projetos_capex_inviaveis"] == 1
+    assert fin_atencao["score"] == 35.0  # 50.0 (custo) - 15.0 penalidade CapEx inviável aberto
