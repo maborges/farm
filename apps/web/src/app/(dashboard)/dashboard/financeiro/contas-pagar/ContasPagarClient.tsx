@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { useAppStore } from "@/lib/stores/app-store";
 import { useForm } from "react-hook-form";
 import { Receipt, Plus, CheckCircle2, AlertTriangle, Loader2, Landmark } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -140,10 +141,12 @@ export function ContasPagarClient({
             />
 
             {vencendo.length > 0 && (
-                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                    <AlertTriangle className="size-4 shrink-0" />
-                    <span><strong>{vencendo.length}</strong> despesa(s) vencendo nos próximos 7 dias.</span>
-                </div>
+                <Alert variant="destructive">
+                    <AlertTriangle />
+                    <AlertDescription>
+                        <strong>{vencendo.length}</strong> despesa(s) vencendo nos próximos 7 dias.
+                    </AlertDescription>
+                </Alert>
             )}
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -153,9 +156,9 @@ export function ContasPagarClient({
                     { label: "Vencidas", value: vencidas.length, danger: vencidas.length > 0 },
                     { label: "A pagar (R$)", value: totalPendente.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), warn: totalPendente > 0 },
                 ].map(k => (
-                    <Card key={k.label} className={k.danger ? "border-red-400" : k.warn ? "border-yellow-400" : ""}>
+                    <Card key={k.label} className={k.danger ? "border-alert-destructive-border" : k.warn ? "border-alert-warning-border" : ""}>
                         <CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{k.label}</CardTitle></CardHeader>
-                        <CardContent><div className={`text-2xl font-bold ${k.danger ? "text-red-600" : k.warn ? "text-yellow-600" : ""}`}>{isLoading ? <Skeleton className="h-7 w-8" /> : k.value}</div></CardContent>
+                        <CardContent><div className={`text-2xl font-bold ${k.danger ? "text-alert-destructive-icon" : k.warn ? "text-alert-warning-icon" : ""}`}>{isLoading ? <Skeleton className="h-7 w-8" /> : k.value}</div></CardContent>
                     </Card>
                 ))}
             </div>

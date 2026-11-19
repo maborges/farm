@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Package, Calendar, Tag, ArrowLeft, Layers, Info, DollarSign, Settings2, AlertTriangle, CheckCircle2, History } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -388,16 +389,14 @@ export default function MovimentacaoDetailPage() {
 
                     {/* Timeline ou Histórico Simples se for ajuste */}
                     {mov.ajuste_de && (
-                        <div className="bg-blue-50/50 border border-blue-100 rounded-sm p-4 flex gap-3 items-start">
-                            <Info className="h-5 w-5 text-blue-500 mt-0.5" />
-                            <div className="space-y-1">
-                                <p className="text-xs font-bold text-blue-900 uppercase tracking-tight">Vínculo de Auditoria</p>
-                                <p className="text-xs text-blue-800/80 leading-relaxed">
-                                    Este registro é uma correção vinculada à movimentação <span className="font-mono font-bold">#{mov.ajuste_de.substring(0, 8)}</span>.
-                                    Ambos os registros permanecem no sistema para fins de auditoria e integridade de saldo histórico.
-                                </p>
-                            </div>
-                        </div>
+                        <Alert variant="info">
+                            <Info />
+                            <AlertTitle className="text-xs font-bold uppercase tracking-tight">Vínculo de Auditoria</AlertTitle>
+                            <AlertDescription className="text-xs leading-relaxed">
+                                Este registro é uma correção vinculada à movimentação <span className="font-mono font-bold">#{mov.ajuste_de.substring(0, 8)}</span>.
+                                Ambos os registros permanecem no sistema para fins de auditoria e integridade de saldo histórico.
+                            </AlertDescription>
+                        </Alert>
                     )}
                 </div>
 

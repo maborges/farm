@@ -35,25 +35,28 @@ function CustomBpmnNode({ data }: { data: BpmnNodeData }) {
     <div className="relative group">
       <Handle type="target" position={Position.Left} className="w-2 h-2 bg-slate-300 border-none" />
 
-      <Card className={cn("rounded-lg shadow-sm border w-[280px] transition-all duration-300", 
-        isCompleted ? "border-emerald-200 bg-emerald-50/40" : 
-        isActive ? "border-blue-400 bg-white ring-4 ring-blue-500/20 shadow-lg shadow-blue-500/10 z-10" :
-        "border-slate-200 bg-slate-50/50 opacity-70"
-      )}>
+      <Card
+        variant={isCompleted ? "success" : isActive ? "default" : "muted"}
+        className={cn(
+          "rounded-sm shadow-sm w-[280px] transition-all duration-300",
+          isActive && "border-alert-info-icon ring-4 ring-alert-info-icon/20 shadow-lg z-10",
+          isBlocked && "opacity-75"
+        )}
+      >
         <CardContent className="p-4 flex flex-col gap-3">
           <div className="flex items-start justify-between gap-3">
-            <div className={cn("font-bold text-sm leading-tight", isCompleted ? "text-emerald-900" : isActive ? "text-slate-900" : "text-slate-500")}>{data.title}</div>
+            <div className={cn("font-bold text-sm leading-tight", isCompleted ? "text-card-title" : isActive ? "text-foreground" : "text-muted-foreground")}>{data.title}</div>
             {isCompleted ? (
-              <CheckCircle2 className="size-5 text-emerald-500 shrink-0 mt-0.5" />
+              <CheckCircle2 className="size-5 text-alert-success-icon shrink-0 mt-0.5" />
             ) : isBlocked ? (
-              <AlertTriangle className="size-5 text-slate-400 shrink-0 mt-0.5" />
+              <AlertTriangle className="size-5 text-muted-foreground shrink-0 mt-0.5" />
             ) : (
-              <PlayCircle className="size-5 text-blue-500 shrink-0 mt-0.5 animate-pulse" />
+              <PlayCircle className="size-5 text-alert-info-icon shrink-0 mt-0.5 animate-pulse" />
             )}
           </div>
           
           {data.description && (
-            <p className="text-[12px] text-slate-500 leading-relaxed line-clamp-2">{data.description}</p>
+            <p className="text-[12px] text-card-description leading-relaxed line-clamp-2">{data.description}</p>
           )}
 
           {isActive && data.link && !isBlocked && (

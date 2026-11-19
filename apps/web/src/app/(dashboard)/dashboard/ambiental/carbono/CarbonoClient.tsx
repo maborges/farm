@@ -7,6 +7,7 @@ import { useHasModule } from "@/hooks/use-has-module";
 import { useAppStore } from "@/lib/stores/app-store";
 import { Modulos } from "@/lib/constants/modulos";
 import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { DataTable, ColumnDef } from "@/components/ui/data-table";
 import { PermissionGuard } from "@/components/auth/permission-guard";
-import { Leaf, Plus, FileText, TrendingUp, Download, Pencil, Archive } from "lucide-react";
+import { Leaf, Plus, FileText, TrendingUp, Download, Pencil, Archive, Info } from "lucide-react";
 
 interface Dashboard {
   total_emissoes: number;
@@ -335,10 +336,13 @@ export function CarbonoClient() {
         }
       />
 
-      <div role="status" className="rounded-sm border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-sm text-violet-800 dark:text-violet-200">
-        <strong>Visão consolidada:</strong> emissões, projetos e relatórios exibidos pertencem ao produtor. Novas emissões e projetos serão vinculados à unidade produtiva selecionada no topbar.
-        {!unidadeSelecionada && <span className="ml-1 text-destructive">Selecione uma unidade para cadastrar.</span>}
-      </div>
+      <Alert variant="info" role="status">
+        <Info />
+        <AlertDescription>
+          <strong>Visão consolidada:</strong> emissões, projetos e relatórios exibidos pertencem ao produtor. Novas emissões e projetos serão vinculados à unidade produtiva selecionada no topbar.
+          {!unidadeSelecionada && <strong className="ml-1 text-alert-destructive-icon">Selecione uma unidade para cadastrar.</strong>}
+        </AlertDescription>
+      </Alert>
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card><CardHeader className="pb-2"><CardDescription>Total emissões</CardDescription><CardTitle>{formatNumber(dashboard?.total_emissoes)}</CardTitle></CardHeader></Card>

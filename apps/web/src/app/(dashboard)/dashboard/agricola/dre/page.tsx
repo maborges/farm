@@ -352,8 +352,8 @@ export default function DREAgricolaV1Page() {
         icon={<LineChart className="size-5" />}
       />
 
-      <Alert className="rounded-sm">
-        <AlertCircle className="size-4" />
+      <Alert variant="info">
+        <AlertCircle />
         <AlertTitle>Leitura controlada</AlertTitle>
         <AlertDescription>
           Receita e CostAllocation são fontes oficiais. LancamentoFinanceiro e EstoqueMovimento entram apenas na reconciliação.

@@ -161,7 +161,7 @@ export default function ContmaticConfigPage() {
       </Card>
 
       {testResult && (
-        <Alert variant={testResult.sucesso ? 'default' : 'destructive'}>
+        <Alert variant={testResult.sucesso ? "success" : "destructive"}>
           <AlertDescription>
             {testResult.mensagem}
           </AlertDescription>

@@ -94,13 +94,13 @@ export default function AnaliseSoloPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-0 bg-yellow-500/5 rounded-sm">
+                <Card variant="warning">
                     <CardContent className="p-6">
                         <div className="flex items-center gap-3 mb-4">
-                            <AlertCircle className="text-yellow-600" size={20} />
+                            <AlertCircle className="text-alert-warning-icon" size={20} />
                             <h3 className="font-bold">Alertas de Solo</h3>
                         </div>
-                        <p className="text-xs text-muted-foreground mb-4">
+                        <p className="text-xs text-card-description mb-4">
                             {analises.filter(a => a.vencida).length} análise(s) com recomendação vencida.
                         </p>
                     </CardContent>

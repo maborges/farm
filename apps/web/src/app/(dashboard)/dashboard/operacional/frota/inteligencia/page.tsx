@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, BrainCircuit, DollarSign, ShieldAlert, Tractor, Zap } from "lucide-react";
+import { AlertTriangle, BrainCircuit, CheckCircle2, DollarSign, ShieldAlert, Tractor, Zap } from "lucide-react";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { TierUpgradeCard } from "@/components/shared/tier-upgrade-card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -287,9 +288,12 @@ export default function FrotaInteligenciaPage() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       {data.recomendacoes_gerais.length === 0 ? (
-                        <div className="rounded-sm border border-emerald-200 bg-emerald-50/40 p-4 text-sm text-emerald-700">
-                          Nenhuma recomendação prioritária neste momento.
-                        </div>
+                        <Alert variant="success">
+                          <CheckCircle2 />
+                          <AlertDescription>
+                            Nenhuma recomendação prioritária neste momento.
+                          </AlertDescription>
+                        </Alert>
                       ) : (
                         data.recomendacoes_gerais.map((item) => (
                           <div key={item} className="rounded-sm border p-3 text-sm">
@@ -359,14 +363,14 @@ function ResumoCard({
   tone?: "default" | "warning" | "danger";
 }) {
   return (
-    <Card className={cn("rounded-sm shadow-sm", tone === "warning" && "border-amber-200", tone === "danger" && "border-red-200")}>
+    <Card className={cn("rounded-sm shadow-sm", tone === "warning" && "border-alert-warning-border", tone === "danger" && "border-alert-destructive-border")}>
       <CardContent className="flex items-start gap-4 p-5">
         <div
           className={cn(
             "flex size-10 items-center justify-center rounded-sm",
             tone === "default" && "bg-primary/10 text-primary",
-            tone === "warning" && "bg-amber-100 text-amber-700",
-            tone === "danger" && "bg-red-100 text-red-700"
+            tone === "warning" && "bg-alert-warning-bg text-alert-warning-icon border border-alert-warning-border",
+            tone === "danger" && "bg-alert-destructive-bg text-alert-destructive-icon border border-alert-destructive-border"
           )}
         >
           <Icon className="size-5" />

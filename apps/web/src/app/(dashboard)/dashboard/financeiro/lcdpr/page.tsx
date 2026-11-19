@@ -90,20 +90,20 @@ export default function LcdprPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-blue-200 bg-blue-50/50">
+                <Card variant="info">
                     <CardHeader>
-                        <CardTitle className="text-sm flex items-center gap-2 text-blue-700">
-                            <Info className="size-4" />Sobre o LCDPR
+                        <CardTitle className="text-sm flex items-center gap-2">
+                            <Info className="size-4 text-alert-info-icon" />Sobre o LCDPR
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="text-sm text-blue-800 space-y-2">
+                    <CardContent className="text-sm text-card-description space-y-2">
                         <p>O <strong>Livro Caixa Digital do Produtor Rural (LCDPR)</strong> é obrigatório para produtores rurais pessoa física que obtiveram receita bruta acima de R$ 3,8 milhões no ano-calendário.</p>
                         <ul className="list-disc pl-4 space-y-1 text-xs">
                             <li>Entregue via e-CAC à Receita Federal</li>
                             <li>Substitui o livro caixa em papel</li>
                             <li>Prazo: mesmo da declaração IRPF (abril)</li>
                         </ul>
-                        <p className="text-xs text-blue-600 mt-2">O arquivo exportado contém os lançamentos do período conforme padrão da RFB.</p>
+                        <p className="text-xs text-alert-info-icon mt-2">O arquivo exportado contém os lançamentos do período conforme padrão da RFB.</p>
                     </CardContent>
                 </Card>
             </div>

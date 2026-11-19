@@ -384,8 +384,8 @@ export default function InteligenciaOperacionalAgricolaPage() {
         icon={<WandSparkles className="size-5" />}
       />
 
-      <Alert className="rounded-sm border-sky-200 bg-sky-50/60 text-sky-950">
-        <AlertCircle className="size-4" />
+      <Alert variant="info">
+        <AlertCircle />
         <AlertTitle>Leitura assistida</AlertTitle>
         <AlertDescription>
           Esta camada não executa ações, não altera tarefas reais, não usa workflow engine e não recalcula analytics.

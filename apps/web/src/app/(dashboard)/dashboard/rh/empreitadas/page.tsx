@@ -276,38 +276,38 @@ export default function EmpreitadasPage() {
 
             {/* KPIs */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <Card className="border-none bg-blue-50 dark:bg-blue-950/20">
+                <Card variant="info">
                     <CardContent className="p-4">
-                        <p className="text-[10px] font-bold uppercase text-blue-600 flex items-center gap-1">
+                        <p className="text-[10px] font-bold uppercase text-card-description flex items-center gap-1">
                             <BarChart3 size={10} /> Em Andamento
                         </p>
-                        <p className="text-2xl font-black text-blue-700">{totAberta}</p>
+                        <p className="text-2xl font-black text-card-title">{totAberta}</p>
                         {vencidas > 0 && (
-                            <p className="text-[10px] text-red-500 font-semibold flex items-center gap-1 mt-0.5">
+                            <p className="text-[10px] text-alert-destructive-icon font-semibold flex items-center gap-1 mt-0.5">
                                 <AlertTriangle size={9} /> {vencidas} vencida{vencidas > 1 ? "s" : ""}
                             </p>
                         )}
                     </CardContent>
                 </Card>
-                <Card className="border-none bg-amber-50 dark:bg-amber-950/20">
+                <Card variant="warning">
                     <CardContent className="p-4">
-                        <p className="text-[10px] font-bold uppercase text-amber-600">Concluídas</p>
-                        <p className="text-2xl font-black text-amber-700">{totConcluida}</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">aguardando pagto.</p>
+                        <p className="text-[10px] font-bold uppercase text-card-description">Concluídas</p>
+                        <p className="text-2xl font-black text-card-title">{totConcluida}</p>
+                        <p className="text-[10px] text-card-description mt-0.5">aguardando pagto.</p>
                     </CardContent>
                 </Card>
-                <Card className="border-none bg-green-50 dark:bg-green-950/20">
+                <Card variant="success">
                     <CardContent className="p-4">
-                        <p className="text-[10px] font-bold uppercase text-green-600">Pagas</p>
-                        <p className="text-2xl font-black text-green-700">{totPaga}</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{fmt(valorPago)}</p>
+                        <p className="text-[10px] font-bold uppercase text-card-description">Pagas</p>
+                        <p className="text-2xl font-black text-card-title">{totPaga}</p>
+                        <p className="text-[10px] text-card-description mt-0.5">{fmt(valorPago)}</p>
                     </CardContent>
                 </Card>
-                <Card className="border-none bg-red-50 dark:bg-red-950/20">
+                <Card variant="destructive">
                     <CardContent className="p-4">
-                        <p className="text-[10px] font-bold uppercase text-red-600">A Pagar</p>
-                        <p className="text-xl font-black text-red-700 tabular-nums">{fmt(valorPendente)}</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">concluídas + abertas</p>
+                        <p className="text-[10px] font-bold uppercase text-card-description">A Pagar</p>
+                        <p className="text-xl font-black text-card-title tabular-nums">{fmt(valorPendente)}</p>
+                        <p className="text-[10px] text-card-description mt-0.5">concluídas + abertas</p>
                     </CardContent>
                 </Card>
             </div>

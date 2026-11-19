@@ -233,8 +233,8 @@ export default function EficienciaOperacionalAgricolaPage() {
         icon={<Activity className="size-5" />}
       />
 
-      <Alert className="rounded-sm">
-        <AlertCircle className="size-4" />
+      <Alert variant="info">
+        <AlertCircle />
         <AlertTitle>Leitura oficial</AlertTitle>
         <AlertDescription>
           A eficiência consome DREAgricolaV1Service, AgricolaDreKpiService, RentabilidadeService e registros operacionais já existentes. Não há recalculo fora da DRE.
@@ -377,8 +377,8 @@ export default function EficienciaOperacionalAgricolaPage() {
       ) : eficiencia ? (
         <div className="flex flex-col gap-6">
           {hasWarnings && (
-            <Alert className="rounded-sm border-amber-300 bg-amber-50/60">
-              <AlertCircle className="size-4 text-amber-600" />
+            <Alert variant="warning">
+              <AlertCircle />
               <AlertTitle>indicadores sujeitos à reconciliação.</AlertTitle>
               <AlertDescription>
                 A visão utiliza DRE agrícola v1, rentabilidade oficial e registros operacionais. Warnings relevantes foram propagados para preservar a leitura oficial.

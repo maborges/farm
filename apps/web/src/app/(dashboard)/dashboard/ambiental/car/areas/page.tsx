@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "@/lib/stores/app-store";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
-import { BarChart3, Leaf, TreePine, Waves } from "lucide-react";
+import { BarChart3, Info, Leaf, TreePine, Waves } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -117,9 +118,12 @@ export default function AreasCarPage() {
                 )}
             />
 
-            <div role="status" className="rounded-sm border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-sm text-violet-800 dark:text-violet-200">
-                <strong>Visão consolidada:</strong> os indicadores reúnem áreas dos CARs de todas as unidades produtivas autorizadas. A unidade de origem é identificada na lista de propriedades.
-            </div>
+            <Alert variant="info" role="status">
+                <Info />
+                <AlertDescription>
+                    <strong>Visão consolidada:</strong> os indicadores reúnem áreas dos CARs de todas as unidades produtivas autorizadas. A unidade de origem é identificada na lista de propriedades.
+                </AlertDescription>
+            </Alert>
 
             {carregandoContextos && carsConsolidados.length === 0 && unidadesAutorizadas.length === 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

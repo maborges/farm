@@ -184,7 +184,7 @@ export function DominioClient({ initialConfig }: { initialConfig: DominioConfig 
           </div>
 
           {testResult && (
-            <Alert variant={testResult.sucesso ? 'default' : 'destructive'}>
+            <Alert variant={testResult.sucesso ? "success" : "destructive"}>
               <AlertDescription>
                 {testResult.mensagem}
               </AlertDescription>

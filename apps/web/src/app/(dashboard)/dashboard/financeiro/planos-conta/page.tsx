@@ -719,15 +719,16 @@ export default function PlanosContaPage() {
       />
 
       {limitStateEffective ? (
-        <Card className="border-amber-500/30 bg-amber-500/10">
+        <Card variant="warning">
           <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
-              <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">Limite do plano atingido</p>
-              <p className="text-sm text-amber-900/80 dark:text-amber-100/80">{limitStateEffective.message}</p>
+              <p className="text-sm font-semibold text-card-title">Limite do plano atingido</p>
+              <p className="text-sm text-card-description">{limitStateEffective.message}</p>
             </div>
             <Button
               variant="outline"
-              className="border-amber-500/30 bg-background/80"
+              size="sm"
+              className="border-alert-warning-border bg-card/80"
               onClick={() => router.push("/dashboard/settings/billing")}
             >
               Fazer upgrade

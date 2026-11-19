@@ -8,6 +8,7 @@ import {
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { apiFetch } from "@/lib/api";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -113,12 +114,12 @@ export default function FilaPrioritariaPage() {
 
             {/* Alerta críticos */}
             {!isLoading && criticas.length > 0 && (
-                <div className="flex items-center gap-2.5 rounded-sm border border-red-500/30 bg-red-500/5 px-4 py-2.5 text-sm text-red-700">
-                    <AlertTriangle className="size-4 shrink-0" />
-                    <span>
+                <Alert variant="destructive">
+                    <AlertTriangle />
+                    <AlertDescription>
                         <strong>{criticas.length}</strong> solicitação{criticas.length > 1 ? "ões" : ""} com prioridade crítica (≥ 80) requer{criticas.length > 1 ? "em" : ""} atenção imediata.
-                    </span>
-                </div>
+                    </AlertDescription>
+                </Alert>
             )}
 
             {/* Lista de cards */}

@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PageHeader } from "@/components/shared/page-header";
 import {
@@ -164,16 +165,14 @@ export default function BackofficeProfilesPage() {
             />
 
             {/* Info banner */}
-            <div className="rounded-sm border border-amber-400/30 bg-amber-500/5 px-4 py-3 flex items-start gap-3">
-                <Lock size={15} className="text-amber-500 mt-0.5 shrink-0" aria-hidden />
-                <div>
-                    <p className="text-sm font-medium text-amber-700 dark:text-amber-400">Atenção: impacto global</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 text-pretty">
-                        Editar ou remover um perfil padrão afeta todos os produtores que o utilizam.
-                        Perfis em uso não podem ser removidos sem reatribuição.
-                    </p>
-                </div>
-            </div>
+            <Alert variant="warning">
+                <Lock aria-hidden />
+                <AlertTitle>Atenção: impacto global</AlertTitle>
+                <AlertDescription className="text-xs text-pretty">
+                    Editar ou remover um perfil padrão afeta todos os produtores que o utilizam.
+                    Perfis em uso não podem ser removidos sem reatribuição.
+                </AlertDescription>
+            </Alert>
 
             {/* Grid de perfis */}
             {profiles?.length === 0 ? (

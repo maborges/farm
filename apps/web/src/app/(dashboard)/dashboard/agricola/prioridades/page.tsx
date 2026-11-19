@@ -410,8 +410,8 @@ export default function PrioridadesOperacionaisEconomicasAgricolaPage() {
         icon={<Target className="size-5" />}
       />
 
-      <Alert className="rounded-sm">
-        <AlertCircle className="size-4" />
+      <Alert variant="info">
+        <AlertCircle />
         <AlertTitle>Fila oficial consolidada</AlertTitle>
         <AlertDescription>
           A central agrega diagnósticos, recomendações, benchmark e warnings oficiais em uma ordem determinística.
@@ -419,8 +419,8 @@ export default function PrioridadesOperacionaisEconomicasAgricolaPage() {
       </Alert>
 
       {prioridades?.sujeito_reconciliacao && (
-        <Alert className="rounded-sm border-amber-200 bg-amber-50/70 text-amber-950">
-          <TriangleAlert className="size-4" />
+        <Alert variant="warning">
+          <TriangleAlert />
           <AlertTitle>Reconciliação pendente</AlertTitle>
           <AlertDescription>Prioridades sujeitas à reconciliação.</AlertDescription>
         </Alert>

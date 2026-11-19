@@ -281,11 +281,11 @@ export default function ModelosZoosanitariosClient() {
         }
       />
 
-      <Card className="border-amber-500/30 bg-amber-500/5">
+      <Card variant="warning">
         <CardContent className="flex items-start gap-3 px-4 py-3 text-sm">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
-          <p className="text-muted-foreground">
-            <span className="font-semibold text-foreground">Atenção:</span> somente modelos personalizados são apresentados na inteligência pecuária. Os modelos padrão do sistema são referências e precisam ser copiados e ajustados para a fazenda.
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-alert-warning-icon" />
+          <p className="text-card-description">
+            <span className="font-semibold text-card-title">Atenção:</span> somente modelos personalizados são apresentados na inteligência pecuária. Os modelos padrão do sistema são referências e precisam ser copiados e ajustados para a fazenda.
           </p>
         </CardContent>
       </Card>

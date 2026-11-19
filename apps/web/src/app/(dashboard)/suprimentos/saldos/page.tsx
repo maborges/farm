@@ -210,32 +210,32 @@ export default function SaldosPage() {
 
       {/* Alertas de Reposição */}
       {itensCriticos > 0 && (
-        <Card className="rounded-sm shadow-md bg-orange-50/20 overflow-hidden animate-in fade-in slide-in-from-top-4">
+        <Card variant="warning" className="shadow-md animate-in fade-in slide-in-from-top-4">
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
-              <div className="mt-0.5 p-2 bg-orange-100 rounded-full">
-                <Bell className="size-4 text-orange-600 animate-pulse" />
+              <div className="mt-0.5 p-2 bg-alert-warning-border/40 rounded-full">
+                <Bell className="size-4 text-alert-warning-icon animate-pulse" />
               </div>
               <div className="flex-1">
-                <h4 className="text-sm font-black text-orange-800 uppercase tracking-tight">Alertas de Reposição Necessária</h4>
-                <p className="text-xs text-orange-700/80 mb-3">Há {itensCriticos} itens operando abaixo do estoque mínimo de segurança.</p>
+                <h4 className="text-sm font-black text-card-title uppercase tracking-tight">Alertas de Reposição Necessária</h4>
+                <p className="text-xs text-card-description mb-3">Há {itensCriticos} itens operando abaixo do estoque mínimo de segurança.</p>
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {alertas.slice(0, 3).map(s => (
-                    <div key={s.id} className="flex items-center justify-between p-2 bg-white/50 rounded-sm border border-orange-200">
+                    <div key={s.id} className="flex items-center justify-between p-2 bg-card/85 rounded-sm border border-alert-warning-border">
                       <div className="min-w-0 flex-1">
-                        <p className="text-[10px] font-black uppercase truncate">{s.produto_nome}</p>
+                        <p className="text-[10px] font-black text-foreground uppercase truncate">{s.produto_nome}</p>
                         <p className="text-[9px] text-muted-foreground uppercase">{s.deposito_nome}</p>
-                        <p className="text-[8px] text-orange-600 font-bold uppercase tracking-tighter">Sugestão: +{s.quantidade_sugerida} {s.unidade_medida}</p>
+                        <p className="text-[8px] text-alert-warning-icon font-bold uppercase tracking-tighter">Sugestão: +{s.quantidade_sugerida} {s.unidade_medida}</p>
                       </div>
                       <div className="text-right flex items-center gap-2">
-                        <p className="text-xs font-black text-red-600">{s.quantidade_atual.toFixed(1)} {s.unidade_medida}</p>
+                        <p className="text-xs font-black text-alert-destructive-icon">{s.quantidade_atual.toFixed(1)} {s.unidade_medida}</p>
                         <SolicitarCompraButton alerta={s} />
                       </div>
                     </div>
                   ))}
                   {itensCriticos > 3 && (
-                    <div className="flex items-center justify-center p-2 border border-dashed border-orange-300 rounded-sm">
-                      <span className="text-[9px] font-bold text-orange-600 uppercase">+{itensCriticos - 3} outros alertas</span>
+                    <div className="flex items-center justify-center p-2 border border-dashed border-alert-warning-border rounded-sm">
+                      <span className="text-[9px] font-bold text-alert-warning-title uppercase">+{itensCriticos - 3} outros alertas</span>
                     </div>
                   )}
                 </div>
@@ -247,43 +247,40 @@ export default function SaldosPage() {
 
       {/* KPI Section */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="rounded-sm shadow-sm bg-emerald-50/10">
+        <Card variant="success" className="shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Valor Total</p>
-                <p className="text-2xl font-black text-emerald-700">R$ {totalValor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+                <p className="text-[10px] font-bold text-card-description uppercase tracking-widest">Valor Total</p>
+                <p className="text-2xl font-black text-card-title">R$ {totalValor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
               </div>
-              <TrendingUp className="size-8 text-emerald-200" />
+              <TrendingUp className="size-8 text-alert-success-icon/35" />
             </div>
           </CardContent>
         </Card>
         
-        <Card className="rounded-sm shadow-sm bg-blue-50/10">
+        <Card variant="info" className="shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Posições Ativas</p>
-                <p className="text-2xl font-black text-blue-700">{totalItens}</p>
+                <p className="text-[10px] font-bold text-card-description uppercase tracking-widest">Posições Ativas</p>
+                <p className="text-2xl font-black text-card-title">{totalItens}</p>
               </div>
-              <Package className="size-8 text-blue-200" />
+              <Package className="size-8 text-alert-info-icon/35" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className={cn(
-          "rounded-sm shadow-sm",
-          itensCriticos > 0 ? "bg-red-50/10" : "bg-green-50/10"
-        )}>
+        <Card variant={itensCriticos > 0 ? "destructive" : "success"} className="shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Itens Críticos</p>
-                <p className={cn("text-2xl font-black", itensCriticos > 0 ? "text-red-600" : "text-green-600")}>
+                <p className="text-[10px] font-bold text-card-description uppercase tracking-widest">Itens Críticos</p>
+                <p className="text-2xl font-black text-card-title">
                   {itensCriticos}
                 </p>
               </div>
-              <AlertTriangle className={cn("size-8", itensCriticos > 0 ? "text-red-200" : "text-green-200")} />
+              <AlertTriangle className={cn("size-8", itensCriticos > 0 ? "text-alert-destructive-icon/35" : "text-alert-success-icon/35")} />
             </div>
           </CardContent>
         </Card>

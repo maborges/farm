@@ -486,9 +486,9 @@ export default function SafraDetailPage({ params }: { params: Promise<{ id: stri
 
                 {/* Checklist da fase atual */}
                 {!["ENCERRADA", "CANCELADA"].includes(safra.status) && culturaAtual && (
-                    <Card className="border-amber-200/60 shadow-sm">
+                    <Card className="border-alert-warning-border shadow-sm">
                         <CardHeader className="pb-0 pt-4 px-4">
-                            <CardTitle className="text-sm font-medium flex items-center gap-2 text-amber-700">
+                            <CardTitle className="text-sm font-medium flex items-center gap-2 text-alert-warning-icon">
                                 <AlertTriangle className="size-4" />
                                 Precisa de atenção
                             </CardTitle>

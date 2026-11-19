@@ -246,16 +246,16 @@ export default function FrotaLandingPage() {
             </div>
           </div>
 
-          <Card className="border-emerald-600/20 bg-emerald-50/30 overflow-hidden">
-            <CardHeader className="bg-emerald-600 text-white">
-              <CardTitle className="text-xl">Simulação de Impacto Real</CardTitle>
-              <CardDescription className="text-emerald-100">Baseado em cenários reais de produtores</CardDescription>
+          <Card variant="success" className="pt-0">
+            <CardHeader className="bg-card-brand-bg text-card-brand-title py-4">
+              <CardTitle className="text-xl text-card-brand-title">Simulação de Impacto Real</CardTitle>
+              <CardDescription className="text-card-brand-description">Baseado em cenários reais de produtores</CardDescription>
             </CardHeader>
             <CardContent className="p-8 space-y-8">
               <div className="space-y-4">
-                <div className="flex justify-between items-end border-b border-emerald-600/10 pb-4">
-                  <span className="text-muted-foreground">Cenário: trator de 132 kW operando 1.000 h/ano</span>
-                  <span className="font-bold text-emerald-700 text-sm">Exemplo Típico</span>
+                <div className="flex justify-between items-end border-b border-alert-success-border pb-4">
+                  <span className="text-card-description">Cenário: trator de 132 kW operando 1.000 h/ano</span>
+                  <span className="font-bold text-alert-success-title text-sm">Exemplo Típico</span>
                 </div>
                 
                 <div className="grid gap-4">
@@ -270,16 +270,16 @@ export default function FrotaLandingPage() {
                 </div>
               </div>
 
-              <div className="rounded-sm bg-emerald-600/10 p-4 border border-emerald-600/20">
-                <p className="text-sm text-emerald-900 leading-relaxed italic">
+              <div className="rounded-sm bg-card/80 p-4 border border-alert-success-border">
+                <p className="text-sm text-alert-success-description leading-relaxed italic">
                   "O DeepFarms me mostrou que dois tratores estavam bebendo 2 litros a mais por hora. Corrigimos o ajuste e a economia pagou o sistema em 3 meses."
                 </p>
-                <div className="mt-2 text-xs font-bold text-emerald-700">— João P., MT (5.000 hectares)</div>
+                <div className="mt-2 text-xs font-bold text-alert-success-title">— João P., MT (5.000 hectares)</div>
               </div>
 
               <div className="text-center">
                 <p className="text-xs text-muted-foreground uppercase font-black tracking-widest mb-4">Economia estimada com DeepFarms</p>
-                <div className="text-5xl font-black text-emerald-600 tracking-tighter">Até 20%*</div>
+                <div className="text-5xl font-black text-alert-success-icon tracking-tighter">Até 20%*</div>
                 <p className="text-[10px] text-muted-foreground mt-2">*Dependendo do cenário operacional e maturidade da gestão atual.</p>
               </div>
             </CardContent>
@@ -453,7 +453,7 @@ export default function FrotaLandingPage() {
 
       {/* CTA Final */}
       <section className="mx-auto max-w-7xl px-6 py-24 lg:px-10">
-        <Card className="bg-primary text-primary-foreground overflow-hidden border-none shadow-2xl">
+        <Card variant="brand" className="relative shadow-2xl">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.15),transparent_50%)]" />
           <CardContent className="relative flex flex-col items-center text-center py-16 px-6 gap-8">
             <div className="space-y-4 max-w-2xl">

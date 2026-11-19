@@ -271,12 +271,12 @@ export default function AgroConfiguracoesPage() {
 
             {/* Aviso de permissão */}
             {!canEdit && (
-                <Alert className="rounded-sm border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200">
-                    <Lock className="h-4 w-4 text-amber-600" />
+                <Alert variant="warning">
+                    <Lock />
                     <AlertTitle className="text-xs font-bold uppercase tracking-wider">Modo Somente Leitura</AlertTitle>
                     <AlertDescription className="text-xs mt-0.5">
                         Seu perfil possui autorização para visualização, mas não possui a permissão{" "}
-                        <code className="font-mono text-[11px] bg-amber-500/20 px-1 py-0.5 rounded-sm">
+                        <code className="font-mono text-[11px] bg-background/60 border border-alert-warning-border px-1 py-0.5 rounded-sm">
                             backoffice:agro:config:edit
                         </code>{" "}
                         necessária para persistir alterações.
@@ -658,8 +658,8 @@ export default function AgroConfiguracoesPage() {
                             </div>
                         </CardHeader>
                         <CardContent className="p-6">
-                            <Alert className="mb-6 rounded-sm border-blue-500/30 bg-blue-500/10 text-blue-900 dark:text-blue-200">
-                                <Info className="h-4 w-4 text-blue-600" />
+                            <Alert variant="info" className="mb-6">
+                                <Info />
                                 <AlertTitle className="text-xs font-bold">Imutabilidade de Cotações Oficiais</AlertTitle>
                                 <AlertDescription className="text-xs mt-0.5">
                                     Os valores de preços do DERAL, cotações do Banco Central e dados do IBGE são dados oficiais
@@ -793,8 +793,8 @@ export default function AgroConfiguracoesPage() {
                             </div>
                         </CardHeader>
                         <CardContent className="p-6 space-y-4">
-                            <Alert className="rounded-sm border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200">
-                                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                            <Alert variant="warning">
+                                <AlertTriangle />
                                 <AlertTitle className="text-xs font-bold">Consumidor Dinâmico em Implementação</AlertTitle>
                                 <AlertDescription className="text-xs mt-0.5">
                                     Os parâmetros abaixo foram persistidos com sucesso na fundação 01E2.

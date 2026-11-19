@@ -105,19 +105,19 @@ export function ManutencoesClient({
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                    { label: "OS em Aberto", value: abertas, warn: abertas > 0, icon: AlertTriangle, bg: "bg-amber-100 dark:bg-amber-900/30", color: "text-amber-600" },
-                    { label: "Em Andamento", value: emAndamento, warn: emAndamento > 0, icon: Clock, bg: "bg-blue-100 dark:bg-blue-900/30", color: "text-blue-600" },
-                    { label: "OS Concluídas", value: concluidas, icon: CheckCircle2, bg: "bg-emerald-100 dark:bg-emerald-900/30", color: "text-emerald-600" },
-                    { label: "Investimento Total", value: custoTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), icon: DollarSign, bg: "bg-emerald-100 dark:bg-emerald-900/30", color: "text-emerald-600" },
+                    { label: "OS em Aberto", value: abertas, warn: abertas > 0, icon: AlertTriangle, bg: "bg-alert-warning-bg border border-alert-warning-border", color: "text-alert-warning-icon" },
+                    { label: "Em Andamento", value: emAndamento, warn: emAndamento > 0, icon: Clock, bg: "bg-alert-info-bg border border-alert-info-border", color: "text-alert-info-icon" },
+                    { label: "OS Concluídas", value: concluidas, icon: CheckCircle2, bg: "bg-alert-success-bg border border-alert-success-border", color: "text-alert-success-icon" },
+                    { label: "Investimento Total", value: custoTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), icon: DollarSign, bg: "bg-alert-success-bg border border-alert-success-border", color: "text-alert-success-icon" },
                 ].map((k, i) => (
-                    <Card key={i} className={cn("rounded-sm shadow-sm", k.warn && "border border-amber-400 bg-amber-50/10")}>
+                    <Card key={i} className={cn("rounded-sm shadow-sm", k.warn && "border-alert-warning-border")}>
                         <CardContent className="p-5 flex items-start gap-4">
                             <div className={cn("size-10 rounded-sm flex items-center justify-center shrink-0", k.bg)}>
-                                <k.icon className={cn("size-5", k.warn ? "text-amber-600" : k.color)} />
+                                <k.icon className={cn("size-5", k.warn ? "text-alert-warning-icon" : k.color)} />
                             </div>
                             <div className="min-w-0 flex-1">
                                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{k.label}</p>
-                                <div className={cn("text-2xl font-black tabular-nums tracking-tight mt-0.5", k.warn && "text-amber-600")}>
+                                <div className={cn("text-2xl font-black tabular-nums tracking-tight mt-0.5", k.warn && "text-alert-warning-icon")}>
                                     {loadingOS ? <Skeleton className="h-7 w-8" /> : k.value}
                                 </div>
                             </div>

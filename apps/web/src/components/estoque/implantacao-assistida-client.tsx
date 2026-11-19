@@ -274,11 +274,11 @@ function StatCard({
   tone?: "slate" | "emerald" | "amber" | "red" | "sky";
 }) {
   const toneMap = {
-    slate: "border-l-slate-500 bg-card",
-    emerald: "border-l-emerald-500 bg-emerald-500/5",
-    amber: "border-l-amber-500 bg-amber-500/5",
-    red: "border-l-destructive bg-destructive/5",
-    sky: "border-l-sky-500 bg-sky-500/5",
+    slate: "border-l-muted-foreground/50 bg-card",
+    emerald: "border-l-alert-success-icon bg-alert-success-bg/40",
+    amber: "border-l-alert-warning-icon bg-alert-warning-bg/40",
+    red: "border-l-alert-destructive-icon bg-alert-destructive-bg/40",
+    sky: "border-l-alert-info-icon bg-alert-info-bg/40",
   };
   return (
     <Card className={cn("rounded-sm border-l-4 shadow-sm", toneMap[tone])}>

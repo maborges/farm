@@ -151,6 +151,48 @@
   --color-module-backoffice: var(--module-backoffice);
   --color-module-backoffice-bg: var(--module-backoffice-bg);
 
+  /* Semantic Alert / Callout colors */
+  --color-alert-title: var(--alert-title);
+  --color-alert-description: var(--alert-description);
+
+  --color-alert-default-bg: var(--alert-default-bg);
+  --color-alert-default-border: var(--alert-default-border);
+  --color-alert-default-title: var(--alert-default-title);
+  --color-alert-default-description: var(--alert-default-description);
+  --color-alert-default-icon: var(--alert-default-icon);
+
+  --color-alert-info-bg: var(--alert-info-bg);
+  --color-alert-info-border: var(--alert-info-border);
+  --color-alert-info-title: var(--alert-info-title);
+  --color-alert-info-description: var(--alert-info-description);
+  --color-alert-info-icon: var(--alert-info-icon);
+
+  --color-alert-warning-bg: var(--alert-warning-bg);
+  --color-alert-warning-border: var(--alert-warning-border);
+  --color-alert-warning-title: var(--alert-warning-title);
+  --color-alert-warning-description: var(--alert-warning-description);
+  --color-alert-warning-icon: var(--alert-warning-icon);
+
+  --color-alert-success-bg: var(--alert-success-bg);
+  --color-alert-success-border: var(--alert-success-border);
+  --color-alert-success-title: var(--alert-success-title);
+  --color-alert-success-description: var(--alert-success-description);
+  --color-alert-success-icon: var(--alert-success-icon);
+
+  --color-alert-destructive-bg: var(--alert-destructive-bg);
+  --color-alert-destructive-border: var(--alert-destructive-border);
+  --color-alert-destructive-title: var(--alert-destructive-title);
+  --color-alert-destructive-description: var(--alert-destructive-description);
+  --color-alert-destructive-icon: var(--alert-destructive-icon);
+
+  /* Semantic Card colors */
+  --color-card-title: var(--card-title);
+  --color-card-description: var(--card-description);
+  --color-card-brand-bg: var(--card-brand-bg);
+  --color-card-brand-border: var(--card-brand-border);
+  --color-card-brand-title: var(--card-brand-title);
+  --color-card-brand-description: var(--card-brand-description);
+
   /* Z-index scale */
   --z-base: 0;
   --z-dropdown: 10;
@@ -214,6 +256,48 @@
   --module-operacional-bg: #f0f9ff;
   --module-backoffice: #7c3aed;
   --module-backoffice-bg: #f5f3ff;
+
+  /* ── Semantic Alert / Callout tokens (light) ──────────────── */
+  --alert-default-bg: #f1f5f2;
+  --alert-default-border: #cbd9d1;
+  --alert-default-title: #132019;
+  --alert-default-description: #3f5348;
+  --alert-default-icon: #3f5348;
+
+  --alert-info-bg: #f0f7ff;
+  --alert-info-border: #bae0fd;
+  --alert-info-title: #0c4a6e;
+  --alert-info-description: #075985;
+  --alert-info-icon: #0369a1;
+
+  --alert-warning-bg: #fffbeb;
+  --alert-warning-border: #f5d07a;
+  --alert-warning-title: #78350f;
+  --alert-warning-description: #92400e;
+  --alert-warning-icon: #b45309;
+
+  --alert-success-bg: #ecfdf5;
+  --alert-success-border: #a7f3d0;
+  --alert-success-title: #064e3b;
+  --alert-success-description: #065f46;
+  --alert-success-icon: #047857;
+
+  --alert-destructive-bg: #fef2f2;
+  --alert-destructive-border: #fecaca;
+  --alert-destructive-title: #7f1d1d;
+  --alert-destructive-description: #991b1b;
+  --alert-destructive-icon: #b91c1c;
+
+  --alert-title: var(--alert-default-title);
+  --alert-description: var(--alert-default-description);
+
+  /* ── Semantic Card tokens (light) ─────────────────────────── */
+  --card-title: hsl(var(--card-foreground));
+  --card-description: hsl(var(--muted-foreground));
+  --card-brand-bg: #006b3d;
+  --card-brand-border: #005832;
+  --card-brand-title: #ffffff;
+  --card-brand-description: #d1fae5;
 }
 
 .dark {
@@ -258,6 +342,43 @@
   --sidebar-accent-foreground: 150 70% 50%;
   --sidebar-border: 155 20% 18%;
   --sidebar-ring: 150 70% 38%;
+
+  /* ── Semantic Alert / Callout tokens (dark) ───────────────── */
+  --alert-default-bg: #15231d;
+  --alert-default-border: #273b32;
+  --alert-default-title: #eff5f1;
+  --alert-default-description: #b8cac0;
+  --alert-default-icon: #b8cac0;
+
+  --alert-info-bg: #0e2233;
+  --alert-info-border: #1e4b6e;
+  --alert-info-title: #e0f2fe;
+  --alert-info-description: #bae6fd;
+  --alert-info-icon: #38bdf8;
+
+  --alert-warning-bg: #261b0b;
+  --alert-warning-border: #6b4714;
+  --alert-warning-title: #fef3c7;
+  --alert-warning-description: #fde68a;
+  --alert-warning-icon: #fbbf24;
+
+  --alert-success-bg: #0b261c;
+  --alert-success-border: #175941;
+  --alert-success-title: #d1fae5;
+  --alert-success-description: #a7f3d0;
+  --alert-success-icon: #34d399;
+
+  --alert-destructive-bg: #2b1215;
+  --alert-destructive-border: #6e2228;
+  --alert-destructive-title: #fee2e2;
+  --alert-destructive-description: #fecaca;
+  --alert-destructive-icon: #f87171;
+
+  /* ── Semantic Card tokens (dark) ──────────────────────────── */
+  --card-brand-bg: #064e3b;
+  --card-brand-border: #047857;
+  --card-brand-title: #ffffff;
+  --card-brand-description: #d1fae5;
 }
 
 @layer base {
@@ -296,6 +417,69 @@
     h5,
     h6 {
       @apply tracking-tight font-semibold text-foreground;
+    }
+
+    [data-slot="alert"],
+    [data-slot="alert"][data-variant="default"] {
+      --alert-title: var(--alert-default-title);
+      --alert-description: var(--alert-default-description);
+    }
+
+    [data-slot="alert"][data-variant="info"] {
+      --alert-title: var(--alert-info-title);
+      --alert-description: var(--alert-info-description);
+    }
+
+    [data-slot="alert"][data-variant="warning"] {
+      --alert-title: var(--alert-warning-title);
+      --alert-description: var(--alert-warning-description);
+    }
+
+    [data-slot="alert"][data-variant="success"] {
+      --alert-title: var(--alert-success-title);
+      --alert-description: var(--alert-success-description);
+    }
+
+    [data-slot="alert"][data-variant="destructive"] {
+      --alert-title: var(--alert-destructive-title);
+      --alert-description: var(--alert-destructive-description);
+    }
+
+    [data-slot="card"],
+    [data-slot="card"][data-variant="default"],
+    [data-slot="card"][data-variant="muted"] {
+      --card-title: hsl(var(--card-foreground));
+      --card-description: hsl(var(--muted-foreground));
+    }
+
+    [data-slot="card"][data-variant="info"] {
+      --card-title: var(--alert-info-title);
+      --card-description: var(--alert-info-description);
+    }
+
+    [data-slot="card"][data-variant="warning"] {
+      --card-title: var(--alert-warning-title);
+      --card-description: var(--alert-warning-description);
+    }
+
+    [data-slot="card"][data-variant="success"] {
+      --card-title: var(--alert-success-title);
+      --card-description: var(--alert-success-description);
+    }
+
+    [data-slot="card"][data-variant="destructive"] {
+      --card-title: var(--alert-destructive-title);
+      --card-description: var(--alert-destructive-description);
+    }
+
+    [data-slot="card"][data-variant="brand"] {
+      --card-title: var(--card-brand-title);
+      --card-description: var(--card-brand-description);
+    }
+
+    [data-slot="card"][data-variant]:not([data-variant="default"]):not([data-variant="muted"]) [data-slot="card-title"],
+    [data-slot="card"][data-variant]:not([data-variant="default"]):not([data-variant="muted"]) :where(h1, h2, h3, h4, h5, h6) {
+      color: var(--card-title);
     }
   }
 

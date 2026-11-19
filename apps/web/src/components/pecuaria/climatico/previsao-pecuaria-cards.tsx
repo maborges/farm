@@ -21,11 +21,11 @@ function formatarHorario(horario: string | null): string {
 export function PrevisaoPecuariaCards({ previsao, estresse, chuva, janela }: PrevisaoPecuariaCardsProps) {
     return (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Card className="rounded-xl border-border/40">
+            <Card className="rounded-sm border-border/40">
                 <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><ThermometerSun className="size-4 text-orange-500" />ITH previsto</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                     {previsao.length === 0 ? <p className="text-sm text-muted-foreground">Sem previsão climática disponível.</p> : previsao.map((item) => (
-                        <div key={item.data} className="flex items-center justify-between rounded-lg border border-border/40 px-3 py-2 text-sm">
+                        <div key={item.data} className="flex items-center justify-between rounded-sm border border-border/40 px-3 py-2 text-sm">
                             <span>{item.horizonte_horas}h</span>
                             <span className="font-medium">{item.ith_max === null ? "Indeterminado" : item.ith_max.toFixed(1)}</span>
                             <span className="text-muted-foreground">{riscoLabel(item.risco)}</span>
@@ -34,7 +34,7 @@ export function PrevisaoPecuariaCards({ previsao, estresse, chuva, janela }: Pre
                 </CardContent>
             </Card>
 
-            <Card className="rounded-xl border-border/40">
+            <Card className="rounded-sm border-border/40">
                 <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><ShieldAlert className="size-4 text-red-500" />Estresse nas próximas 72h</CardTitle></CardHeader>
                 <CardContent>
                     <p className="text-2xl font-bold">{estresse.duracao_horas === null ? "Indeterminado" : `${estresse.duracao_horas}h`}</p>
@@ -42,7 +42,7 @@ export function PrevisaoPecuariaCards({ previsao, estresse, chuva, janela }: Pre
                 </CardContent>
             </Card>
 
-            <Card className="rounded-xl border-border/40">
+            <Card className="rounded-sm border-border/40">
                 <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><CloudRain className="size-4 text-blue-500" />Chuva prevista em 72h</CardTitle></CardHeader>
                 <CardContent>
                     <p className="text-2xl font-bold">{chuva.volume_mm_72h === null ? "Indeterminado" : `${chuva.volume_mm_72h.toFixed(1)} mm`}</p>
@@ -50,7 +50,7 @@ export function PrevisaoPecuariaCards({ previsao, estresse, chuva, janela }: Pre
                 </CardContent>
             </Card>
 
-            <Card className="rounded-xl border-border/40">
+            <Card className="rounded-sm border-border/40">
                 <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><CalendarClock className="size-4 text-emerald-600" />Janela segura de manejo</CardTitle></CardHeader>
                 <CardContent>
                     <p className="text-lg font-bold">{janela.status === "RECOMENDADA" ? formatarHorario(janela.horario) : "Não identificada"}</p>

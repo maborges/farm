@@ -6,7 +6,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { toast } from "sonner";
-import { CheckCircle2, List, RotateCcw, Search, UploadCloud } from "lucide-react";
+import { CheckCircle2, Info, List, RotateCcw, Search, UploadCloud } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -195,9 +196,12 @@ export default function ImportarCarPage() {
                     </CardHeader>
                     <CardContent className="flex flex-col gap-4">
                         {carregandoContexto && (
-                            <p className="rounded-sm border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-sm text-blue-800 dark:text-blue-200">
-                                Carregando os imóveis vinculados à unidade produtiva...
-                            </p>
+                            <Alert variant="info" role="status">
+                                <Info />
+                                <AlertDescription>
+                                    Carregando os imóveis vinculados à unidade produtiva...
+                                </AlertDescription>
+                            </Alert>
                         )}
                         {contextoFundiario.length > 1 && (
                             <div className="flex flex-col gap-2">

@@ -7,6 +7,7 @@ import {
     UserX, UserCheck, Search, Mail,
     Calendar, Shield, Lock, Unlock, KeyRound, AlertTriangle
 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DataTable, ColumnDef } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -376,12 +377,12 @@ export default function UsersBackofficePage() {
                     </AlertDialogHeader>
 
                     {selectedUser?.is_owner && (
-                        <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-3 flex gap-2">
-                            <AlertTriangle className="size-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                            <p className="text-xs text-amber-600 dark:text-amber-400">
+                        <Alert variant="warning">
+                            <AlertTriangle />
+                            <AlertDescription className="text-xs">
                                 Este usuário é proprietário de um produtor. O reset de senha pode afetar o acesso dele à plataforma.
-                            </p>
-                        </div>
+                            </AlertDescription>
+                        </Alert>
                     )}
 
                     <AlertDialogFooter>

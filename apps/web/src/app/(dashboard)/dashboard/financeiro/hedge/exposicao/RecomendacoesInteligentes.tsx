@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle, type AlertVariant } from "@/components/ui/alert";
 import { AlertTriangle, Info, ShieldAlert, Sparkles, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -53,41 +53,28 @@ export function RecomendacoesInteligentes() {
             
             <div className="grid gap-3">
                 {recomendacoes.map((rec) => {
-                    let variant: "default" | "destructive" = "default";
+                    let variant: AlertVariant = "default";
                     let Icon = Info;
-                    let colorClass = "text-muted-foreground";
-                    let bgClass = "bg-background";
-                    let borderClass = "border-border";
 
                     if (rec.prioridade === "CRITICA") {
                         variant = "destructive";
                         Icon = ShieldAlert;
-                        bgClass = "bg-red-50 dark:bg-red-950/20";
-                        borderClass = "border-red-200 dark:border-red-900";
                     } else if (rec.prioridade === "ALTA") {
+                        variant = "warning";
                         Icon = AlertTriangle;
-                        colorClass = "text-orange-600 dark:text-orange-400";
-                        bgClass = "bg-orange-50 dark:bg-orange-950/20";
-                        borderClass = "border-orange-200 dark:border-orange-900";
                     } else if (rec.prioridade === "MEDIA") {
+                        variant = "info";
                         Icon = Info;
-                        colorClass = "text-blue-600 dark:text-blue-400";
-                        bgClass = "bg-blue-50 dark:bg-blue-950/20";
-                        borderClass = "border-blue-200 dark:border-blue-900";
                     }
 
                     return (
-                        <Alert 
-                            key={rec.id_regra} 
-                            variant={variant} 
-                            className={`rounded-sm ${bgClass} ${borderClass} transition-colors`}
-                        >
-                            <Icon className={`h-4 w-4 ${colorClass}`} />
-                            <AlertTitle className={`text-sm font-semibold flex items-center gap-2 ${colorClass}`}>
+                        <Alert key={rec.id_regra} variant={variant}>
+                            <Icon />
+                            <AlertTitle className="text-sm font-semibold flex items-center gap-2">
                                 {rec.titulo}
                             </AlertTitle>
                             <AlertDescription className="mt-2 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                <span className="text-muted-foreground leading-relaxed">
+                                <span className="leading-relaxed">
                                     {rec.mensagem}
                                 </span>
                                 <Button 

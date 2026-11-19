@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { SimulacaoExposicaoRequest, SimulacaoExposicaoResponse } from "../types";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -167,12 +168,12 @@ export function SimulacaoPainel({
                         ) : (
                             <div className="space-y-6">
                                 {data.alertas.length > 0 && (
-                                    <div className="bg-amber-500/10 text-amber-600 border border-amber-500/20 p-3 rounded-sm text-xs flex gap-2 items-start">
-                                        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                                        <div>
+                                    <Alert variant="warning">
+                                        <AlertTriangle />
+                                        <AlertDescription className="text-xs space-y-0.5">
                                             {data.alertas.map((a, i) => <p key={i}>{a}</p>)}
-                                        </div>
-                                    </div>
+                                        </AlertDescription>
+                                    </Alert>
                                 )}
                                 
                                 <div className="grid grid-cols-2 gap-6">

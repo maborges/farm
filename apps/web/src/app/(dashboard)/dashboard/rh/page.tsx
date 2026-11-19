@@ -222,38 +222,38 @@ export default function RHPage() {
 
             {/* KPIs */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <Card className="border-none bg-blue-50">
+                <Card variant="info">
                     <CardContent className="p-4">
-                        <p className="text-[10px] font-bold uppercase text-blue-600">Colaboradores</p>
-                        <p className="text-2xl font-black text-blue-700">{dash?.total_colaboradores_ativos ?? "—"}</p>
-                        <p className="text-[10px] text-muted-foreground mt-1">
+                        <p className="text-[10px] font-bold uppercase text-card-description">Colaboradores</p>
+                        <p className="text-2xl font-black text-card-title">{dash?.total_colaboradores_ativos ?? "—"}</p>
+                        <p className="text-[10px] text-card-description mt-1">
                             {dash?.total_diaristas ?? 0} diaristas · {dash?.total_empreiteiros ?? 0} empreiteiros
                         </p>
                     </CardContent>
                 </Card>
-                <Card className="border-none bg-amber-50">
+                <Card variant="warning">
                     <CardContent className="p-4">
-                        <p className="text-[10px] font-bold uppercase text-amber-600">Diárias (mês)</p>
-                        <p className="text-xl font-black text-amber-700">{fmt(dash?.gasto_diarias_mes ?? 0)}</p>
-                        <p className="text-[10px] text-red-500 font-semibold mt-1">
+                        <p className="text-[10px] font-bold uppercase text-card-description">Diárias (mês)</p>
+                        <p className="text-xl font-black text-card-title">{fmt(dash?.gasto_diarias_mes ?? 0)}</p>
+                        <p className="text-[10px] text-alert-destructive-icon font-semibold mt-1">
                             pendente: {fmt(dash?.total_pendente_diarias ?? 0)}
                         </p>
                     </CardContent>
                 </Card>
-                <Card className="border-none bg-purple-50">
+                <Card className="border-[var(--module-backoffice)]/30 bg-[var(--module-backoffice-bg)]">
                     <CardContent className="p-4">
-                        <p className="text-[10px] font-bold uppercase text-purple-600">Empreitadas (mês)</p>
-                        <p className="text-xl font-black text-purple-700">{fmt(dash?.gasto_empreitadas_mes ?? 0)}</p>
+                        <p className="text-[10px] font-bold uppercase text-[var(--module-backoffice)]">Empreitadas (mês)</p>
+                        <p className="text-xl font-black text-[var(--module-backoffice)]">{fmt(dash?.gasto_empreitadas_mes ?? 0)}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{dash?.empreitadas_abertas ?? 0} em aberto</p>
                     </CardContent>
                 </Card>
-                <Card className="border-none bg-red-50">
+                <Card variant="destructive">
                     <CardContent className="p-4">
-                        <p className="text-[10px] font-bold uppercase text-red-600">Total a Pagar</p>
-                        <p className="text-xl font-black text-red-700">
+                        <p className="text-[10px] font-bold uppercase text-card-description">Total a Pagar</p>
+                        <p className="text-xl font-black text-card-title">
                             {fmt((dash?.total_pendente_diarias ?? 0) + (dash?.total_pendente_empreitadas ?? 0))}
                         </p>
-                        <p className="text-[10px] text-muted-foreground mt-1">diárias + empreitadas</p>
+                        <p className="text-[10px] text-card-description mt-1">diárias + empreitadas</p>
                     </CardContent>
                 </Card>
             </div>

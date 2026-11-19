@@ -30,6 +30,7 @@ import {
     ArrowLeftRight
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -515,22 +516,20 @@ export default function DREOperacionalPage() {
                             </CardHeader>
                             <CardContent className="pt-4 space-y-4">
                                 {iaRecomendacao.fonte === "DETERMINISTICO" && (
-                                    <div className="bg-amber-500/10 border border-amber-500/25 p-3 rounded-sm flex items-start gap-3">
-                                        <AlertCircle size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                                        <div className="text-xs text-foreground space-y-1">
-                                            <p className="font-semibold text-amber-800 dark:text-amber-300">Análise Matemática (Fallback)</p>
-                                            <p className="text-muted-foreground">
-                                                A recomendação foi baseada estritamente na maior margem projetada.
-                                                {iaRecomendacao.limite_atingido
-                                                    ? " A sua cota mensal de requisições de Inteligência Artificial foi atingida."
-                                                    : iaRecomendacao.motivo_fallback === "SISTEMA_OFFLINE"
-                                                        ? " O serviço de Inteligência Artificial está temporariamente indisponível no sistema."
-                                                        : iaRecomendacao.motivo_fallback === "PLANO_INADEQUADO"
-                                                            ? " O serviço avançado de Inteligência Artificial não está disponível no seu plano atual."
-                                                            : ""}
-                                            </p>
-                                        </div>
-                                    </div>
+                                    <Alert variant="warning">
+                                        <AlertCircle />
+                                        <AlertTitle className="text-xs font-semibold">Análise Matemática (Fallback)</AlertTitle>
+                                        <AlertDescription className="text-xs">
+                                            A recomendação foi baseada estritamente na maior margem projetada.
+                                            {iaRecomendacao.limite_atingido
+                                                ? " A sua cota mensal de requisições de Inteligência Artificial foi atingida."
+                                                : iaRecomendacao.motivo_fallback === "SISTEMA_OFFLINE"
+                                                    ? " O serviço de Inteligência Artificial está temporariamente indisponível no sistema."
+                                                    : iaRecomendacao.motivo_fallback === "PLANO_INADEQUADO"
+                                                        ? " O serviço avançado de Inteligência Artificial não está disponível no seu plano atual."
+                                                        : ""}
+                                        </AlertDescription>
+                                    </Alert>
                                 )}
 
                                 <div className="p-3.5 bg-muted/30 rounded-sm border border-border/70">
@@ -865,17 +864,17 @@ export default function DREOperacionalPage() {
 
                     {/* ── Decision Tracking: Real vs Planned ── */}
                     {analiseDesvio && (
-                        <Card className="rounded-sm shadow-md bg-indigo-50/20 border animate-in slide-in-from-right duration-500">
+                        <Card variant="info" className="shadow-md animate-in slide-in-from-right duration-500">
                             <CardHeader className="pb-2">
                                 <div className="flex items-center justify-between">
                                     <div className="space-y-1">
-                                        <CardTitle className="text-sm font-bold flex items-center gap-2 text-indigo-900">
-                                            <Target size={18} className="text-indigo-600" />
+                                        <CardTitle className="text-sm font-bold flex items-center gap-2">
+                                            <Target size={18} className="text-alert-info-icon" />
                                             Acompanhamento de Decisão: {analiseDesvio.cenario_escolhido}
                                         </CardTitle>
-                                        <CardDescription className="text-[10px] uppercase font-bold text-indigo-700/60">Comparação entre planejamento oficial e execução real</CardDescription>
+                                        <CardDescription className="text-[10px] uppercase font-bold">Comparação entre planejamento oficial e execução real</CardDescription>
                                     </div>
-                                    <Badge className="bg-indigo-600 text-white border-none rounded-sm px-2 py-0.5 font-bold text-[10px] uppercase">
+                                    <Badge variant="outline" className="border-alert-info-border bg-card/80 text-card-title rounded-sm px-2 py-0.5 font-bold text-[10px] uppercase">
                                         Cenário Oficial
                                     </Badge>
                                 </div>
@@ -883,20 +882,20 @@ export default function DREOperacionalPage() {
                             <CardContent className="py-4">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     <div className="space-y-1">
-                                        <p className="text-[10px] font-bold text-muted-foreground uppercase">Resultado Planejado</p>
-                                        <p className="text-lg font-black text-indigo-900 tabular-nums">{fmt(analiseDesvio.resultado_planejado)}</p>
+                                        <p className="text-[10px] font-bold text-card-description uppercase">Resultado Planejado</p>
+                                        <p className="text-lg font-black text-card-title tabular-nums">{fmt(analiseDesvio.resultado_planejado)}</p>
                                     </div>
                                     <div className="space-y-1">
-                                        <p className="text-[10px] font-bold text-muted-foreground uppercase">Resultado Real (Executado)</p>
+                                        <p className="text-[10px] font-bold text-card-description uppercase">Resultado Real (Executado)</p>
                                         <p className="text-lg font-black text-foreground tabular-nums">{fmt(analiseDesvio.resultado_real)}</p>
                                     </div>
-                                    <div className="p-3 rounded-sm bg-white border border-indigo-100 flex flex-col justify-center">
+                                    <div className="p-3 rounded-sm bg-card/90 border border-alert-info-border flex flex-col justify-center">
                                         <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Desvio da Meta</p>
                                         <div className="flex items-center gap-2">
-                                            <span className={`text-xl font-black tabular-nums ${analiseDesvio.desvio >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                            <span className={`text-xl font-black tabular-nums ${analiseDesvio.desvio >= 0 ? "text-alert-success-icon" : "text-alert-destructive-icon"}`}>
                                                 {analiseDesvio.desvio >= 0 ? "+" : ""}{analiseDesvio.desvio_percentual.toFixed(1)}%
                                             </span>
-                                            {analiseDesvio.desvio >= 0 ? <ArrowUpRight className="text-green-600" /> : <ArrowDownRight className="text-red-600" />}
+                                            {analiseDesvio.desvio >= 0 ? <ArrowUpRight className="text-alert-success-icon" /> : <ArrowDownRight className="text-alert-destructive-icon" />}
                                         </div>
                                         <p className="text-[9px] font-bold text-muted-foreground">{fmt(Math.abs(analiseDesvio.desvio))} de diferença</p>
                                     </div>

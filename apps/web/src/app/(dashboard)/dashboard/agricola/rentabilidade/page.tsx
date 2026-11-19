@@ -243,8 +243,8 @@ export default function RentabilidadeAgricolaPage() {
         icon={<TrendingUp className="size-5" />}
       />
 
-      <Alert className="rounded-sm">
-        <AlertCircle className="size-4" />
+      <Alert variant="info">
+        <AlertCircle />
         <AlertTitle>Leitura oficial</AlertTitle>
         <AlertDescription>
           Os valores de rentabilidade vêm exclusivamente da consolidação oficial da DRE e dos KPIs agrícolas. Não há recálculo de receita ou custo fora da DRE.
@@ -394,8 +394,8 @@ export default function RentabilidadeAgricolaPage() {
       ) : rentabilidade ? (
         <div className="flex flex-col gap-6">
           {hasWarnings && (
-            <Alert className="rounded-sm border-amber-300 bg-amber-50/60">
-              <AlertCircle className="size-4 text-amber-600" />
+            <Alert variant="warning">
+              <AlertCircle />
               <AlertTitle>rentabilidade sujeita à reconciliação.</AlertTitle>
               <AlertDescription>
                 A visão utiliza somente a DRE agrícola v1. Warnings relevantes foram propagados para manter a leitura econômica oficial.

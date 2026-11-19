@@ -398,20 +398,20 @@ export function FluxoCaixaClient({
       {/* Diagnóstico de Decisão Reativa e Vale de Capital de Giro */}
       {analise && (
         <Alert
-          className={`rounded-sm ${
+          variant={
             analise.nivel_risco === "CRITICO"
-              ? "border-destructive/40 bg-destructive/10 text-foreground"
+              ? "destructive"
               : analise.nivel_risco === "ALERTA"
-                ? "border-amber-500/40 bg-amber-500/10 text-foreground"
-                : "border-emerald-500/30 bg-emerald-500/10 text-foreground"
-          }`}
+                ? "warning"
+                : "success"
+          }
         >
           {analise.nivel_risco === "CRITICO" ? (
-            <ShieldAlert className="size-4 text-destructive" />
+            <ShieldAlert />
           ) : analise.nivel_risco === "ALERTA" ? (
-            <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" />
+            <AlertTriangle />
           ) : (
-            <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+            <CheckCircle2 />
           )}
           <div className="flex flex-col gap-3 w-full lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-1">
@@ -425,7 +425,7 @@ export function FluxoCaixaClient({
                       : "Déficit Imediato"}
                 </Badge>
               </AlertTitle>
-              <AlertDescription className="text-xs text-muted-foreground">
+              <AlertDescription className="text-xs">
                 {analise.recomendacao}
               </AlertDescription>
               {analise.possui_vale_caixa && (

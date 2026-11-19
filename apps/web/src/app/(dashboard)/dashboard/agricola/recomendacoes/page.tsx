@@ -235,8 +235,8 @@ export default function RecomendacoesOperacionaisEconomicasAgricolaPage() {
         icon={<Sparkles className="size-5" />}
       />
 
-      <Alert className="rounded-sm">
-        <AlertCircle className="size-4" />
+      <Alert variant="info">
+        <AlertCircle />
         <AlertTitle>Leitura oficial</AlertTitle>
         <AlertDescription>
           As recomendações consomem DiagnosticoService e os analytics oficiais já consolidados. Não há IA generativa, automação autônoma nem recálculo fora da DRE.
@@ -244,8 +244,8 @@ export default function RecomendacoesOperacionaisEconomicasAgricolaPage() {
       </Alert>
 
       {recomendacoes?.sujeito_reconciliacao && (
-        <Alert className="rounded-sm border-amber-200 bg-amber-50/70 text-amber-950">
-          <AlertCircle className="size-4" />
+        <Alert variant="warning">
+          <AlertCircle />
           <AlertTitle>Reconciliação pendente</AlertTitle>
           <AlertDescription>Recomendações sujeitas à reconciliação.</AlertDescription>
         </Alert>

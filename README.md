@@ -660,6 +660,17 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
   * **Problema corrigido:** a tela `/dashboard/agricola/ndvi` exibia dados mockados fixos e botões sem ação; o componente `NdviTalhao` acionava um endpoint mock de sincronização satelital retornando sucesso fictício; e `/agricola/safras/[id]/ndvi` enviava o `id` do vínculo `safra_talhoes` em vez de `area_id` (`cadastros_areas_rurais.id`) ao consultar ou salvar `ImagemNDVI`.
   * **Comportamento esperado:** `/dashboard/agricola/ndvi` opera integralmente com dados reais do PostgreSQL; `/agricola/safras/[id]/ndvi` mapeia `area_id` corretamente via `mapSafraTalhoesParaNdvi`; e `POST /api/v1/ndvi/sincronizar/{talhao_id}` retorna HTTP 501 orientando o registro manual enquanto a integração automática Sentinel-2 não está configurada.
 
+### Correção e Padronização: Legibilidade de Alertas em `/agricola/fenologia` e Mensagens Globais (Light/Dark)
+- **Problema corrigido:** o aviso "Nenhuma safra ativa" em `/agricola/fenologia` (e alertas equivalentes em outras páginas) usava cores fixas claras (`bg-amber-50`) e herdava `text-foreground` nos títulos `<h5>`, deixando título e descrição ilegíveis no modo escuro e inconsistentes entre páginas.
+- **Comportamento esperado:** todas as mensagens de alerta utilizam as variantes semânticas padronizadas do componente `Alert` (`default`, `info`, `warning`, `success` e `destructive`) com tokens dedicados para modo claro e escuro e contraste compatível com WCAG AA.
+
+### Padronização de Cards e KPIs (Light/Dark Mode)
+- **Descrição curta:** Padronização global do componente `Card` (`default`, `muted`, `info`, `warning`, `success`, `destructive` e `brand`) e dos cartões de indicadores (`KPICard`, `StatCard` e KPIs da frota) com bordas `rounded-sm`, proteção automática de contraste para títulos e cabeçalhos (`h1–h6`) e tokens dedicados aos modos claro e escuro.
+- **Fluxo de funcionamento:**
+  1. Os cartões de destaque, status e KPIs em todos os módulos (Agrícola, Pecuária, Financeiro, RH, Suprimentos, Frota, IA e Configurações) passam a utilizar variantes semânticas e tons padronizados, eliminando fundos fixos claros sem suporte ao tema escuro e cantos arredondados fora do padrão visual (`rounded-sm`).
+  2. Headings (`h1–h6`) e descrições dentro de cartões coloridos ou institucionais (`variant="brand"`, `info`, `warning`, `success`, `destructive`) recebem automaticamente cores de alto contraste (WCAG AA), evitando títulos escuros ilegíveis sobre fundos verdes ou alertas.
+  3. A consistência visual e de contraste é protegida continuamente pela suíte de contratos e guardrails em `apps/web/src/components/ui/card.test.tsx`.
+
 ## Conceitos-Chave: Propriedade, Talhão e Unidade Produtiva
 
 

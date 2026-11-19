@@ -18,6 +18,7 @@ import {
   MoreHorizontal, Pencil, Trash2, ClipboardCheck,
 } from "lucide-react";
 import { PageHeader } from "@/components/shared";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -351,22 +352,25 @@ export function EstoqueClient({ initialData }: { initialData: any }) {
             <p className="text-xs text-muted-foreground mt-1">custo médio ponderado</p>
           </CardContent>
         </Card>
-        <Card className={cn(
-          "rounded-sm border shadow-xs transition-colors",
-          alertas.length > 0 ? "border-rose-500/30 bg-rose-500/[0.04]" : "border-border/70"
-        )}>
+        <Card
+          variant={alertas.length > 0 ? "destructive" : "default"}
+          className="shadow-xs transition-colors"
+        >
           <CardContent className="p-4">
             <p className={cn(
               "text-[10px] font-semibold uppercase tracking-wider",
-              alertas.length > 0 ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground"
+              alertas.length > 0 ? "text-card-description" : "text-muted-foreground"
             )}>Abaixo do Mínimo</p>
             <p className={cn(
               "text-2xl font-bold mt-1 tabular-nums",
-              alertas.length > 0 ? "text-rose-600 dark:text-rose-400" : "text-foreground"
+              alertas.length > 0 ? "text-card-title" : "text-foreground"
             )}>
               {alertas.length}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className={cn(
+              "text-xs mt-1",
+              alertas.length > 0 ? "text-card-description" : "text-muted-foreground"
+            )}>
               {alertas.length === 0 ? "estoque saudável" : "itens para repor"}
             </p>
           </CardContent>
@@ -382,14 +386,14 @@ export function EstoqueClient({ initialData }: { initialData: any }) {
 
       {/* Alerta de reposição */}
       {alertas.length > 0 && (
-        <div className="flex items-start gap-3 rounded-sm border border-rose-500/20 bg-rose-500/10 p-3.5 text-foreground">
-          <AlertTriangle className="size-4 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
-          <div className="text-xs leading-relaxed text-rose-800 dark:text-rose-200">
-            <strong className="font-semibold text-rose-900 dark:text-rose-100">{alertas.length} produto(s)</strong> abaixo do estoque mínimo:{" "}
+        <Alert variant="destructive">
+          <AlertTriangle />
+          <AlertDescription className="text-xs leading-relaxed">
+            <strong className="font-semibold text-alert-title">{alertas.length} produto(s)</strong> abaixo do estoque mínimo:{" "}
             {alertas.slice(0, 3).map(a => a.produto_nome).join(", ")}
             {alertas.length > 3 && ` e mais ${alertas.length - 3}...`}
-          </div>
-        </div>
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Tabs principais */}
@@ -603,10 +607,12 @@ export function EstoqueClient({ initialData }: { initialData: any }) {
         {/* ── HISTÓRICO ──────────────────────────────────────────────────────── */}
         <TabsContent value="historico" className="mt-4">
           {filtroImplantacaoAtivo ? (
-            <div className="mb-4 flex items-center gap-2 rounded-sm border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-800 dark:text-sky-200">
-              <History className="size-4" />
-              Mostrando apenas movimentações da implantação assistida desta sessão.
-            </div>
+            <Alert variant="info" className="mb-4">
+              <History />
+              <AlertDescription>
+                Mostrando apenas movimentações da implantação assistida desta sessão.
+              </AlertDescription>
+            </Alert>
           ) : null}
           <Card className="shadow-sm">
             <CardHeader className="pb-3">

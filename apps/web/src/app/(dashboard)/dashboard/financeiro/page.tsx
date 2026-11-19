@@ -244,10 +244,10 @@ export default function FinanceiroDashboard() {
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
                 {/* ── Gráfico Fluxo de Caixa ── */}
-                <Card className="lg:col-span-3 flex flex-col border-slate-200 bg-card shadow-sm">
+                <Card className="lg:col-span-3 flex flex-col bg-card shadow-sm">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-semibold text-slate-600 flex items-center gap-2">
-                            <TrendingUp className="size-4 text-blue-600" /> Fluxo de Caixa — Últimos 6 Meses
+                        <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+                            <TrendingUp className="size-4 text-alert-info-icon" /> Fluxo de Caixa — Últimos 6 Meses
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="flex-1 px-4 pb-4">
@@ -300,10 +300,10 @@ export default function FinanceiroDashboard() {
                     <IAEstresseCard />
 
                     {/* Próximos Vencimentos */}
-                    <Card className="flex flex-col border-amber-200/60 bg-card shadow-sm">
+                    <Card className="flex flex-col border-alert-warning-border bg-card shadow-sm">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-semibold text-amber-700 flex items-center gap-2">
-                                <Clock className="size-4 text-amber-600" /> Vencendo em 7 dias
+                            <CardTitle className="text-sm font-semibold text-alert-warning-icon flex items-center gap-2">
+                                <Clock className="size-4 text-alert-warning-icon" /> Vencendo em 7 dias
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="px-4 pb-4">
@@ -313,14 +313,14 @@ export default function FinanceiroDashboard() {
                                 </div>
                             ) : (dash?.vencendo_7d ?? []).length === 0 ? (
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground py-3">
-                                    <CheckCircle2 className="size-4 text-green-500" /> Nenhum vencimento nos próximos 7 dias.
+                                    <CheckCircle2 className="size-4 text-alert-success-icon" /> Nenhum vencimento nos próximos 7 dias.
                                 </div>
                             ) : (
                                 <div className="space-y-2">
                                     {(dash?.vencendo_7d ?? []).slice(0, 5).map(v => (
                                         <div key={v.id} className="flex items-center justify-between p-2 rounded-sm border border-border/40 bg-muted/20 hover:bg-muted/40 transition-colors">
                                             <div className="flex items-center gap-2 min-w-0">
-                                                <div className={`size-6 rounded-full flex items-center justify-center shrink-0 ${v.tipo === "RECEITA" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                                                <div className={`size-6 rounded-full flex items-center justify-center shrink-0 ${v.tipo === "RECEITA" ? "bg-alert-success-bg text-alert-success-icon" : "bg-alert-destructive-bg text-alert-destructive-icon"}`}>
                                                     {v.tipo === "RECEITA" ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
                                                 </div>
                                                 <div className="min-w-0">
@@ -328,7 +328,7 @@ export default function FinanceiroDashboard() {
                                                     <p className="text-[10px] text-muted-foreground">{v.dias_restantes}d · {new Date(v.data_vencimento).toLocaleDateString("pt-BR")}</p>
                                                 </div>
                                             </div>
-                                            <p className={`text-xs font-black shrink-0 ml-2 ${v.tipo === "RECEITA" ? "text-green-700" : "text-red-600"}`}>
+                                            <p className={`text-xs font-black shrink-0 ml-2 ${v.tipo === "RECEITA" ? "text-alert-success-icon" : "text-alert-destructive-icon"}`}>
                                                 {fmt(v.valor)}
                                             </p>
                                         </div>
@@ -340,18 +340,18 @@ export default function FinanceiroDashboard() {
 
                     {/* Alertas */}
                     {(dash?.alertas ?? []).length > 0 && (
-                        <Card className="border-rose-200/60 bg-card shadow-sm">
+                        <Card className="border-alert-destructive-border bg-card shadow-sm">
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-semibold text-rose-700 flex items-center gap-2">
-                                    <Bell className="size-4 text-rose-600" /> Alertas
+                                <CardTitle className="text-sm font-semibold text-alert-destructive-icon flex items-center gap-2">
+                                    <Bell className="size-4 text-alert-destructive-icon" /> Alertas
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="px-4 pb-4 space-y-2">
                                 {(dash?.alertas ?? []).slice(0, 4).map((a, i) => (
-                                    <div key={i} className="flex items-start gap-2 p-2 rounded-sm border border-rose-200/50 bg-rose-50/40 dark:bg-rose-950/10">
-                                        <AlertTriangle size={13} className={a.nivel === "CRITICO" ? "text-red-600 mt-0.5" : a.nivel === "ALERTA" ? "text-amber-600 mt-0.5" : "text-blue-600 mt-0.5"} />
+                                    <div key={i} className="flex items-start gap-2 p-2 rounded-sm border border-alert-destructive-border bg-alert-destructive-bg">
+                                        <AlertTriangle size={13} className={a.nivel === "CRITICO" ? "text-alert-destructive-icon mt-0.5" : a.nivel === "ALERTA" ? "text-alert-warning-icon mt-0.5" : "text-alert-info-icon mt-0.5"} />
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-xs leading-relaxed">{a.mensagem}</p>
+                                            <p className="text-xs text-alert-destructive-description leading-relaxed">{a.mensagem}</p>
                                             {a.valor > 0 && (
                                                 <Badge className={`text-[9px] h-4 px-1.5 mt-1 border-none ${nivelColor[a.nivel] ?? ""}`}>
                                                     {fmt(a.valor)}

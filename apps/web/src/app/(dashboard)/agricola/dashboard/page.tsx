@@ -270,10 +270,10 @@ function AlertasSection({
     }
 
     return (
-        <Card className="shadow-xs border border-amber-200/60 dark:border-amber-900/40 rounded-sm">
+        <Card className="shadow-xs border border-alert-warning-border rounded-sm">
             <CardHeader className="pb-3 border-b border-border/40">
                 <div className="flex items-center gap-3">
-                    <div className="size-9 rounded-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                    <div className="size-9 rounded-sm bg-alert-warning-bg text-alert-warning-icon border border-alert-warning-border flex items-center justify-center shrink-0">
                         <AlertTriangle className="size-4.5" aria-hidden="true" />
                     </div>
                     <div>
@@ -303,24 +303,21 @@ function AlertasSection({
                                     className={cn(
                                         "flex items-center gap-3 px-4 py-2.5 rounded-sm border text-sm",
                                         a.severidade === "CRITICO"
-                                            ? "bg-red-50 border-red-200 dark:bg-red-950/20"
-                                            : "bg-amber-50 border-amber-200 dark:bg-amber-950/20"
+                                            ? "border-alert-destructive-border bg-alert-destructive-bg text-alert-destructive-title"
+                                            : "border-alert-warning-border bg-alert-warning-bg text-alert-warning-title"
                                     )}
                                 >
-                                    <div className={cn("size-2 rounded-full", a.severidade === "CRITICO" ? "bg-red-500" : "bg-amber-500")} />
+                                    <div className={cn("size-2 rounded-full", a.severidade === "CRITICO" ? "bg-alert-destructive-icon" : "bg-alert-warning-icon")} />
                                     <span className="flex-1 min-w-0">
                                         <span className="font-bold">{a.safra}</span>
-                                        <span className="text-muted-foreground"> — {a.pendentes} pendência(s) em </span>
+                                        <span className={a.severidade === "CRITICO" ? "text-alert-destructive-description" : "text-alert-warning-description"}>
+                                            {" "}— {a.pendentes} pendência(s) em{" "}
+                                        </span>
                                         <span className="font-semibold">{FASE_LABEL[a.fase] ?? a.fase}</span>
                                     </span>
                                     <Badge
-                                        variant="outline"
-                                        className={cn(
-                                            "text-[10px] shrink-0 rounded-sm font-black h-5",
-                                            a.severidade === "CRITICO"
-                                                ? "text-red-700 border-red-300 bg-white dark:bg-transparent"
-                                                : "text-amber-700 border-amber-300 bg-white dark:bg-transparent"
-                                        )}
+                                        variant={a.severidade === "CRITICO" ? "danger" : "warning"}
+                                        className="text-[10px] shrink-0 font-black"
                                     >
                                         {a.severidade}
                                     </Badge>
@@ -332,16 +329,16 @@ function AlertasSection({
                             {nde.map((a, i) => (
                                 <div
                                     key={i}
-                                    className="flex items-center gap-3 px-4 py-2.5 rounded-sm bg-red-50 border border-red-200 text-sm dark:bg-red-950/20"
+                                    className="flex items-center gap-3 px-4 py-2.5 rounded-sm border border-alert-destructive-border bg-alert-destructive-bg text-alert-destructive-title text-sm"
                                 >
-                                    <Bug className="size-4 shrink-0 text-red-500" />
+                                    <Bug className="size-4 shrink-0 text-alert-destructive-icon" />
                                     <span className="flex-1 min-w-0">
                                         <span className="font-bold">{a.safra}</span>
-                                        <span className="text-muted-foreground"> — </span>
-                                        <span className="font-bold text-red-600">{a.agente}</span>
-                                        <span className="text-xs opacity-70 ml-2">nv {a.nivel} ≥ NDE {a.nde}</span>
+                                        <span className="text-alert-destructive-description"> — </span>
+                                        <span className="font-bold">{a.agente}</span>
+                                        <span className="text-xs text-alert-destructive-description ml-2">nv {a.nivel} ≥ NDE {a.nde}</span>
                                     </span>
-                                    <Badge variant="outline" className="text-[10px] text-red-700 border-red-300 shrink-0 rounded-sm font-black bg-white dark:bg-transparent h-5">
+                                    <Badge variant="danger" className="text-[10px] shrink-0 font-black">
                                         CONTROLE
                                     </Badge>
                                 </div>
@@ -463,8 +460,8 @@ export default function DashboardAgricolaPage() {
     if (error) {
         return (
             <div className="p-6">
-                <Alert className="rounded-sm border-destructive/30">
-                    <AlertTriangle className="size-4" />
+                <Alert variant="destructive">
+                    <AlertTriangle />
                     <AlertTitle>Falha ao carregar o Painel de Safras</AlertTitle>
                     <AlertDescription className="space-y-3">
                         <p>{error instanceof Error ? error.message : "Erro de autenticação ao consultar o dashboard."}</p>

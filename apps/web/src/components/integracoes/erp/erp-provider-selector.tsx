@@ -66,10 +66,10 @@ export function ErpProviderSelector({
 
   if (error) {
     return (
-      <Card className="border-red-200 bg-red-50/50">
+      <Card variant="destructive">
         <CardHeader>
-          <CardTitle className="text-red-700">Erro ao carregar provedores</CardTitle>
-          <CardDescription className="text-red-600">
+          <CardTitle>Erro ao carregar provedores</CardTitle>
+          <CardDescription>
             Não foi possível carregar a lista de ERPs disponíveis. Tente novamente mais tarde.
           </CardDescription>
         </CardHeader>

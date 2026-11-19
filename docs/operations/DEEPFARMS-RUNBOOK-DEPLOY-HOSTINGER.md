@@ -1,7 +1,7 @@
 # DeepFarms — Runbook de deploy de produção na Hostinger
 
-**Versão:** 2.0  
-**Data:** 18/11/2026  
+**Versão:** 2.1  
+**Data:** 19/11/2026  
 **Ambiente-alvo:** Hostinger VPS KVM 4, Ubuntu  
 **Projeto Compose:** `farm` (`/opt/deepfarms/farm/docker-compose.hostinger.yml`)  
 **Status:** procedimento operacional padrão ativo via CLI `deploy_hostinger` (`/usr/local/bin/deploy_hostinger`)
@@ -60,6 +60,62 @@ Alterações somente em `docs/**` ou `README.md` não acionam build de imagens.
 
 ## 3. Passo a passo completo do deploy padrão (`deploy_hostinger`)
 
+### Como obter `base_sha` e `<NOVO_SHA>` (40 caracteres)
+
+Cada ciclo de release usa **dois hashes diferentes** de 40 caracteres:
+- **`base_sha`:** commit da **última release já publicada no GHCR** (usado pelo `publish-images.yml` para detectar quais componentes mudaram desde aquela publicação até o `HEAD` atual).
+- **`<NOVO_SHA>`:** commit do **novo `HEAD` de `main`** que acabou de receber suas alterações e teve as novas imagens publicadas (passado ao `deploy_hostinger` na VPS).
+
+#### 1) Como obter o `base_sha` (para preencher em `publish-images.yml`)
+
+Escolha qualquer uma das fontes abaixo (todas apontam o mesmo commit):
+
+1. **Diretamente na VPS (mais confiável — lê o label OCI gravado nas imagens em execução):**
+   O workflow `publish-images.yml` grava `org.opencontainers.image.revision=<SHA>` em cada imagem publicada. Na VPS, execute:
+   ```bash
+   docker inspect farm-api-1 farm-web-1 farm-campo-1 farm-agro-1 \
+     --format '{{.Name}}: {{ index .Config.Labels "org.opencontainers.image.revision" }}'
+   ```
+   *(Quando apenas alguns componentes foram atualizados na última release, use o **SHA mais recente** entre eles — correspondente à última publicação que gerou novas imagens.)*
+
+2. **Pelo GitHub Actions (interface web ou `gh` CLI):**
+   - Na interface web: abra **Actions → Publish DeepFarms images to GHCR**, clique na última execução **verde** em que o job **`publish`** realmente rodou (não pulado) e copie o SHA completo de 40 caracteres do commit no cabeçalho da execução *(ou os últimos 40 caracteres do artefato `release-<componente>-<SHA>`)*.
+   - Via GitHub CLI (`gh`):
+     ```bash
+     gh run list --workflow publish-images.yml --branch main --status success --limit 5 \
+       --json headSha,displayTitle,createdAt
+     ```
+
+3. **Pelo runbook ou histórico Git local:**
+   - Consulte a **Seção 6 (`Histórico de releases e base_sha atual`)** deste runbook.
+   - Ou confira localmente os commits recentes em `origin/main`:
+     ```bash
+     git log origin/main -n 5 --format='%H %ci %s'
+     ```
+
+> **Regras críticas do `base_sha`:**
+> - Ele deve ser o SHA da **última publicação no GHCR** (mesmo se houver vários commits depois dele), **nunca** o `HEAD` recém-enviado — se `base_sha` for igual a `HEAD`, `changed-components` retorna `any=false` e o job **`publish`** é pulado.
+> - Ele precisa ser ancestral do `HEAD` da `main`.
+> - Apenas na **primeira publicação histórica** do repositório utiliza-se `0000000000000000000000000000000000000000` (40 zeros).
+
+#### 2) Como obter o `<NOVO_SHA>` (para rodar `deploy_hostinger`)
+
+1. **Na máquina local, logo após `git push origin main`:**
+   ```bash
+   git rev-parse HEAD
+   # ou para confirmar exatamente o commit enviado no remoto:
+   git rev-parse origin/main
+   ```
+2. **No GitHub Actions:** copie o SHA de 40 caracteres exibido na execução verde recém-finalizada de **Publish DeepFarms images to GHCR** (é o mesmo hash usado na tag `ghcr.io/maborges/deepfarms-<comp>:<NOVO_SHA>` e no artefato `release-<comp>-<NOVO_SHA>`).
+3. **Diretamente na VPS (consultando `refs/heads/main` no GitHub via SSH):**
+   ```bash
+   git ls-remote git@github.com:maborges/farm.git refs/heads/main | awk '{print $1}'
+   ```
+
+> **Importante:** o `deploy_hostinger` exige o hash completo de **40 caracteres** (hashes abreviados de 7 a 39 caracteres são rejeitados).
+
+---
+
 ### Etapa 1 — Máquina local (`/opt/lampp/htdocs/farm`): Commit e Push para `main`
 
 1. Revisar alterações, suítes de testes pertinentes, eventual migration Alembic (`alembic heads` com head único), regras de RLS/autenticação e ausência de segredos ou `.env`.
@@ -85,7 +141,7 @@ O CI comum (`ci.yml`) apenas valida e constrói imagens sem push. A publicação
 2. Preencher os campos do formulário:
    - **Use workflow from:** `Branch: main`
    - **`approve_publish`:** marcar **`true`** *(o valor padrão é `false`; se permanecer desmarcado, o job `publish` é ignorado)*
-   - **`base_sha`:** colar o SHA completo de 40 caracteres da **última release publicada** (ver seção **6. Histórico de releases e `base_sha` atual**; utilizar `0000000000000000000000000000000000000000` apenas na primeira publicação inicial).
+   - **`base_sha`:** colar o SHA completo de 40 caracteres da **última release publicada** obtido conforme a subseção **Como obter `base_sha` e `<NOVO_SHA>`** (ou na seção **6. Histórico de releases e `base_sha` atual**; usar 40 zeros somente na primeira publicação histórica).
 3. Acompanhar a execução:
    - O job `validate` executa a suíte completa (`ci.yml` com `full_validation: true`, incluindo lint/typecheck e homologação do backend em PostgreSQL descartável do runner — sem contato com o banco de produção).
    - O job `changed-components` executa `scripts/cicd/changed_components.py` entre `base_sha` e `HEAD`, definindo a matriz apenas para os componentes alterados.
@@ -168,7 +224,7 @@ Uso: deploy_hostinger [COMMIT_SHA] [COMPONENTES...] [OPCOES]
 
 ### Etapa 5 — Execução do deploy na VPS
 
-Execute o deploy informando os componentes publicados (ou apenas o SHA):
+Utilizando o `<NOVO_SHA>` de 40 caracteres (obtido conforme a subseção **Como obter `base_sha` e `<NOVO_SHA>`**), execute o deploy informando os componentes publicados (ou apenas o SHA):
 
 - **Release sem nova migration de banco:**
   ```bash
@@ -270,25 +326,25 @@ sudo --preserve-env=DEEPFARMS_DEPLOY_TARGET \
 
 ## 6. Histórico de releases e `base_sha` atual
 
-> **Próximo `base_sha` para o workflow `publish-images.yml`:** `5e99b24ddc38f48ce41101e49027e86f944cec7a`
+> **Próximo `base_sha` para o workflow `publish-images.yml`:** `2f2acc104b60e3ee2ec4f0a2421ad2a27afb5165`
 
-### Release atual em produção — `18/11/2026`
+### Release atual em produção — `19/11/2026`
 
-- **Commit SHA (`base_sha` vigente):** `5e99b24ddc38f48ce41101e49027e86f944cec7a`
-- **Backup do Compose criado:** `/opt/deepfarms/farm/docker-compose.hostinger.yml.bak.20261119012247`
-- **Migration aplicada:** `20261116_planos_acao_maturidade -> 20261118_plano_acao_capex` (`--migrate`)
+- **Commit SHA (`base_sha` vigente):** `2f2acc104b60e3ee2ec4f0a2421ad2a27afb5165`
+- **Migration aplicada:** nenhuma
 
 | Componente | Ocorrências atualizadas | Digest SHA-256 em execução |
 |---|---|---|
-| `backend` (`api` + 3 workers) | 4 | `sha256:3a261eefb8fdde9ff99198503d605cff049ebf40209662a2cb170a55e04c388f` |
-| `web` | 1 | `sha256:2f068a75de57244980283585569f646ad3c44a340e2a1f80ec19d733b3f8b99d` |
-| `campo` *(mantido)* | — | `sha256:63ba1917e309d777c76e09e06eabd6034affc4d248f8c0a8d80d8d43945416ad` |
-| `agro` *(mantido)* | — | `sha256:442595fe4e57a1c7f6da4f04da473dfc802655d5d1c3a922fcbcd17bb490eb19` |
+| `backend` (`api` + 3 workers) | 4 | `sha256:a1d882054f0a73f579383c6df99ed14d2e9a6fb8cfc8ede35d28eedf3420e953` |
+| `web` | 1 | `sha256:e89e401a9cf85b4954218c5405bf780427015ec72f7951af80632fc2a682f193` |
+| `campo` *(mantido, commit `30fd5daebd1d5c511d02629d24d303dc878add8b`)* | — | `sha256:63ba1917e309d777c76e09e06eabd6034affc4d248f8c0a8d80d8d43945416ad` |
+| `agro` *(mantido, commit `30fd5daebd1d5c511d02629d24d303dc878add8b`)* | — | `sha256:442595fe4e57a1c7f6da4f04da473dfc802655d5d1c3a922fcbcd17bb490eb19` |
 
 ### Releases anteriores registradas
 
 | Data | Commit SHA | Observação |
 |---|---|---|
+| 18/11/2026 | `5e99b24ddc38f48ce41101e49027e86f944cec7a` | Viabilidade, Fluxo de Caixa, CapEx e Hectares ILPF; migration `20261118_plano_acao_capex`; backup `.bak.20261119012247`; `backend` `@sha256:3a261eefb8fdde9ff99198503d605cff049ebf40209662a2cb170a55e04c388f`, `web` `@sha256:2f068a75de57244980283585569f646ad3c44a340e2a1f80ec19d733b3f8b99d` |
 | Anterior a 18/11/2026 | `d97e0a36891af84ee276fef8cd39cbbbf020c709` | `feat: adicionar gerenciamento de alterações de plano pendentes e tratamento de upgrade automático` |
 
 ### Baseline histórico da migração GHCR — `04/11/2026`

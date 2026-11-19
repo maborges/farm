@@ -1,20 +1,50 @@
 import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
+
+const cardVariants = cva(
+  "group/card flex flex-col gap-4 overflow-hidden rounded-sm border py-4 text-sm shadow-sm has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-sm *:[img:last-child]:rounded-b-sm",
+  {
+    variants: {
+      variant: {
+        default:
+          "border-border/45 bg-card text-card-foreground ring-1 ring-border/30",
+        muted:
+          "border-border/60 bg-muted/40 text-card-foreground shadow-none",
+        info:
+          "border-alert-info-border bg-alert-info-bg text-alert-info-description",
+        warning:
+          "border-alert-warning-border bg-alert-warning-bg text-alert-warning-description",
+        success:
+          "border-alert-success-border bg-alert-success-bg text-alert-success-description",
+        destructive:
+          "border-alert-destructive-border bg-alert-destructive-bg text-alert-destructive-description",
+        brand:
+          "border-card-brand-border bg-card-brand-bg text-card-brand-title shadow-md",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  }
+)
+
+type CardVariant = NonNullable<VariantProps<typeof cardVariants>["variant"]>
 
 function Card({
   className,
   size = "default",
+  variant = "default",
   ...props
-}: React.ComponentProps<"div"> & { size?: "default" | "sm" }) {
+}: React.ComponentProps<"div"> &
+  VariantProps<typeof cardVariants> & { size?: "default" | "sm" }) {
   return (
     <div
       data-slot="card"
       data-size={size}
-      className={cn(
-        "group/card flex flex-col gap-4 overflow-hidden rounded-sm border border-border/45 bg-card py-4 text-sm text-card-foreground shadow-sm ring-1 ring-border/30 has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-sm *:[img:last-child]:rounded-b-sm",
-        className
-      )}
+      data-variant={variant ?? "default"}
+      className={cn(cardVariants({ variant }), className)}
       {...props}
     />
   )
@@ -50,7 +80,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-description"
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("text-sm text-card-description", className)}
       {...props}
     />
   )
@@ -100,4 +130,6 @@ export {
   CardAction,
   CardDescription,
   CardContent,
+  cardVariants,
+  type CardVariant,
 }

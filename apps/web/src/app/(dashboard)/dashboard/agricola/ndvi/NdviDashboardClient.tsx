@@ -350,8 +350,8 @@ export function NdviDashboardClient() {
             )}
 
             {resumo && !resumo.sincronizacao_automatica_disponivel && (
-                <Alert className="rounded-sm">
-                    <Info className="size-4" />
+                <Alert variant="info">
+                    <Info />
                     <AlertTitle>Monitoramento via registros reais</AlertTitle>
                     <AlertDescription>
                         Os índices, alertas e cores no mapa utilizam exclusivamente as leituras

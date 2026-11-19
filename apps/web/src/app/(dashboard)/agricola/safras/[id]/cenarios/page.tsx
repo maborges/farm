@@ -399,16 +399,14 @@ function CenarioDetailDialog({
               value={fmtBrl(cenario.receita_bruta_total)}
               subtitle={`${fmtNum(cenario.area_total_ha)} ha`}
               icon={DollarSign}
-              iconBg="bg-emerald-100 dark:bg-emerald-900/40"
-              iconColor="text-emerald-600 dark:text-emerald-400"
+              tone="success"
               valueSize="base"
             />
             <KPICard
               label="Custo Total"
               value={fmtBrl(cenario.custo_total)}
               icon={TrendingDown}
-              iconBg="bg-amber-100 dark:bg-amber-900/40"
-              iconColor="text-amber-600 dark:text-amber-400"
+              tone="warning"
               valueSize="base"
             />
             <KPICard
@@ -418,8 +416,7 @@ function CenarioDetailDialog({
                 ? fmtPct((cenario.margem_contribuicao_total / cenario.receita_bruta_total) * 100)
                 : undefined}
               icon={TrendingUp}
-              iconBg="bg-blue-100 dark:bg-blue-900/40"
-              iconColor="text-blue-600 dark:text-blue-400"
+              tone="info"
               valueSize="base"
             />
             <KPICard
@@ -427,16 +424,14 @@ function CenarioDetailDialog({
               value={fmtBrl(cenario.resultado_liquido_total)}
               subtitle={cenario.ir_aliquota_pct ? `IR ${fmtNum(cenario.ir_aliquota_pct, 1)}%` : undefined}
               icon={TrendingUp}
-              iconBg="bg-emerald-100 dark:bg-emerald-900/40"
-              iconColor="text-emerald-600 dark:text-emerald-400"
+              tone="success"
               valueSize="base"
             />
             <KPICard
               label="Ponto de Equilíbrio"
               value={cenario.ponto_equilibrio_sc_ha ? `${fmtNum(cenario.ponto_equilibrio_sc_ha, 1)} sc/ha` : "—"}
               icon={Wheat}
-              iconBg="bg-slate-100 dark:bg-slate-900/40"
-              iconColor="text-slate-600 dark:text-slate-400"
+              tone="default"
               valueSize="base"
             />
           </div>

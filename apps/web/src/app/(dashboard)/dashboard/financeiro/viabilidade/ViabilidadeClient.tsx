@@ -919,10 +919,10 @@ export function ViabilidadeClient({ initialTemplates }: { initialTemplates: Temp
       {/* Bloco 3: Resultado Comparativo Lado a Lado */}
       {simulacao && (
         <div className="space-y-6">
-          <Alert className="rounded-sm border-emerald-500/30 bg-emerald-500/10 text-foreground">
-            <Award className="size-4 text-emerald-600 dark:text-emerald-400" />
+          <Alert variant="success">
+            <Award />
             <AlertTitle className="text-sm font-semibold">Recomendação Executiva (Critério VPL + Liquidez)</AlertTitle>
-            <AlertDescription className="text-xs text-muted-foreground">
+            <AlertDescription className="text-xs">
               {simulacao.justificativa_comparativa}
             </AlertDescription>
           </Alert>
@@ -946,12 +946,12 @@ export function ViabilidadeClient({ initialTemplates }: { initialTemplates: Temp
           {resultadoSelecionado && (
             <div className="space-y-4">
               {resultadoSelecionado.fluxo_nao_convencional && (
-                <Alert className="rounded-sm border-amber-500/40 bg-amber-500/10 text-foreground">
-                  <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" />
+                <Alert variant="warning">
+                  <AlertTriangle />
                   <AlertTitle className="text-sm font-semibold">
                     Fluxo Não Convencional Detectado em &quot;{resultadoSelecionado.nome}&quot;
                   </AlertTitle>
-                  <AlertDescription className="text-xs text-muted-foreground">
+                  <AlertDescription className="text-xs">
                     Como há mais de uma inversão de sinal nos fluxos futuros, a TIR tradicional pode apresentar múltiplas raízes. Priorize o VPL ({formatBRL(resultadoSelecionado.vpl)}) e a TIRM ({formatPercent(resultadoSelecionado.tirm_aa)}).
                   </AlertDescription>
                 </Alert>

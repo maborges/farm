@@ -12,6 +12,7 @@ import {
     DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -104,15 +105,15 @@ function PendingPlanChangeBanner({
     const podeCancelar = mudanca.status === "pendente_pagamento" || mudanca.status === "agendado";
 
     return (
-        <div className="flex gap-3 p-4 rounded-sm border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300">
-            <AlertCircle className="shrink-0 mt-0.5 size-4" />
+        <Alert variant="warning">
+            <AlertCircle />
             <div className="space-y-2.5 flex-1 text-xs sm:text-sm">
                 <div>
-                    <p className="font-semibold">Existe uma alteração de plano pendente</p>
-                    <p className="mt-1 opacity-90">
+                    <AlertTitle className="font-semibold">Existe uma alteração de plano pendente</AlertTitle>
+                    <AlertDescription className="mt-1 text-xs sm:text-sm">
                         Solicitação para <strong>{planoNome ?? "outro pacote"}</strong> ({mudanca.usuarios_destino}{" "}
                         acesso(s)) encontra-se {statusLabel}. Conclua ou cancele a solicitação pendente antes de enviar uma nova.
-                    </p>
+                    </AlertDescription>
                 </div>
                 {(mudanca.url_pagamento || podeCancelar) && (
                     <div className="flex flex-wrap gap-2">
@@ -148,7 +149,7 @@ function PendingPlanChangeBanner({
                     </div>
                 )}
             </div>
-        </div>
+        </Alert>
     );
 }
 

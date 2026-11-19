@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Droplets } from "lucide-react";
+import { CheckCircle2, Droplets } from "lucide-react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,9 +35,12 @@ export function FrotaConsumoAlertas({
             surface="frota_dashboard"
           />
         ) : !consumoData || consumoData.alertas.length === 0 ? (
-          <div className="rounded-sm border border-emerald-200 bg-emerald-50/40 p-4 text-sm text-emerald-700">
-            Nenhuma anomalia de consumo detectada.
-          </div>
+          <Alert variant="success">
+            <CheckCircle2 />
+            <AlertDescription>
+              Nenhuma anomalia de consumo detectada.
+            </AlertDescription>
+          </Alert>
         ) : (
           consumoData.alertas.slice(0, 4).map((alerta) => (
             <div
@@ -44,21 +48,37 @@ export function FrotaConsumoAlertas({
               className={cn(
                 "rounded-sm border p-4",
                 alerta.severidade === "danger"
-                  ? "border-red-200 bg-red-50/40"
-                  : "border-amber-200 bg-amber-50/40"
+                  ? "border-alert-destructive-border bg-alert-destructive-bg text-alert-destructive-title"
+                  : "border-alert-warning-border bg-alert-warning-bg text-alert-warning-title"
               )}
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={alerta.severidade === "danger" ? "border-red-200 text-red-700" : "border-amber-200 text-amber-700"}>
+                    <Badge variant={alerta.severidade === "danger" ? "danger" : "warning"}>
                       {alerta.titulo}
                     </Badge>
                     <span className="text-sm font-medium">{alerta.equipamento_nome}</span>
                   </div>
-                  <p className="text-sm text-muted-foreground">{alerta.detalhe}</p>
+                  <p
+                    className={cn(
+                      "text-sm",
+                      alerta.severidade === "danger"
+                        ? "text-alert-destructive-description"
+                        : "text-alert-warning-description"
+                    )}
+                  >
+                    {alerta.detalhe}
+                  </p>
                 </div>
-                <div className="text-right text-xs text-muted-foreground">
+                <div
+                  className={cn(
+                    "text-right text-xs",
+                    alerta.severidade === "danger"
+                      ? "text-alert-destructive-description"
+                      : "text-alert-warning-description"
+                  )}
+                >
                   {alerta.data_referencia ? formatDateOrDash(alerta.data_referencia) : "Sem data"}
                 </div>
               </div>

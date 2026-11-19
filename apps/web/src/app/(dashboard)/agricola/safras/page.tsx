@@ -4,12 +4,14 @@ import { useState, useEffect, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { PageHeader } from "@/components/shared/page-header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter, CardAction } from "@/components/ui/card";
 
 import {
+    AlertTriangle,
     Sprout, Plus, Calendar,
     TrendingUp, Target, ClipboardList,
     ChevronRight
@@ -238,14 +240,13 @@ function SafrasPageContent() {
         return (
             <div className="space-y-6 p-6">
                 {loadTimeout && (
-                    <Card className="border-amber-500/30 bg-amber-500/10 dark:bg-amber-950/20">
-                        <CardContent className="pt-6">
-                            <p className="text-amber-700 dark:text-amber-400 font-bold">⚠️ Carregamento demorando...</p>
-                            <p className="text-amber-600/90 dark:text-amber-300/80 text-sm mt-2">
-                                O servidor está demorando para responder. Verifique sua conexão.
-                            </p>
-                        </CardContent>
-                    </Card>
+                    <Alert variant="warning">
+                        <AlertTriangle />
+                        <AlertTitle>Carregamento demorando...</AlertTitle>
+                        <AlertDescription>
+                            O servidor está demorando para responder. Verifique sua conexão.
+                        </AlertDescription>
+                    </Alert>
                 )}
                 <Skeleton className="h-10 w-64" />
                 <div className="grid grid-cols-4 gap-4">
@@ -262,12 +263,13 @@ function SafrasPageContent() {
         return (
             <div className="space-y-6 p-6">
                 <PageHeader title="Safras" />
-                <Card className="border-destructive/30 bg-destructive/10">
-                    <CardContent className="pt-6">
-                        <p className="text-destructive font-bold">Erro ao carregar safras:</p>
-                        <p className="text-destructive/80 text-sm mt-2">{(error as any).message}</p>
-                    </CardContent>
-                </Card>
+                <Alert variant="destructive">
+                    <AlertTriangle />
+                    <AlertTitle>Erro ao carregar safras:</AlertTitle>
+                    <AlertDescription>
+                        {error instanceof Error ? error.message : String(error)}
+                    </AlertDescription>
+                </Alert>
             </div>
         );
     }

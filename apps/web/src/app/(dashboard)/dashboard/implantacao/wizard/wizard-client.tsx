@@ -819,7 +819,7 @@ export function WizardClient() {
       )}
 
       {showCargaSetup ? (
-        <Card className="rounded-sm shadow-sm border-slate-200">
+        <Card className="rounded-sm shadow-sm">
           <CardHeader className="space-y-2">
             <CardTitle>
               {!statusLoadStrategy ? "Defina a estratégia de carga inicial" : "Editar estratégia de carga"}
@@ -977,7 +977,7 @@ export function WizardClient() {
         </Card>
       ) : status ? (
         <div className="space-y-5">
-          <Card className="rounded-sm shadow-sm border-slate-200">
+          <Card className="rounded-sm shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle>Estratégia de carga da implantação</CardTitle>
               <CardDescription>
@@ -987,11 +987,11 @@ export function WizardClient() {
             <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="border-slate-300 bg-white text-slate-700">
+                  <Badge variant="outline" className="border-border bg-muted text-foreground">
                     {getStrategyLabel(statusLoadStrategy)}
                   </Badge>
                   {statusErpName ? (
-                    <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+                    <Badge variant="outline" className="border-alert-info-border bg-alert-info-bg text-alert-info-title">
                       ERP: {statusErpName}
                     </Badge>
                   ) : null}

@@ -46,7 +46,7 @@ export function RiscoTermicoCard({ data }: RiscoTermicoCardProps) {
     const borderTopColor = colorClass.split(' ').find(c => c.startsWith('border-'))?.replace('border-', 'bg-') || 'bg-muted';
 
     return (
-        <Card className={cn("overflow-hidden border border-border/40 transition-all duration-300 hover:scale-[1.01] hover:shadow-lg rounded-2xl bg-background/60 backdrop-blur-sm", shadowClass)}>
+        <Card className={cn("overflow-hidden border border-border/40 transition-all duration-300 hover:scale-[1.01] hover:shadow-lg rounded-sm bg-background/60 backdrop-blur-sm", shadowClass)}>
             <div className={cn("h-1.5 w-full", borderTopColor)} />
             <CardHeader className="pb-3 pt-5 px-6">
                 <div className="flex justify-between items-start">
@@ -72,7 +72,7 @@ export function RiscoTermicoCard({ data }: RiscoTermicoCardProps) {
                 </div>
             </CardHeader>
             <CardContent className="space-y-6 px-6 pb-6">
-                <div className={cn("flex items-center gap-4 rounded-xl p-5 border bg-gradient-to-br", colorClass)}>
+                <div className={cn("flex items-center gap-4 rounded-sm p-5 border bg-gradient-to-br", colorClass)}>
                     <div className="p-2.5 bg-background/50 rounded-full shadow-sm">
                         <Icon className="size-7 flex-shrink-0" />
                     </div>

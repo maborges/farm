@@ -138,7 +138,7 @@ export default function FenologiaPage() {
             filterable: true,
             cell: (_, row) => (
                 <div>
-                    <Badge variant="outline" className="mr-2 rounded-sm font-mono bg-emerald-50 text-emerald-700 border-emerald-200">
+                    <Badge variant="success" className="mr-2 font-mono">
                         {row.escala.codigo}
                     </Badge>
                     <span className="font-medium">{row.escala.nome}</span>
@@ -182,8 +182,8 @@ export default function FenologiaPage() {
                     icon={<Sprout className="text-primary" size={22} />}
                     breadcrumbs={[{ label: "Agrícola", href: "/agricola" }, { label: "Fenologia" }]}
                 />
-                <Alert variant="default" className="bg-amber-50 text-amber-900 border-amber-200">
-                    <AlertCircle className="h-4 w-4 stroke-amber-600" />
+                <Alert variant="warning">
+                    <AlertCircle />
                     <AlertTitle>Nenhuma safra ativa</AlertTitle>
                     <AlertDescription>
                         Para registrar estágios fenológicos, é necessário ter pelo menos uma safra em andamento.
@@ -301,10 +301,10 @@ export default function FenologiaPage() {
 
             <div className="grid gap-4 md:grid-cols-4">
                 <div className="col-span-1 md:col-span-1">
-                    <Card className="shadow-sm border-none bg-emerald-700 text-white rounded-sm">
+                    <Card variant="brand" className="shadow-sm">
                         <CardContent className="p-6">
-                            <Leaf className="size-8 opacity-50 mb-4" />
-                            <p className="text-emerald-100 text-sm font-medium">Ciclos Monitorados</p>
+                            <Leaf className="size-8 opacity-75 mb-4" />
+                            <p className="text-card-description text-sm font-medium">Ciclos Monitorados</p>
                             <h2 className="text-3xl font-bold mt-1">{registros.length}</h2>
                         </CardContent>
                     </Card>

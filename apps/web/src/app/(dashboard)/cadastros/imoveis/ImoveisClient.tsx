@@ -696,8 +696,8 @@ export function ImoveisClient({
             </TabsContent>
 
             <TabsContent value="documentos" className="space-y-4 mt-4">
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
+              <Alert variant="info">
+                <AlertTriangle />
                 <AlertDescription>
                   Os documentos legais (CCIR, ITR, CAR) podem ser gerenciados na aba Documentos Legais
                 </AlertDescription>

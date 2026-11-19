@@ -180,7 +180,7 @@ export function FornecedoresClient({ initialData }: { initialData: Fornecedor[] 
 
             {isLoading ? <Skeleton className="h-40 w-full rounded-sm" /> :
                 hasStatus(error, 402)
-                    ? <Card className="rounded-sm border-yellow-200 bg-yellow-50/50 shadow-none"><CardContent className="pt-6 text-center"><p className="text-sm text-yellow-800 mb-3">Módulo &quot;Compras&quot; não contratado</p><Button size="sm" variant="outline" onClick={() => window.location.href = '/dashboard/configuracoes'}>Contratar</Button></CardContent></Card>
+                    ? <Card variant="warning" className="shadow-none"><CardContent className="pt-6 text-center"><p className="text-sm font-medium text-card-title mb-3">Módulo &quot;Compras&quot; não contratado</p><Button size="sm" variant="outline" onClick={() => window.location.href = '/dashboard/configuracoes'}>Contratar</Button></CardContent></Card>
                     : fornecedores.length === 0
                     ? <div className="text-center py-12 rounded-sm border-2 border-dashed bg-muted/20"><Users className="size-8 mx-auto mb-2 opacity-30 text-primary" /><p className="text-sm text-muted-foreground mb-4">Nenhum fornecedor cadastrado</p><Button size="sm" variant="outline" onClick={() => setShowDialog(true)}><Plus data-icon="inline-start" className="size-3.5" /> Cadastrar</Button></div>
                     : <DataTable columns={columns} data={fornecedores} searchable exportable />

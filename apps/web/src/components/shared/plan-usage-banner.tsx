@@ -22,17 +22,17 @@ export function PlanUsageBanner({ label, atual, limite, atingido, hint, classNam
 
     return (
         <div className={cn(
-            "flex items-center gap-3 text-sm px-4 py-2.5 rounded-lg border",
-            atingido && "bg-destructive/10 border-destructive/30 text-destructive",
-            alerta && "bg-amber-50 border-amber-200 text-amber-700",
-            !atingido && !alerta && "bg-muted/30 border-muted text-muted-foreground",
+            "flex items-center gap-3 text-sm px-4 py-2.5 rounded-sm border",
+            atingido && "border-alert-destructive-border bg-alert-destructive-bg text-alert-destructive-title",
+            alerta && "border-alert-warning-border bg-alert-warning-bg text-alert-warning-title",
+            !atingido && !alerta && "border-alert-default-border bg-alert-default-bg text-alert-default-description",
             className,
         )}>
             {atingido
-                ? <AlertTriangle className="size-4 shrink-0" />
+                ? <AlertTriangle className="size-4 shrink-0 text-alert-destructive-icon" />
                 : alerta
-                    ? <TrendingUp className="size-4 shrink-0" />
-                    : <CheckCircle2 className="size-4 shrink-0" />}
+                    ? <TrendingUp className="size-4 shrink-0 text-alert-warning-icon" />
+                    : <CheckCircle2 className="size-4 shrink-0 text-alert-default-icon" />}
 
             <div className="flex-1 min-w-0">
                 <span>
@@ -43,7 +43,11 @@ export function PlanUsageBanner({ label, atual, limite, atingido, hint, classNam
                 {!ilimitado && (
                     <Progress
                         value={pct}
-                        className={cn("h-1.5 mt-1", atingido && "[&>div]:bg-destructive", alerta && "[&>div]:bg-amber-500")}
+                        className={cn(
+                            "h-1.5 mt-1",
+                            atingido && "[&>div]:bg-alert-destructive-icon",
+                            alerta && "[&>div]:bg-alert-warning-icon",
+                        )}
                     />
                 )}
                 {hint && (
@@ -52,7 +56,15 @@ export function PlanUsageBanner({ label, atual, limite, atingido, hint, classNam
             </div>
 
             {(atingido || alerta) && (
-                <Button variant="link" size="sm" className={cn("ml-auto h-auto p-0 shrink-0", atingido ? "text-destructive" : "text-amber-700")} asChild>
+                <Button
+                    variant="link"
+                    size="sm"
+                    className={cn(
+                        "ml-auto h-auto p-0 shrink-0",
+                        atingido ? "text-alert-destructive-title" : "text-alert-warning-title",
+                    )}
+                    asChild
+                >
                     <Link href="/dashboard/settings/billing">Upgrade</Link>
                 </Button>
             )}

@@ -23,6 +23,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetFo
 import { AreaTree, AREA_LABELS } from "@/components/shared/area-tree";
 import { AREA_HIERARQUIA } from "@farm/zod-schemas";
 import type { AreaRuralTree } from "@farm/zod-schemas";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -1201,9 +1202,9 @@ export function PropriedadeDetalheClient({ propriedadeId }: { propriedadeId: str
           {fazenda.territorio?.avisos && fazenda.territorio.avisos.length > 0 && (
             <div className="mt-4 space-y-2">
               {fazenda.territorio.avisos.map((aviso, idx) => (
-                <div key={idx} className="p-3 bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded-md text-sm">
-                  {aviso}
-                </div>
+                <Alert key={idx} variant="warning">
+                  <AlertDescription>{aviso}</AlertDescription>
+                </Alert>
               ))}
             </div>
           )}

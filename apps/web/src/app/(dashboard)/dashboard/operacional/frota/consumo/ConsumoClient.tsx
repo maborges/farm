@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, BarChart3, Droplets, Gauge, ShieldAlert, Tractor, Wrench } from "lucide-react";
+import { AlertTriangle, BarChart3, CheckCircle2, Droplets, Gauge, ShieldAlert, Tractor, Wrench } from "lucide-react";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { TierUpgradeCard } from "@/components/shared/tier-upgrade-card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +24,7 @@ import { apiFetch } from "@/lib/api";
 import { useHasTier } from "@/hooks/use-has-tier";
 import { useAppStore } from "@/lib/stores/app-store";
 import { cn } from "@/lib/utils";
+import { KpiCard as ResumoCard } from "../_components/FrotaKPICards";
 
 import { ConsumoResponse, ConsumoResumo, ConsumoRankingItem } from "./types";
 
@@ -207,29 +209,50 @@ export function ConsumoClient({ initialData, serverFazendaId }: ConsumoClientPro
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {data.alertas.length === 0 ? (
-                    <div className="rounded-sm border border-emerald-200 bg-emerald-50/40 p-4 text-sm text-emerald-700">
-                      Nenhuma anomalia de consumo detectada no momento.
-                    </div>
+                    <Alert variant="success">
+                      <CheckCircle2 />
+                      <AlertDescription>
+                        Nenhuma anomalia de consumo detectada no momento.
+                      </AlertDescription>
+                    </Alert>
                   ) : (
                     data.alertas.map((alerta) => (
                       <div
                         key={`${alerta.tipo}-${alerta.equipamento_id}-${alerta.detalhe}`}
                         className={cn(
                           "rounded-sm border p-4",
-                          alerta.severidade === "danger" ? "border-red-200 bg-red-50/40" : "border-amber-200 bg-amber-50/40"
+                          alerta.severidade === "danger"
+                            ? "border-alert-destructive-border bg-alert-destructive-bg text-alert-destructive-title"
+                            : "border-alert-warning-border bg-alert-warning-bg text-alert-warning-title"
                         )}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <Badge variant="outline" className={alerta.severidade === "danger" ? "border-red-200 text-red-700" : "border-amber-200 text-amber-700"}>
+                              <Badge variant={alerta.severidade === "danger" ? "danger" : "warning"}>
                                 {alerta.titulo}
                               </Badge>
                               <span className="text-sm font-medium">{alerta.equipamento_nome}</span>
                             </div>
-                            <p className="text-sm text-muted-foreground">{alerta.detalhe}</p>
+                            <p
+                              className={cn(
+                                "text-sm",
+                                alerta.severidade === "danger"
+                                  ? "text-alert-destructive-description"
+                                  : "text-alert-warning-description"
+                              )}
+                            >
+                              {alerta.detalhe}
+                            </p>
                           </div>
-                          <div className="text-xs text-muted-foreground">
+                          <div
+                            className={cn(
+                              "text-xs",
+                              alerta.severidade === "danger"
+                                ? "text-alert-destructive-description"
+                                : "text-alert-warning-description"
+                            )}
+                          >
                             {alerta.data_referencia ? formatDateTime(alerta.data_referencia) : "Sem data"}
                           </div>
                         </div>
@@ -243,42 +266,6 @@ export function ConsumoClient({ initialData, serverFazendaId }: ConsumoClientPro
         </>
       ) : null}
     </div>
-  );
-}
-
-function ResumoCard({
-  title,
-  value,
-  description,
-  icon: Icon,
-  tone = "default",
-}: {
-  title: string;
-  value: string | number;
-  description: string;
-  icon: typeof Droplets;
-  tone?: "default" | "warning" | "danger";
-}) {
-  return (
-    <Card className={cn("rounded-sm shadow-sm", tone === "warning" && "border-amber-200", tone === "danger" && "border-red-200")}>
-      <CardContent className="flex items-start gap-4 p-5">
-        <div
-          className={cn(
-            "flex size-10 items-center justify-center rounded-sm",
-            tone === "default" && "bg-primary/10 text-primary",
-            tone === "warning" && "bg-amber-100 text-amber-700",
-            tone === "danger" && "bg-red-100 text-red-700"
-          )}
-        >
-          <Icon className="size-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{title}</p>
-          <div className="mt-0.5 text-2xl font-black tracking-tight">{value}</div>
-          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 

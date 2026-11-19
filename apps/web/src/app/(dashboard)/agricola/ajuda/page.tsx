@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Search, Database, HelpCircle, Sprout, Calendar, MapPin, BookOpen, AlertCircle, Lightbulb } from "lucide-react";
@@ -157,9 +158,11 @@ const guias = [
                     <h4 className="font-semibold text-sm mb-2">Onde encontrar?</h4>
                     <p className="text-sm text-muted-foreground">Menu: Agricultura → ⑥ Resultados → Resumo de Safras</p>
                 </div>
-                <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                    <p className="text-sm text-blue-900"><strong>O que é um Cultivo?</strong> Uma safra pode ter um ou mais cultivos. Cada cultivo representa uma cultura específica plantada em determinados talhões durante aquela safra. Isso permite rastrear custos, operações e orçamento separadamente por cultura.</p>
-                </div>
+                <Alert variant="info">
+                    <AlertDescription>
+                        <strong>O que é um Cultivo?</strong> Uma safra pode ter um ou mais cultivos. Cada cultivo representa uma cultura específica plantada em determinados talhões durante aquela safra. Isso permite rastrear custos, operações e orçamento separadamente por cultura.
+                    </AlertDescription>
+                </Alert>
                 <div>
                     <h4 className="font-semibold text-sm mb-2">Como criar?</h4>
                     <ol className="space-y-2 text-sm text-muted-foreground">
@@ -171,9 +174,11 @@ const guias = [
                         <li>6. Clique &quot;Criar Safra&quot;</li>
                     </ol>
                 </div>
-                <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
-                    <p className="text-sm text-yellow-900"><strong>⚠️ Validação:</strong> A área a plantar não pode ser maior que a área real do talhão.</p>
-                </div>
+                <Alert variant="warning">
+                    <AlertDescription>
+                        <strong>⚠️ Validação:</strong> A área a plantar não pode ser maior que a área real do talhão.
+                    </AlertDescription>
+                </Alert>
             </div>
         ),
     },
@@ -201,9 +206,11 @@ const guias = [
                         <li className="flex gap-2"><span className="font-semibold min-w-32">OUTROS:</span> <span className="text-muted-foreground">Imprevistos</span></li>
                     </ul>
                 </div>
-                <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                    <p className="text-sm text-blue-900"><strong>💡 Dica:</strong> Se sua safra tem múltiplos cultivos (Café + Milho), você pode vincular cada item de custo a um cultivo específico. Isso permite visualizar o orçamento separado por cultura.</p>
-                </div>
+                <Alert variant="info">
+                    <AlertDescription>
+                        <strong>💡 Dica:</strong> Se sua safra tem múltiplos cultivos (Café + Milho), você pode vincular cada item de custo a um cultivo específico. Isso permite visualizar o orçamento separado por cultura.
+                    </AlertDescription>
+                </Alert>
             </div>
         ),
     },
@@ -226,9 +233,11 @@ const guias = [
                         <li className="flex gap-2"><span className="font-semibold min-w-20">PODA:</span> <span className="text-muted-foreground">Poda de manutenção</span></li>
                     </ul>
                 </div>
-                <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                    <p className="text-sm text-blue-900"><strong>💡 Dica:</strong> Sempre vincule operações ao cultivo específico para que os custos sejam atribuídos corretamente.</p>
-                </div>
+                <Alert variant="info">
+                    <AlertDescription>
+                        <strong>💡 Dica:</strong> Sempre vincule operações ao cultivo específico para que os custos sejam atribuídos corretamente.
+                    </AlertDescription>
+                </Alert>
             </div>
         ),
     },
@@ -286,9 +295,11 @@ const guias = [
                         <li>Observações adicionais</li>
                     </ul>
                 </div>
-                <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                    <p className="text-sm text-blue-900"><strong>💡 Por que importa:</strong> Rastreia quem colheu, quando, quanto, e marca ponto de origem para café processado depois. Importante se vender para diferentes compradores.</p>
-                </div>
+                <Alert variant="info">
+                    <AlertDescription>
+                        <strong>💡 Por que importa:</strong> Rastreia quem colheu, quando, quanto, e marca ponto de origem para café processado depois. Importante se vender para diferentes compradores.
+                    </AlertDescription>
+                </Alert>
             </div>
         ),
     },
@@ -309,9 +320,11 @@ const guias = [
                         <li><span className="font-semibold">4. Embalagem:</span> <span className="text-muted-foreground">Colocar em sacos de 60 kg</span></li>
                     </ol>
                 </div>
-                <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
-                    <p className="text-sm text-yellow-900"><strong>📌 Importante:</strong> Toda etapa é registrada no sistema. A perda de peso é normal (café seca e perde água).</p>
-                </div>
+                <Alert variant="warning">
+                    <AlertDescription>
+                        <strong>📌 Importante:</strong> Toda etapa é registrada no sistema. A perda de peso é normal (café seca e perde água).
+                    </AlertDescription>
+                </Alert>
             </div>
         ),
     },

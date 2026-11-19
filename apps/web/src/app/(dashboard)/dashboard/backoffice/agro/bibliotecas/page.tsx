@@ -260,8 +260,8 @@ export default function BibliotecasGlobaisPage() {
             />
 
             {/* Banner de Isolamento Multi-Tenant */}
-            <Alert className="border-emerald-600/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-200 rounded-sm">
-                <ShieldAlert className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <Alert variant="success">
+                <ShieldAlert />
                 <AlertTitle className="text-xs font-bold uppercase tracking-wider">
                     Governança Canônica Compartilhada (Multi-Tenant Segregado)
                 </AlertTitle>

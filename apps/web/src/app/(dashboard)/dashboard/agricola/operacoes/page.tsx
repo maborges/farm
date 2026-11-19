@@ -413,17 +413,17 @@ export default function OperacoesAgricolasPage() {
                     </CardContent>
                 </Card>
 
-                <Card className={`border-none shadow-sm ring-1 ring-border/60 overflow-hidden text-primary-foreground shadow-primary/20 ${resumoCusto?.desvio_orcamento_pct > 0 ? 'bg-red-600' : 'bg-primary'}`}>
+                <Card variant={resumoCusto?.desvio_orcamento_pct > 0 ? "destructive" : "brand"} className="shadow-sm">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-[10px] font-black uppercase text-primary-foreground/60 tracking-widest">Saúde Financeira</CardTitle>
+                        <CardTitle className="text-[10px] font-black uppercase text-card-description tracking-widest">Saúde Financeira</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-3xl font-black">
+                        <div className="text-3xl font-black text-card-title">
                             {resumoCusto?.desvio_orcamento_pct != null
                                 ? `${resumoCusto.desvio_orcamento_pct > 0 ? '+' : ''}${resumoCusto.desvio_orcamento_pct}%`
                                 : "100.0%"}
                         </div>
-                        <p className="text-[10px] mt-1 opacity-80 uppercase font-black er">
+                        <p className="text-[10px] mt-1 text-card-description uppercase font-black">
                             {resumoCusto?.desvio_orcamento_pct > 0 ? "Orçamento Excedido" : "Dentro do Planejado"}
                         </p>
                     </CardContent>

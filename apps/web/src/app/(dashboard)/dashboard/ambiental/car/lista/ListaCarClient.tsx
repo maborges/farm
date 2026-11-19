@@ -6,7 +6,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { toast } from "sonner";
-import { AlertCircle, CheckCircle, Clock, Leaf, Pencil, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle, Clock, Info, Leaf, Pencil, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -209,9 +210,12 @@ export function ListaCarClient({ initialData }: { initialData: RegistroCAR[] }) 
                 )}
             />
 
-            <div role="status" className="rounded-sm border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-sm text-violet-800 dark:text-violet-200">
-                <strong>Lista consolidada:</strong> os CARs exibidos pertencem a todas as unidades produtivas autorizadas, e cada cartão identifica sua unidade de origem.
-            </div>
+            <Alert variant="info" role="status">
+                <Info />
+                <AlertDescription>
+                    <strong>Lista consolidada:</strong> os CARs exibidos pertencem a todas as unidades produtivas autorizadas, e cada cartão identifica sua unidade de origem.
+                </AlertDescription>
+            </Alert>
 
             <Card>
                 <CardContent className="flex items-center gap-3 p-4">

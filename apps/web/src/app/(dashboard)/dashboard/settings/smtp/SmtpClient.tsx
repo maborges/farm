@@ -161,11 +161,11 @@ export function SmtpClient({ initialData }: { initialData?: SMTPFormData | null 
                     </form>
                 </div>
 
-                <Card className="bg-emerald-500/5 border-emerald-500/10 shadow-none h-fit">
+                <Card variant="success" className="shadow-none h-fit">
                     <CardHeader>
-                        <CardTitle className="text-sm font-bold uppercase tracking-widest text-emerald-700">Por que configurar?</CardTitle>
+                        <CardTitle className="text-sm font-bold uppercase tracking-widest">Por que configurar?</CardTitle>
                     </CardHeader>
-                    <CardContent className="text-xs space-y-4 text-emerald-900/70 leading-relaxed">
+                    <CardContent className="text-xs space-y-4 text-card-description leading-relaxed">
                         <p>
                             Ao utilizar o seu próprio servidor de e-mail, você aumenta a confiança dos seus produtores e parceiros.
                         </p>
@@ -174,11 +174,11 @@ export function SmtpClient({ initialData }: { initialData?: SMTPFormData | null 
                             <li>Menor risco de cair na caixa de Spam</li>
                             <li>Centralização de logs no seu provedor</li>
                         </ul>
-                        <div className="p-3 bg-white/50 rounded-sm border border-emerald-200">
-                            <p className="font-bold text-emerald-800 flex items-center gap-2">
+                        <div className="p-3 bg-card/80 rounded-sm border border-alert-success-border">
+                            <p className="font-bold text-card-title flex items-center gap-2">
                                 <Info size={14} /> Recomendação
                             </p>
-                            <p className="mt-1">Recomendamos usar porta 587 (STARTTLS) ou 465 (TLS) para segurança.</p>
+                            <p className="mt-1 text-card-description">Recomendamos usar porta 587 (STARTTLS) ou 465 (TLS) para segurança.</p>
                         </div>
                     </CardContent>
                 </Card>

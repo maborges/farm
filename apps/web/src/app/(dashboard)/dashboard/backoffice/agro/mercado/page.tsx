@@ -479,12 +479,12 @@ export default function BackofficeMercadoPage() {
       />
 
       {/* Alerta de Segurança e Imutabilidade */}
-      <Alert className="rounded-sm border-emerald-500/20 bg-emerald-50/50 text-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200">
-        <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-        <AlertTitle className="text-xs font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+      <Alert variant="success">
+        <ShieldCheck />
+        <AlertTitle className="text-xs font-semibold uppercase tracking-wider">
           Autenticidade e Governança Pública Estrita
         </AlertTitle>
-        <AlertDescription className="text-xs text-emerald-700/90 dark:text-emerald-300/80">
+        <AlertDescription className="text-xs">
           As cotações de preços (DERAL), taxas cambiais (PTAX), séries temporais (SGS) e estatísticas
           (SIDRA) são dados oficiais homologados e imutáveis. Esta interface administra
           exclusivamente parâmetros de observabilidade, TTLs de cache e ciclo de vida de snapshots. É
@@ -514,12 +514,9 @@ export default function BackofficeMercadoPage() {
             return (
               <Card
                 key={source.fonte_id}
-                className={`rounded-sm transition-all hover:border-emerald-500/30 ${
-                  isDefasado
-                    ? "border-amber-500/30 bg-amber-50/10"
-                    : isOnline
-                    ? "border-emerald-500/20"
-                    : "border-red-500/20 bg-red-50/10"
+                variant={isDefasado ? "warning" : isOnline ? "default" : "destructive"}
+                className={`rounded-sm transition-all hover:border-primary/40 ${
+                  isOnline ? "border-alert-success-border/60" : ""
                 }`}
               >
                 <CardHeader className="p-4 pb-2">
@@ -993,12 +990,12 @@ export default function BackofficeMercadoPage() {
             </div>
 
             {uploadFeedback && (
-              <Alert className="rounded-sm border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                <AlertTitle className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+              <Alert variant="success">
+                <CheckCircle2 />
+                <AlertTitle className="text-xs font-semibold">
                   Validação Concluída com Sucesso!
                 </AlertTitle>
-                <AlertDescription className="text-xs text-emerald-700/90 dark:text-emerald-300/90 space-y-1 mt-1">
+                <AlertDescription className="text-xs space-y-1 mt-1">
                   <div>Snapshot: <strong>{uploadFeedback.metadata.id}</strong> ({uploadFeedback.metadata.filename})</div>
                   <div>SHA-256: <code className="text-[10px] font-mono">{uploadFeedback.metadata.sha256.substring(0, 24)}...</code></div>
                   <div>Itens válidos: <strong>{uploadFeedback.metadata.total_itens} commodities</strong></div>

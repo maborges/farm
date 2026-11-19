@@ -220,20 +220,20 @@ export default function IAPerformancePage() {
             />
 
             {/* Resumo de Performance IA */}
-            <Card className="rounded-sm border-none bg-emerald-600 text-white shadow-lg overflow-hidden relative">
+            <Card variant="brand" className="shadow-lg relative">
                 <div className="absolute top-0 right-0 p-8 opacity-10">
                     <BrainCircuit size={120} />
                 </div>
                 <CardContent className="p-6">
                     <div className="flex items-center gap-3 mb-2">
-                        <Zap className="size-5 text-emerald-200 fill-emerald-200" />
+                        <Zap className="size-5 text-card-description fill-current" />
                         <h2 className="text-lg font-bold">Resumo Estratégico</h2>
                     </div>
                     <p className="text-xl md:text-2xl font-light leading-relaxed max-w-3xl">
                         {resumo_performance}
                     </p>
                     <div className="mt-6 flex gap-4">
-                        <Badge className="bg-emerald-500/50 hover:bg-emerald-500/50 border-none text-white px-3 py-1 rounded-sm text-xs">
+                        <Badge className="bg-white/15 hover:bg-white/15 border-none text-white px-3 py-1 rounded-sm text-xs">
                             ROI Estimado: {metrics.economia_total_gerada > 0 ? ((metrics.economia_total_gerada / 50) * 100).toFixed(0) + "%" : "Calculando..."}
                         </Badge>
                         <Badge className="bg-white/20 hover:bg-white/20 border-none text-white px-3 py-1 rounded-sm text-xs">
@@ -371,35 +371,35 @@ export default function IAPerformancePage() {
 
                     {/* Step 203: Recomendação de Crescimento baseada em ROI */}
                     {recomendacao?.deve_recomendar && (
-                        <Card className="rounded-sm shadow-md border-emerald-500/20 bg-emerald-50/30 dark:bg-emerald-950/20 overflow-hidden ring-1 ring-emerald-500/10">
+                        <Card variant="success" className="shadow-md">
                             <CardHeader className="pb-3">
                                 <div className="flex items-center gap-2 mb-1">
-                                    <div className="p-1 rounded-sm bg-emerald-500 text-white">
+                                    <div className="p-1 rounded-sm bg-alert-success-border/40 text-alert-success-icon">
                                         <TrendingUp size={14} />
                                     </div>
-                                    <CardTitle className="text-sm font-bold text-emerald-700 dark:text-emerald-400">Recomendação de Crescimento</CardTitle>
+                                    <CardTitle className="text-sm font-bold">Recomendação de Crescimento</CardTitle>
                                 </div>
                                 <CardDescription className="text-[11px]">Análise inteligente de ROI e escala</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <p className="text-sm font-medium leading-snug">
+                                <p className="text-sm font-medium text-card-title leading-snug">
                                     {recomendacao.mensagem}
                                 </p>
                                 
-                                <div className="bg-white/50 dark:bg-white/5 p-3 rounded-sm border border-emerald-500/10">
+                                <div className="bg-card/80 p-3 rounded-sm border border-alert-success-border">
                                     <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase font-bold mb-1">
                                         <span>Ganho Realizado</span>
                                         <span>Potencial de ROI</span>
                                     </div>
                                     <div className="flex justify-between items-end">
-                                        <span className="text-lg font-bold text-emerald-600">R$ {recomendacao.economia_gerada.toLocaleString("pt-BR")}</span>
-                                        <span className="text-xs font-bold text-emerald-500">{recomendacao.roi_estimado.toFixed(1)}x retorno</span>
+                                        <span className="text-lg font-bold text-alert-success-title">R$ {recomendacao.economia_gerada.toLocaleString("pt-BR")}</span>
+                                        <span className="text-xs font-bold text-alert-success-icon">{recomendacao.roi_estimado.toFixed(1)}x retorno</span>
                                     </div>
                                 </div>
 
                                 <button 
                                     onClick={handleUpgradeClick}
-                                    className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2.5 rounded-sm transition-all shadow-sm"
+                                    className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold py-2.5 rounded-sm transition-all shadow-sm"
                                 >
                                     {recomendacao.tipo === "UPGRADE_PLANO" ? "Ver Planos de Upgrade" : "Solicitar Créditos de IA"}
                                     <ArrowRight size={14} />
@@ -459,16 +459,16 @@ export default function IAPerformancePage() {
                     </Card>
                 </div>
 
-            <Card className="rounded-sm shadow-sm border-amber-500/10 bg-amber-50/10 dark:bg-amber-950/5">
+            <Card variant="warning" className="shadow-sm">
                 <CardContent className="p-4 flex items-start gap-3">
-                    <div className="p-2 rounded-full bg-amber-500/10 text-amber-600 mt-0.5">
+                    <div className="p-2 rounded-full bg-alert-warning-border/40 text-alert-warning-icon mt-0.5">
                         <BrainCircuit size={16} />
                     </div>
                         <div>
-                            <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                            <p className="text-sm font-medium text-card-title">
                                 Insight do Autopilot
                             </p>
-                            <p className="text-sm text-amber-800/70 dark:text-amber-200/70 mt-1">
+                            <p className="text-sm text-card-description mt-1">
                                 {autopilotMetrics?.insight || "O Autopilot está analisando dados para gerar insights."}
                             </p>
                         </div>

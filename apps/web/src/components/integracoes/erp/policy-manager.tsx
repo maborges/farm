@@ -255,7 +255,7 @@ export function ErpPolicyManager({ onUpdated }: { onUpdated?: () => void }) {
               }}
             >
               <DialogBody className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto py-5">
-                <Alert className="rounded-sm bg-muted/30">
+                <Alert>
                   <AlertDescription className="flex flex-col gap-1.5">
                     <span className="font-medium">API consumida por este cadastro</span>
                     <code className="break-all rounded-sm bg-background px-2 py-1.5 text-xs ring-1 ring-border">

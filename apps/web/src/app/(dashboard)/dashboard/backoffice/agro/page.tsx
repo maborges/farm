@@ -40,7 +40,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle, type AlertVariant } from "@/components/ui/alert";
+
+const SEVERIDADE_ALERT_VARIANT: Record<string, AlertVariant> = {
+    CRITICAL: "destructive",
+    WARNING: "warning",
+    INFO: "info",
+};
 
 interface UsuariosOverview {
     total_gratuitos: number;
@@ -194,16 +200,9 @@ export default function AgroDashboardPage() {
                     {alertas.map((alerta) => (
                         <Alert
                             key={alerta.id}
-                            variant={alerta.severidade === "CRITICAL" ? "destructive" : "default"}
-                            className={`rounded-sm border ${
-                                alerta.severidade === "WARNING"
-                                    ? "border-amber-600/40 bg-amber-500/10 text-amber-950 dark:text-amber-200"
-                                    : alerta.severidade === "INFO"
-                                    ? "border-blue-600/30 bg-blue-500/10 text-blue-950 dark:text-blue-200"
-                                    : ""
-                            }`}
+                            variant={SEVERIDADE_ALERT_VARIANT[alerta.severidade] ?? "default"}
                         >
-                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTriangle />
                             <div className="flex items-center justify-between w-full">
                                 <AlertTitle className="text-xs font-bold">{alerta.titulo}</AlertTitle>
                                 <Badge variant="outline" className="text-[10px] uppercase font-mono rounded-sm">

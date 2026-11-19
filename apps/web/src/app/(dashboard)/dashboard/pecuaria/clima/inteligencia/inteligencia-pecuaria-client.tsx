@@ -74,18 +74,18 @@ export function InteligenciaPecuariaClient() {
                         <Skeleton className="h-[100px] w-full rounded-2xl" />
                     </div>
                     <div className="lg:col-span-1">
-                        <Skeleton className="h-[340px] w-full rounded-2xl" />
+                        <Skeleton className="h-[340px] w-full rounded-sm" />
                     </div>
                 </div>
             ) : isError ? (
-                <Card className="border-destructive/30 bg-gradient-to-r from-destructive/10 to-transparent rounded-2xl shadow-sm">
-                    <CardContent className="flex items-center gap-4 py-8 text-destructive">
-                        <div className="p-3 bg-destructive/10 rounded-full">
+                <Card variant="destructive" className="shadow-sm">
+                    <CardContent className="flex items-center gap-4 py-8">
+                        <div className="p-3 bg-alert-destructive-border/40 text-alert-destructive-icon rounded-full">
                             <AlertCircle className="size-6" />
                         </div>
                         <div>
                             <h3 className="font-semibold">Falha na Análise Climática</h3>
-                            <p className="text-sm opacity-90 mt-1">Não foi possível carregar os dados de inteligência no momento. Tente novamente mais tarde.</p>
+                            <p className="text-sm text-card-description mt-1">Não foi possível carregar os dados de inteligência no momento. Tente novamente mais tarde.</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -96,27 +96,27 @@ export function InteligenciaPecuariaClient() {
                     </div>
                     <div className="lg:col-span-3">
                         {!data.dados_atualizados && (
-                            <Card className="border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-transparent rounded-xl shadow-sm">
-                                <CardContent className="flex items-center gap-4 py-5 text-amber-900 dark:text-amber-300">
-                                    <div className="p-2.5 bg-amber-500/20 rounded-full shrink-0">
+                            <Card variant="warning" className="shadow-sm">
+                                <CardContent className="flex items-center gap-4 py-5">
+                                    <div className="p-2.5 bg-alert-warning-border/40 text-alert-warning-icon rounded-full shrink-0">
                                         <AlertCircle className="size-5" />
                                     </div>
-                                    <span className="text-sm font-medium leading-relaxed">O histórico climático está desatualizado. Recomenda-se atualizar a estação meteorológica antes de tomar decisões de manejo.</span>
+                                    <span className="text-sm font-medium text-card-title leading-relaxed">O histórico climático está desatualizado. Recomenda-se atualizar a estação meteorológica antes de tomar decisões de manejo.</span>
                                 </CardContent>
                             </Card>
                         )}
                         {data.alertas.length > 0 && (
-                            <Card className="mt-6 border-red-500/20 bg-red-50/50 dark:bg-red-950/20 rounded-2xl shadow-sm overflow-hidden">
-                                <div className="h-1 w-full bg-gradient-to-r from-red-500 to-orange-400" />
+                            <Card variant="destructive" className="mt-6 shadow-sm pt-0">
+                                <div className="h-1 w-full bg-alert-destructive-icon" />
                                 <CardContent className="space-y-3 py-5">
-                                    <h3 className="text-sm font-bold flex items-center gap-2 text-red-700 dark:text-red-400">
-                                        <AlertCircle className="size-4" />
+                                    <h3 className="text-sm font-bold flex items-center gap-2">
+                                        <AlertCircle className="size-4 text-alert-destructive-icon" />
                                         Alertas Climáticos Ativos
                                     </h3>
                                     <ul className="space-y-2">
                                         {data.alertas.map((alerta) => (
-                                            <li key={alerta} className="text-sm text-muted-foreground flex items-start gap-2">
-                                                <span className="mt-1.5 size-1.5 rounded-full bg-red-500/50 flex-shrink-0" />
+                                            <li key={alerta} className="text-sm text-card-description flex items-start gap-2">
+                                                <span className="mt-1.5 size-1.5 rounded-full bg-alert-destructive-icon/70 flex-shrink-0" />
                                                 <span className="leading-relaxed">{alerta}</span>
                                             </li>
                                         ))}
@@ -138,7 +138,7 @@ export function InteligenciaPecuariaClient() {
                     </div>
                 </div>
             ) : (
-                <Card className="border border-dashed border-muted-foreground/20 bg-gradient-to-b from-muted/10 to-muted/30 rounded-3xl shadow-none">
+                <Card variant="muted" className="border-dashed">
                     <CardContent className="flex flex-col items-center justify-center py-20 text-muted-foreground text-center">
                         <div className="p-6 bg-background rounded-full shadow-sm mb-6 relative">
                             <div className="absolute inset-0 bg-primary/5 rounded-full animate-ping opacity-75"></div>

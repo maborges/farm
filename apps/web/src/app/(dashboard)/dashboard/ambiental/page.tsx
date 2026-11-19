@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -144,10 +145,13 @@ export default function AmbientalPage() {
       <QuickActionGrid actions={quickActions} />
 
       {isError && (
-        <div role="alert" className="flex items-center justify-between gap-3 rounded-sm border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          <span className="flex items-center gap-2"><AlertCircle className="size-4" />Não foi possível carregar os indicadores ambientais.</span>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>Tentar novamente</Button>
-        </div>
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span>Não foi possível carregar os indicadores ambientais.</span>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>Tentar novamente</Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

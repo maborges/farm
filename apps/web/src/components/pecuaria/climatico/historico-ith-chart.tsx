@@ -18,7 +18,7 @@ export function HistoricoIthChart({ dados }: HistoricoIthChartProps) {
     })), [dados]);
 
     return (
-        <Card className="rounded-2xl border-border/40 shadow-sm bg-background/50 backdrop-blur-sm transition-all hover:shadow-md">
+        <Card className="rounded-sm border-border/40 shadow-sm bg-background/50 backdrop-blur-sm transition-all hover:shadow-md">
             <CardHeader className="px-6 pt-6 pb-2">
                 <CardTitle className="text-lg font-bold tracking-tight">Histórico de Risco (ITH)</CardTitle>
                 <CardDescription className="text-sm">Variação do índice de conforto térmico nos últimos 7 dias com base na temperatura e umidade.</CardDescription>

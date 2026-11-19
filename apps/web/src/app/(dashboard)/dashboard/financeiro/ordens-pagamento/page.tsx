@@ -171,7 +171,7 @@ export default function OrdensPagamentoPage() {
         }
       />
 
-      <Alert>
+      <Alert variant="warning">
         <CircleAlert />
         <AlertTitle>Ambiente de homologação</AlertTitle>
         <AlertDescription>As ordens são internas e os retornos abaixo são simulados. Nenhum arquivo é enviado ao banco nesta etapa.</AlertDescription>

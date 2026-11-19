@@ -178,12 +178,12 @@ export function IAPlanoAcaoCard({ safraId }: { safraId?: string }) {
   const impactoTotal = data.acoes.reduce((acc, a) => acc + (a.impacto_valor || 0), 0);
 
   return (
-    <Card className="border-l-4 border-l-emerald-500 shadow-md animate-in fade-in slide-in-from-bottom-4 duration-700 bg-emerald-50/5 dark:bg-emerald-950/5">
+    <Card className="border-l-4 border-l-alert-success-icon shadow-md animate-in fade-in slide-in-from-bottom-4 duration-700">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-emerald-100 dark:bg-emerald-900/30 rounded-sm">
-              <ClipboardList className="h-4 w-4 text-emerald-600" />
+            <div className="p-1.5 bg-alert-success-bg text-alert-success-icon border border-alert-success-border rounded-sm">
+              <ClipboardList className="h-4 w-4" />
             </div>
             <CardTitle className="text-sm font-black uppercase tracking-widest">Plano de Recuperação IA</CardTitle>
           </div>
@@ -196,13 +196,13 @@ export function IAPlanoAcaoCard({ safraId }: { safraId?: string }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="p-3 bg-emerald-100/30 dark:bg-emerald-900/10 rounded-sm border border-emerald-100 dark:border-emerald-800/30">
-          <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed italic">
+        <div className="p-3 bg-alert-success-bg/60 rounded-sm border border-alert-success-border">
+          <p className="text-xs text-alert-success-description font-medium leading-relaxed italic">
             &quot;{data.resumo}&quot;
           </p>
-          <div className="mt-2 pt-2 border-t border-emerald-500/10 flex justify-between items-center">
-            <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">Impacto Total</span>
-            <span className="text-sm font-black text-emerald-700 dark:text-emerald-400">{fmt(impactoTotal)}</span>
+          <div className="mt-2 pt-2 border-t border-alert-success-border flex justify-between items-center">
+            <span className="text-[10px] font-black text-alert-success-title uppercase tracking-widest">Impacto Total</span>
+            <span className="text-sm font-black text-alert-success-title">{fmt(impactoTotal)}</span>
           </div>
         </div>
 

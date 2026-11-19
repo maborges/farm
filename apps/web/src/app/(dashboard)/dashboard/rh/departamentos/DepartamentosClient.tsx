@@ -386,9 +386,9 @@ function MetricCard({
     bg: string;
 }) {
     return (
-        <Card className="shadow-md hover:shadow-lg transition-all duration-200 rounded-lg">
+        <Card className="shadow-md hover:shadow-lg transition-all duration-200 rounded-sm">
             <CardContent className="p-5 flex items-center gap-4">
-                <div className={cn("size-12 rounded-lg flex items-center justify-center shrink-0", bg)}>
+                <div className={cn("size-12 rounded-sm flex items-center justify-center shrink-0", bg)}>
                     <span className={color}>{icon}</span>
                 </div>
                 <div className="min-w-0 flex-1">

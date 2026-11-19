@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useAppStore } from "@/lib/stores/app-store";
 import type { UnidadeProdutiva } from "@/types/global";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -667,9 +668,11 @@ export default function TalhoesPage() {
                                         </p>
                                     </div>
                                     {drawnAreaHa !== null && (
-                                        <div className="bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-300 text-sm rounded-sm p-3">
-                                            Área calculada: <strong>{drawnAreaHa} ha</strong>
-                                        </div>
+                                        <Alert variant="info">
+                                            <AlertDescription>
+                                                Área calculada: <strong>{drawnAreaHa} ha</strong>
+                                            </AlertDescription>
+                                        </Alert>
                                     )}
                                     {(drawnGeometry || selectedTalhao?.geometria) && (
                                         <div className="space-y-2">

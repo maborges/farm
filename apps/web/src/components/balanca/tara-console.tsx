@@ -499,8 +499,8 @@ export function TaraConsole({
               {diagnostico && (
                 <div className="md:col-span-2 pt-2">
                   {diagnostico.status === "success" ? (
-                    <Alert className="border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200 rounded-sm">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <Alert variant="success">
+                      <CheckCircle2 />
                       <div className="flex items-start justify-between w-full">
                         <div>
                           <AlertTitle className="font-semibold text-sm">
@@ -521,8 +521,8 @@ export function TaraConsole({
                       </div>
                     </Alert>
                   ) : (
-                    <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 rounded-sm">
-                      <WifiOff className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    <Alert variant="warning">
+                      <WifiOff />
                       <div className="flex items-start justify-between w-full">
                         <div className="space-y-2 flex-1 pr-2">
                           <AlertTitle className="font-semibold text-sm">
@@ -530,8 +530,8 @@ export function TaraConsole({
                           </AlertTitle>
                           <AlertDescription className="text-xs space-y-2">
                             <p>{diagnostico.message}</p>
-                            <div className="text-[11px] text-muted-foreground pt-2 border-t border-amber-500/20">
-                              <span className="font-medium text-foreground">Dicas para resolver:</span>
+                            <div className="text-[11px] pt-2 border-t border-alert-warning-border/60">
+                              <span className="font-medium text-alert-title">Dicas para resolver:</span>
                               <ul className="list-disc list-inside mt-1 space-y-0.5">
                                 <li>
                                   Confira se a <strong>URL base</strong> (<code>{configForm.base_url || config?.base_url || "não preenchida"}</code>) está correta e inclui o protocolo (ex: <code>http://...</code> ou <code>https://...</code>).

@@ -571,10 +571,12 @@ export function CultivoAnaliseSoloDrawer({ area, open, onClose, onSuccess }: Pro
                                 <>
                                     {/* Alerta validade */}
                                     {laudo.vencida && (
-                                        <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                                            <Clock className="size-3.5 shrink-0" />
-                                            Análise com validade vencida. Recomendações podem estar desatualizadas.
-                                        </div>
+                                        <Alert variant="destructive">
+                                            <Clock />
+                                            <AlertDescription className="text-xs">
+                                                Análise com validade vencida. Recomendações podem estar desatualizadas.
+                                            </AlertDescription>
+                                        </Alert>
                                     )}
 
                                     {/* Cabeçalho + contexto */}
@@ -695,9 +697,11 @@ export function CultivoAnaliseSoloDrawer({ area, open, onClose, onSuccess }: Pro
                                         ))}
                                     </div>
 
-                                    <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800">
-                                        Tarefas ficam pendentes até aprovação do responsável.
-                                    </div>
+                                    <Alert variant="warning">
+                                        <AlertDescription className="text-xs">
+                                            Tarefas ficam pendentes até aprovação do responsável.
+                                        </AlertDescription>
+                                    </Alert>
                                 </>
                             )}
 

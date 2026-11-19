@@ -326,8 +326,8 @@ export default function AgricolaReportsPage() {
 
                 <TabsContent value="geral" className="space-y-6 pt-6">
                     {report?.resumo.usando_ultima_safra_encerrada && (
-                        <Alert className="rounded-sm">
-                            <AlertCircle className="size-4" />
+                        <Alert variant="warning">
+                            <AlertCircle />
                             <AlertTitle>Exibindo dados da última safra encerrada</AlertTitle>
                             <AlertDescription>
                                 Não há nenhuma safra em andamento no momento. Os números abaixo refletem a
@@ -449,12 +449,16 @@ export default function AgricolaReportsPage() {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="p-3 bg-amber-500/5 rounded-sm border border-amber-200/50 text-xs text-amber-700">
-                                    <strong>Manutenção Vencida:</strong> Trator Case IH Puma 230.
-                                </div>
-                                <div className="p-3 bg-red-500/5 rounded-sm border border-red-200/50 text-xs text-red-700">
-                                    <strong>Crítico:</strong> Janela de pulverização fecha em 48 h.
-                                </div>
+                                <Alert variant="warning">
+                                    <AlertDescription className="text-xs">
+                                        <strong>Manutenção Vencida:</strong> Trator Case IH Puma 230.
+                                    </AlertDescription>
+                                </Alert>
+                                <Alert variant="destructive">
+                                    <AlertDescription className="text-xs">
+                                        <strong>Crítico:</strong> Janela de pulverização fecha em 48 h.
+                                    </AlertDescription>
+                                </Alert>
                             </CardContent>
                         </Card>
                     </div>

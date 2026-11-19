@@ -223,8 +223,8 @@ export default function DiagnosticoOperacionalEconomicoAgricolaPage() {
         icon={<ShieldAlert className="size-5" />}
       />
 
-      <Alert className="rounded-sm">
-        <AlertCircle className="size-4" />
+      <Alert variant="info">
+        <AlertCircle />
         <AlertTitle>Leitura oficial</AlertTitle>
         <AlertDescription>
           O diagnóstico consome DREAgricolaV1Service, AgricolaDreKpiService, RentabilidadeService, EficienciaOperacionalService e BenchmarkService já consolidados. Não há recálculo fora da DRE.
@@ -232,8 +232,8 @@ export default function DiagnosticoOperacionalEconomicoAgricolaPage() {
       </Alert>
 
       {diagnostico?.sujeito_reconciliacao && (
-        <Alert className="rounded-sm border-amber-200 bg-amber-50/70 text-amber-950">
-          <AlertCircle className="size-4" />
+        <Alert variant="warning">
+          <AlertCircle />
           <AlertTitle>Reconciliação pendente</AlertTitle>
           <AlertDescription>Diagnósticos sujeitos à reconciliação.</AlertDescription>
         </Alert>

@@ -10,6 +10,7 @@ import {
   DialogBody,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -123,34 +124,30 @@ export function AssinarRTDialog({ open, onClose, onConfirm, isPending }: Props) 
           </div>
 
           {creaValidadeDate && creaVencido && (
-            <div className="flex items-start gap-2 rounded-sm border border-red-500/20 bg-red-500/10 p-3">
-              <AlertOctagon className="size-4 shrink-0 text-red-500 mt-0.5" />
-              <p className="text-xs text-red-600">
+            <Alert variant="destructive">
+              <AlertOctagon />
+              <AlertDescription className="text-xs">
                 CREA vencido em {format(creaValidadeDate, "dd/MM/yyyy")}. Renove antes de assinar.
-              </p>
-            </div>
+              </AlertDescription>
+            </Alert>
           )}
           {creaValidadeDate && creaVencendoEmBreve && !creaVencido && (
-            <div className="flex items-start gap-2 rounded-sm border border-amber-500/20 bg-amber-500/10 p-3">
-              <AlertTriangle className="size-4 shrink-0 text-amber-500 mt-0.5" />
-              <p className="text-xs text-amber-600">
+            <Alert variant="warning">
+              <AlertTriangle />
+              <AlertDescription className="text-xs">
                 CREA vence em {format(creaValidadeDate, "dd/MM/yyyy")}. Considere renovar.
-              </p>
-            </div>
+              </AlertDescription>
+            </Alert>
           )}
 
-          <div className="rounded-sm border border-amber-500/20 bg-amber-500/5 p-3">
-            <div className="flex items-start gap-2.5">
-              <AlertTriangle className="size-4 shrink-0 text-amber-500 mt-0.5" />
-              <div className="space-y-0.5">
-                <h4 className="text-xs font-semibold text-amber-900 dark:text-amber-300">Validação e responsabilidade</h4>
-                <p className="text-[11px] text-muted-foreground">
-                  Ao assinar, você declara que as informações registradas neste caderno de campo
-                  são verdadeiras e foram verificadas pelo responsável técnico.
-                </p>
-              </div>
-            </div>
-          </div>
+          <Alert variant="warning">
+            <AlertTriangle />
+            <AlertTitle className="text-xs font-semibold">Validação e responsabilidade</AlertTitle>
+            <AlertDescription className="text-[11px]">
+              Ao assinar, você declara que as informações registradas neste caderno de campo
+              são verdadeiras e foram verificadas pelo responsável técnico.
+            </AlertDescription>
+          </Alert>
         </DialogBody>
 
         <DialogFooter>

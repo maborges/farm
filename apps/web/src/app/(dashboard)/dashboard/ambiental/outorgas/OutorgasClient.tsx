@@ -5,7 +5,8 @@ import { useAppStore } from "@/lib/stores/app-store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { toast } from "sonner";
-import { Droplets, Plus, Pencil, AlertTriangle, CheckCircle, Clock } from "lucide-react";
+import { Droplets, Plus, Pencil, AlertTriangle, CheckCircle, Clock, Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -178,9 +179,12 @@ export function OutorgasClient({ initialData }: { initialData: Outorga[] }) {
                 )}
             />
 
-            <div role="status" className="rounded-sm border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-sm text-violet-800 dark:text-violet-200">
-                <strong>Visão consolidada:</strong> as outorgas exibidas pertencem a todas as unidades produtivas autorizadas. A unidade selecionada no topbar é usada para novos cadastros.
-            </div>
+            <Alert variant="info" role="status">
+                <Info />
+                <AlertDescription>
+                    <strong>Visão consolidada:</strong> as outorgas exibidas pertencem a todas as unidades produtivas autorizadas. A unidade selecionada no topbar é usada para novos cadastros.
+                </AlertDescription>
+            </Alert>
 
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 {[

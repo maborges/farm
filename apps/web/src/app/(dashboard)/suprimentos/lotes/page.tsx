@@ -7,6 +7,7 @@ import { useAppStore } from "@/lib/stores/app-store";
 import { toast } from "sonner";
 import { Plus, Layers, PackageSearch, AlertTriangle, X, Save } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -262,10 +263,12 @@ export default function LotesPage() {
       />
 
       {alertas.length > 0 && (
-        <div className="flex items-center gap-3 rounded-sm border border-orange-200 bg-orange-50 p-4 text-sm text-orange-700">
-          <AlertTriangle className="size-4 shrink-0" />
-          <span><strong>{alertas.length} lote(s)</strong> vencendo nos próximos 30 dias.</span>
-        </div>
+        <Alert variant="warning">
+          <AlertTriangle />
+          <AlertDescription>
+            <strong>{alertas.length} lote(s)</strong> vencendo nos próximos 30 dias.
+          </AlertDescription>
+        </Alert>
       )}
 
       <Tabs defaultValue="ativos">

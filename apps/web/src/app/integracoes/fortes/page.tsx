@@ -219,7 +219,7 @@ export default function FortesConfigPage() {
       </Card>
 
       {testResult && (
-        <Alert variant={testResult.sucesso ? 'default' : 'destructive'}>
+        <Alert variant={testResult.sucesso ? "success" : "destructive"}>
           <AlertDescription>
             {testResult.mensagem}
           </AlertDescription>

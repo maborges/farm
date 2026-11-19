@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { Shield, Lock, Clock, AlertTriangle, Save } from "lucide-react";
 import { PageHeader } from "@/components/shared";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -189,12 +190,12 @@ export function SegurancaClient({ initialConfig }: { initialConfig: SegurancaCon
 
                     {/* Resumo visual */}
                     {config?.rate_limiting_ativo && (
-                        <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-4">
-                            <p className="text-sm text-amber-600 font-medium">
+                        <Alert variant="warning">
+                            <AlertDescription className="font-medium">
                                 🔒 Regra atual: bloquear após <strong>{config.max_tentativas}</strong> tentativas
                                 falhas, com desbloqueio automático em <strong>{config.tempo_bloqueio_minutos}</strong> minutos.
-                            </p>
-                        </div>
+                            </AlertDescription>
+                        </Alert>
                     )}
 
                     {/* Botão salvar */}

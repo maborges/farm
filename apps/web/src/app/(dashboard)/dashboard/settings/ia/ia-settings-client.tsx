@@ -4,6 +4,7 @@ import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -159,19 +160,19 @@ export function IASettingsClient() {
 
       <TabsContent value="autopilot" className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 outline-none">
         {tuningSuggestion?.deve_ajustar && (
-          <Card className="border-amber-500/20 bg-amber-50/50 dark:bg-amber-950/20 shadow-sm overflow-hidden relative rounded-sm">
-              <div className="absolute top-0 left-0 w-1 h-full bg-amber-500" />
+          <Card variant="warning" className="relative shadow-sm">
+              <div className="absolute top-0 left-0 w-1 h-full bg-alert-warning-icon" />
               <CardContent className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
                   <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-sm bg-amber-500 text-white shadow-sm shrink-0">
+                      <div className="p-2 rounded-sm bg-alert-warning-border/40 text-alert-warning-icon shadow-sm shrink-0">
                           <Zap size={18} />
                       </div>
                       <div>
-                          <h4 className="text-xs font-black uppercase tracking-widest text-amber-900 dark:text-amber-400 flex items-center gap-2">
+                          <h4 className="text-xs font-black uppercase tracking-widest text-card-title flex items-center gap-2">
                               Otimização de Autonomia
-                              <span className="text-[9px] bg-amber-500/20 px-1.5 py-0.5 rounded-full text-amber-700 dark:text-amber-500 animate-pulse">Recomendado</span>
+                              <span className="text-[9px] bg-alert-warning-border/50 px-1.5 py-0.5 rounded-full text-alert-warning-title animate-pulse">Recomendado</span>
                           </h4>
-                          <p className="text-[11px] font-medium text-amber-800/80 dark:text-amber-500/80 mt-0.5 max-w-xl">
+                          <p className="text-[11px] font-medium text-card-description mt-0.5 max-w-xl">
                               {tuningSuggestion.mensagem}
                           </p>
                       </div>
@@ -181,7 +182,7 @@ export function IASettingsClient() {
                       size="sm"
                       onClick={() => applyTuningMutation.mutate(tuningSuggestion.novo_limite)}
                       disabled={applyTuningMutation.isPending}
-                      className="shrink-0 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 border-amber-200 font-bold uppercase text-[10px] h-8 px-4 rounded-sm"
+                      className="shrink-0 bg-card/80 hover:bg-card text-alert-warning-title border-alert-warning-border font-bold uppercase text-[10px] h-8 px-4 rounded-sm"
                   >
                       {applyTuningMutation.isPending ? "Aplicando..." : "Aplicar Recomendação"}
                       <Settings2 size={12} className="ml-2" />
@@ -349,12 +350,12 @@ export function IASettingsClient() {
                     </div>
                   </div>
 
-                  <div className="p-3 border border-amber-200 bg-amber-50/30 rounded-sm flex gap-2">
-                    <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
-                    <p className="text-[9px] text-amber-800 font-medium leading-tight">
+                  <Alert variant="warning">
+                    <AlertTriangle />
+                    <AlertDescription className="text-[9px] font-medium leading-tight">
                       O Autopilot atua exclusivamente em simulações e projeções, nunca em lançamentos bancários reais.
-                    </p>
-                  </div>
+                    </AlertDescription>
+                  </Alert>
                 </div>
               )}
             </CardContent>

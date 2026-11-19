@@ -320,12 +320,12 @@ export default function BackofficeProvedoresClimaticosPage() {
 
       {/* Alerta de Modo de Contingência Ativo */}
       {statusData?.contingency_mode && (
-        <Alert variant="destructive" className="rounded-sm border-red-500/50 bg-red-500/10">
-          <AlertTriangle className="h-4 w-4 text-red-500" />
-          <AlertTitle className="font-semibold text-red-500">
+        <Alert variant="destructive">
+          <AlertTriangle />
+          <AlertTitle className="font-semibold">
             Atenção: Modo de Contingência Operacional Ativado!
           </AlertTitle>
-          <AlertDescription className="text-xs text-red-400">
+          <AlertDescription className="text-xs">
             As requisições públicas de previsão estão sendo atendidas pelo provedor de emergência:{" "}
             <strong>{statusData.active_provider}</strong>. O provedor primário anterior foi isolado.
           </AlertDescription>
@@ -611,9 +611,9 @@ export default function BackofficeProvedoresClimaticosPage() {
               )}
             </div>
 
-            <Alert className="rounded-sm border-blue-500/30 bg-blue-500/5 text-xs py-2">
-              <ShieldCheck className="h-4 w-4 text-blue-500" />
-              <AlertDescription className="text-blue-600 dark:text-blue-400">
+            <Alert variant="info" className="py-2">
+              <ShieldCheck />
+              <AlertDescription className="text-xs">
                 A rotação atualizará a revisão criptográfica sem interromper requisições ativas.
               </AlertDescription>
             </Alert>

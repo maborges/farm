@@ -269,15 +269,15 @@ export default function OficinaPage() {
                         <CardTitle className="text-2xl">{ordens?.filter(o => o.status === 'ABERTA').length || 0}</CardTitle>
                     </CardHeader>
                 </Card>
-                <Card className="bg-amber-500/5 border-none shadow-none">
+                <Card variant="warning" className="shadow-none">
                     <CardHeader className="pb-2">
-                        <CardDescription className="text-xs font-bold uppercase text-amber-700">Em Execução</CardDescription>
+                        <CardDescription className="text-xs font-bold uppercase">Em Execução</CardDescription>
                         <CardTitle className="text-2xl">{ordens?.filter(o => o.status === 'EM_EXECUCAO').length || 0}</CardTitle>
                     </CardHeader>
                 </Card>
-                <Card className="bg-green-500/5 border-none shadow-none">
+                <Card variant="success" className="shadow-none">
                     <CardHeader className="pb-2">
-                        <CardDescription className="text-xs font-bold uppercase text-green-700">Concluídas (7d)</CardDescription>
+                        <CardDescription className="text-xs font-bold uppercase">Concluídas (7d)</CardDescription>
                         <CardTitle className="text-2xl">{ordens?.filter(o => o.status === 'CONCLUIDA').length || 0}</CardTitle>
                     </CardHeader>
                 </Card>

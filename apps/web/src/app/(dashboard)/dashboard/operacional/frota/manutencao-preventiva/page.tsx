@@ -23,7 +23,7 @@ import {
 import { apiFetch } from "@/lib/api";
 import { useHasTier } from "@/hooks/use-has-tier";
 import { useAppStore } from "@/lib/stores/app-store";
-import { cn } from "@/lib/utils";
+import { KpiCard as ResumoCard } from "../_components/FrotaKPICards";
 
 type StatusPreventivo = "EM_DIA" | "PROXIMO_VENCIMENTO" | "VENCIDO";
 
@@ -308,48 +308,6 @@ const STATUS_LABELS: Record<StatusPreventivo, string> = {
   PROXIMO_VENCIMENTO: "Próximo do vencimento",
   VENCIDO: "Vencido",
 };
-
-function ResumoCard({
-  title,
-  value,
-  description,
-  icon: Icon,
-  tone,
-}: {
-  title: string;
-  value: string | number;
-  description: string;
-  icon: typeof CalendarClock;
-  tone: "default" | "warning" | "danger";
-}) {
-  return (
-    <Card
-      className={cn(
-        "rounded-sm shadow-sm",
-        tone === "warning" && "border-amber-200",
-        tone === "danger" && "border-red-200"
-      )}
-    >
-      <CardContent className="flex items-start gap-4 p-5">
-        <div
-          className={cn(
-            "flex size-10 items-center justify-center rounded-sm",
-            tone === "default" && "bg-primary/10 text-primary",
-            tone === "warning" && "bg-amber-100 text-amber-700",
-            tone === "danger" && "bg-red-100 text-red-700"
-          )}
-        >
-          <Icon className="size-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{title}</div>
-          <div className="mt-0.5 text-2xl font-black tracking-tight">{value}</div>
-          <div className="mt-1 text-xs text-muted-foreground">{description}</div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 function PreventivaSkeleton() {
   return (

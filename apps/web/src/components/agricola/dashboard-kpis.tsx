@@ -1,7 +1,6 @@
 "use client";
 
 import { Sprout, DollarSign, AlertTriangle, Wheat, TrendingUp } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { KPICard, moeda, num } from "@/components/shared/kpi-card";
 
 interface KPIs {
@@ -29,24 +28,21 @@ export function DashboardKPIs({ kpis }: { kpis: KPIs }) {
                 value={kpis.total_safras_ativas}
                 subtitle={`${kpis.total_safras_encerradas} encerradas`}
                 icon={Sprout}
-                iconBg="bg-emerald-100"
-                iconColor="text-emerald-600"
+                tone="success"
             />
             <KPICard
                 label="Área Plantada"
                 value={num(kpis.area_total_ha)}
                 subtitle="hectares"
                 icon={Sprout}
-                iconBg="bg-blue-100"
-                iconColor="text-blue-600"
+                tone="info"
             />
             <KPICard
                 label="Custo Acumulado"
                 value={moeda(kpis.custo_acumulado)}
                 subtitle="insumos aplicados"
                 icon={DollarSign}
-                iconBg="bg-amber-100"
-                iconColor="text-amber-600"
+                tone="warning"
                 valueSize="base"
             />
             <KPICard
@@ -54,16 +50,14 @@ export function DashboardKPIs({ kpis }: { kpis: KPIs }) {
                 value={num(kpis.sacas_colhidas)}
                 subtitle={pct_colhido !== null ? `${pct_colhido}% da meta` : undefined}
                 icon={Wheat}
-                iconBg="bg-yellow-100"
-                iconColor="text-yellow-600"
+                tone="warning"
             />
             <KPICard
                 label="Receita Colheita"
                 value={moeda(kpis.receita_colheita)}
                 subtitle="romaneios registrados"
                 icon={TrendingUp}
-                iconBg="bg-green-100"
-                iconColor="text-green-600"
+                tone="success"
                 valueSize="base"
             />
             <KPICard
@@ -71,10 +65,9 @@ export function DashboardKPIs({ kpis }: { kpis: KPIs }) {
                 value={kpis.total_alertas}
                 subtitle="checklist + NDE"
                 icon={AlertTriangle}
-                iconBg={cn(temAlertas ? "bg-red-100" : "bg-muted")}
-                iconColor={cn(temAlertas ? "text-red-600" : "text-muted-foreground")}
-                valueColor={temAlertas ? "text-red-600" : undefined}
-                cardClassName={temAlertas ? "border-red-200" : undefined}
+                tone={temAlertas ? "destructive" : "default"}
+                valueTone={temAlertas ? "destructive" : undefined}
+                highlightBorder={temAlertas}
             />
         </div>
     );

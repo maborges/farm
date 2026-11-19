@@ -262,8 +262,8 @@ export default function BenchmarkOperacionalEconomicoAgricolaPage() {
         icon={<BarChart3 className="size-5" />}
       />
 
-      <Alert className="rounded-sm">
-        <AlertCircle className="size-4" />
+      <Alert variant="info">
+        <AlertCircle />
         <AlertTitle>Leitura oficial</AlertTitle>
         <AlertDescription>
           O benchmark consome DREAgricolaV1Service, AgricolaDreKpiService, RentabilidadeService e EficienciaOperacionalService já consolidados. Não há recalculo fora da DRE.
@@ -271,8 +271,8 @@ export default function BenchmarkOperacionalEconomicoAgricolaPage() {
       </Alert>
 
       {hasWarnings && (
-        <Alert className="rounded-sm border-amber-200 bg-amber-50/70 text-amber-950">
-          <AlertCircle className="size-4" />
+        <Alert variant="warning">
+          <AlertCircle />
           <AlertTitle>Reconciliação pendente</AlertTitle>
           <AlertDescription>Benchmark sujeito à reconciliação.</AlertDescription>
         </Alert>

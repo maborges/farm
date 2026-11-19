@@ -5,7 +5,8 @@ import { useAppStore } from "@/lib/stores/app-store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { toast } from "sonner";
-import { AlertTriangle, Plus, CheckCircle, Clock, XCircle, Flame, Waves, Eye } from "lucide-react";
+import { AlertTriangle, Plus, CheckCircle, Clock, XCircle, Flame, Waves, Eye, Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -164,9 +165,12 @@ export function AlertasClient({ initialData }: { initialData: Alerta[] }) {
                 )}
             />
 
-            <div role="status" className="rounded-sm border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-sm text-violet-800 dark:text-violet-200">
-                <strong>Visão consolidada:</strong> os alertas exibidos pertencem a todas as unidades produtivas autorizadas. A unidade selecionada no topbar é usada apenas para novos registros.
-            </div>
+            <Alert variant="info" role="status">
+                <Info />
+                <AlertDescription>
+                    <strong>Visão consolidada:</strong> os alertas exibidos pertencem a todas as unidades produtivas autorizadas. A unidade selecionada no topbar é usada apenas para novos registros.
+                </AlertDescription>
+            </Alert>
 
             <Card>
                 <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-2 p-4 text-sm">

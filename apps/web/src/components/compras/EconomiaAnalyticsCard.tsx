@@ -102,10 +102,10 @@ export function EconomiaAnalyticsCard() {
     }
 
     return (
-        <Card className="border-green-200 bg-green-50/30 dark:bg-green-950/10">
+        <Card variant="success">
             <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-bold flex items-center gap-2 text-green-700 dark:text-green-400">
-                    <TrendingDown className="size-4" />
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    <TrendingDown className="size-4 text-alert-success-icon" />
                     Economia Gerada pelo Sistema
                 </CardTitle>
             </CardHeader>
@@ -117,7 +117,7 @@ export function EconomiaAnalyticsCard() {
                             <p className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
                                 <Award className="size-3" /> Economia Total
                             </p>
-                            <p className="text-2xl font-black text-green-600 tabular-nums">
+                            <p className="text-2xl font-black text-alert-success-icon tabular-nums">
                                 {fmt(data.economia_total)}
                             </p>
                         </div>
@@ -126,7 +126,7 @@ export function EconomiaAnalyticsCard() {
                             <p className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
                                 <Percent className="size-3" /> Média por Compra
                             </p>
-                            <p className="text-2xl font-black text-green-600 tabular-nums">
+                            <p className="text-2xl font-black text-alert-success-icon tabular-nums">
                                 {data.economia_media_percentual.toFixed(1)}%
                             </p>
                         </div>
@@ -140,15 +140,15 @@ export function EconomiaAnalyticsCard() {
                             </p>
                         </div>
 
-                        <div className="space-y-1 bg-white/50 dark:bg-black/20 p-2 rounded-sm border border-green-100 dark:border-green-900/50">
-                            <p className="text-[10px] uppercase font-bold text-green-700 dark:text-green-400">
+                        <div className="space-y-1 bg-card/80 p-2 rounded-sm border border-alert-success-border">
+                            <p className="text-[10px] uppercase font-bold text-card-title">
                                 🚀 Maior Economia
                             </p>
                             <div className="flex items-center justify-between gap-2">
-                                <p className="text-xs font-bold truncate max-w-[120px]">
+                                <p className="text-xs font-bold text-foreground truncate max-w-[120px]">
                                     {data.melhor_decisao.item}
                                 </p>
-                                <p className="text-xs font-black text-green-600">
+                                <p className="text-xs font-black text-alert-success-icon">
                                     +{fmt(data.melhor_decisao.economia)}
                                 </p>
                             </div>
@@ -157,7 +157,7 @@ export function EconomiaAnalyticsCard() {
 
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Gráfico de Evolução */}
-                        <div className="min-h-[180px] bg-white/30 dark:bg-black/10 rounded-sm p-4 border border-green-100/50 dark:border-green-900/20">
+                        <div className="min-h-[180px] bg-card/60 rounded-sm p-4 border border-alert-success-border">
                             <div className="flex items-center justify-between mb-4">
                                 <p className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
                                     <BarChart3 className="size-3" /> Tendência de Savings (Mensal)
@@ -203,7 +203,7 @@ export function EconomiaAnalyticsCard() {
                         </div>
 
                         {/* Distribuição por Categoria */}
-                        <div className="min-h-[180px] bg-white/30 dark:bg-black/10 rounded-sm p-4 border border-green-100/50 dark:border-green-900/20">
+                        <div className="min-h-[180px] bg-card/60 rounded-sm p-4 border border-alert-success-border">
                             <div className="flex items-center justify-between mb-2">
                                 <p className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
                                     <Percent className="size-3" /> Breakdown por Categoria

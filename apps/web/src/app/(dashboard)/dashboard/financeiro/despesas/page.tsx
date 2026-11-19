@@ -380,15 +380,15 @@ export default function DespesasPage() {
             />
 
             {!planosLoading && !hasCategoriasDespesa ? (
-                <Card className="border-amber-500/30 bg-amber-500/10">
+                <Card variant="warning">
                     <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="space-y-1">
-                            <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">Sem categorias de despesa</p>
-                            <p className="text-sm text-amber-900/80 dark:text-amber-100/80">
+                            <p className="text-sm font-semibold text-card-title">Sem categorias de despesa</p>
+                            <p className="text-sm text-card-description">
                                 Cadastre um plano de conta do tipo despesa para liberar o lançamento.
                             </p>
                         </div>
-                        <Button asChild variant="outline" className="border-amber-500/30 bg-background/80">
+                        <Button asChild variant="outline" size="sm" className="border-alert-warning-border bg-card/80">
                             <Link href="/dashboard/financeiro/planos-conta">Abrir plano de contas</Link>
                         </Button>
                     </CardContent>

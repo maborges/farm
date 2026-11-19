@@ -241,20 +241,20 @@ export function PrecoEquilibrioTmaCard({
             </div>
 
             <Alert
-              className={`rounded-sm ${
+              variant={
                 res.acao_hedge_recomendada === "TRAVAR_MARGEM"
-                  ? "border-emerald-500/30 bg-emerald-500/10 text-foreground"
+                  ? "success"
                   : res.acao_hedge_recomendada === "ATENCAO_TMA"
-                    ? "border-amber-500/40 bg-amber-500/10 text-foreground"
-                    : "border-destructive/40 bg-destructive/10 text-foreground"
-              }`}
+                    ? "warning"
+                    : "destructive"
+              }
             >
               {res.acao_hedge_recomendada === "TRAVAR_MARGEM" ? (
-                <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+                <CheckCircle2 />
               ) : res.acao_hedge_recomendada === "ATENCAO_TMA" ? (
-                <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" />
+                <AlertTriangle />
               ) : (
-                <ShieldAlert className="size-4 text-destructive" />
+                <ShieldAlert />
               )}
               <AlertTitle className="text-xs font-semibold flex items-center gap-2">
                 Recomendação de Hedge Comercial
@@ -266,7 +266,7 @@ export function PrecoEquilibrioTmaCard({
                       : "Defesa de Caixa"}
                 </Badge>
               </AlertTitle>
-              <AlertDescription className="text-xs text-muted-foreground">
+              <AlertDescription className="text-xs">
                 {res.mensagem_recomendacao}
               </AlertDescription>
             </Alert>

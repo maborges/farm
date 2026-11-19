@@ -89,7 +89,10 @@ export function IAPredicoesCard({ safraId }: { safraId?: string }) {
     const isAlto = predicao.risco === "ALTO";
 
     return (
-        <Card className={`overflow-hidden border-l-4 ${isAlto ? 'border-l-destructive border-destructive/20 bg-destructive/5' : 'border-l-amber-500 border-amber-500/20 bg-amber-500/5'}`}>
+        <Card
+            variant={isAlto ? "destructive" : "warning"}
+            className={`border-l-4 ${isAlto ? "border-l-alert-destructive-icon" : "border-l-alert-warning-icon"}`}
+        >
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Sparkles className="size-4 text-primary animate-pulse" />
@@ -103,20 +106,20 @@ export function IAPredicoesCard({ safraId }: { safraId?: string }) {
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="space-y-1.5">
-                    <p className="text-sm font-bold leading-tight">
+                    <p className="text-sm font-bold text-card-title leading-tight">
                         {predicao.descricao}
                     </p>
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-semibold">
+                    <div className="flex items-center gap-2 text-[10px] text-card-description font-semibold">
                         <Clock className="size-3" /> Horizonte: {predicao.tempo_estimado}
                         <span className="opacity-30">|</span>
-                        <Zap className="size-3 text-amber-500" /> Confiança: {(predicao.confianca * 100).toFixed(0)}%
+                        <Zap className="size-3 text-alert-warning-icon" /> Confiança: {(predicao.confianca * 100).toFixed(0)}%
                     </div>
                 </div>
 
-                <div className="p-3 bg-background/50 rounded-sm border border-border/40">
+                <div className="p-3 bg-card/85 rounded-sm border border-border/50">
                     <p className="text-[10px] text-muted-foreground font-black uppercase mb-1">Impacto Estimado</p>
                     <div className="flex items-baseline gap-1">
-                        <span className="text-xl font-black text-destructive">{fmt(predicao.impacto_estimado)}</span>
+                        <span className="text-xl font-black text-alert-destructive-icon">{fmt(predicao.impacto_estimado)}</span>
                         <span className="text-[10px] font-bold text-muted-foreground">de prejuízo projetado</span>
                     </div>
                 </div>

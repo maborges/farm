@@ -14,7 +14,7 @@ import {
 import { CloudDownload, Loader2, Search, UserPlus, XCircle, Save } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -234,16 +234,14 @@ export function PessoaFormDialog({ open, onOpenChange, onSuccess }: Props) {
                 </AlertDescription>
               </Alert>
             ) : erpEnabled ? (
-              <Alert className="rounded-sm border-primary/30 bg-primary/5">
-                <CloudDownload className="size-4" />
+              <Alert variant="info">
+                <CloudDownload />
+                <AlertTitle>Cadastro governado pelo ERP</AlertTitle>
                 <AlertDescription className="space-y-3">
-                  <div>
-                    <p className="font-medium">Cadastro governado pelo ERP</p>
-                    <p className="text-xs text-muted-foreground">
-                      Informe o ID da pessoa no ERP. Os dados cadastrais serão preenchidos
-                      exclusivamente pela API; vínculos e base legal continuam locais.
-                    </p>
-                  </div>
+                  <p className="text-xs">
+                    Informe o ID da pessoa no ERP. Os dados cadastrais serão preenchidos
+                    exclusivamente pela API; vínculos e base legal continuam locais.
+                  </p>
                   <div className="flex gap-2">
                     <Input
                       value={externalId}

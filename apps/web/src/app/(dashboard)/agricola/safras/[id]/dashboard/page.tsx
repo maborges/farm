@@ -836,20 +836,20 @@ function ExecutiveAlertsCard({
 
   if (alerts.length === 0) {
     return (
-      <Card className="rounded-sm border-emerald-500/30 bg-emerald-500/10 dark:bg-emerald-950/20 shadow-sm">
+      <Card variant="success" className="shadow-sm">
         <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-3">
-            <div className="rounded-sm bg-emerald-500/20 p-2 text-emerald-700 dark:text-emerald-300">
+            <div className="rounded-sm bg-alert-success-border/40 p-2 text-alert-success-icon">
               <CheckCircle2 className="size-4" />
             </div>
             <div>
-              <p className="font-medium text-emerald-900 dark:text-emerald-200">Nenhum risco executivo detectado</p>
-              <p className="text-sm text-emerald-800/80 dark:text-emerald-300/80">
+              <p className="font-medium text-card-title">Nenhum risco executivo detectado</p>
+              <p className="text-sm text-card-description">
                 Os dados carregados da safra não indicam alertas críticos ou pontos de atenção neste momento.
               </p>
             </div>
           </div>
-          <Badge variant="outline" className="border-emerald-500/30 text-emerald-800 dark:text-emerald-300 bg-emerald-500/5">
+          <Badge variant="outline" className="border-alert-success-border text-alert-success-title bg-card/60">
             Monitoramento saudável
           </Badge>
         </CardContent>

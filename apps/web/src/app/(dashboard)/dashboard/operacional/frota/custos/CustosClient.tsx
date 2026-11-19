@@ -281,13 +281,13 @@ function ResumoCard({
   tone?: "default" | "warning";
 }) {
   return (
-    <Card className={cn("rounded-sm shadow-sm", tone === "warning" && "border-amber-200")}>
+    <Card className={cn("rounded-sm shadow-sm", tone === "warning" && "border-alert-warning-border")}>
       <CardContent className="flex items-start gap-4 p-5">
         <div
           className={cn(
             "flex size-10 items-center justify-center rounded-sm",
             tone === "default" && "bg-primary/10 text-primary",
-            tone === "warning" && "bg-amber-100 text-amber-700"
+            tone === "warning" && "bg-alert-warning-bg text-alert-warning-icon border border-alert-warning-border"
           )}
         >
           <Icon className="size-5" />

@@ -75,8 +75,8 @@ export function ForgotPasswordClient() {
                         </p>
                     </div>
 
-                    <Alert>
-                        <CheckCircle2 className="size-4" />
+                    <Alert variant="success">
+                        <CheckCircle2 />
                         <AlertTitle>Próximos passos</AlertTitle>
                         <AlertDescription className="space-y-1 mt-1">
                             <p>1. Abra seu e-mail e clique no link de recuperação.</p>

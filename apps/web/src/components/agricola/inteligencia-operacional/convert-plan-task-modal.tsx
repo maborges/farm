@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -246,14 +247,12 @@ export function ConvertPlanoTaskModal({
                 <p className="text-xs text-muted-foreground">{plano.resumo}</p>
                 <p className="text-xs text-muted-foreground">{plano.motivo}</p>
               </div>
-              <div className="rounded-sm border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-                <div className="flex items-start gap-2">
-                  <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-                  <p>
-                    Esta ação criará uma tarefa real. Nenhuma operação será executada automaticamente.
-                  </p>
-                </div>
-              </div>
+              <Alert variant="warning">
+                <TriangleAlert />
+                <AlertDescription>
+                  Esta ação criará uma tarefa real. Nenhuma operação será executada automaticamente.
+                </AlertDescription>
+              </Alert>
             </div>
 
             <form className="space-y-4" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
