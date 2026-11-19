@@ -2,9 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
-import { 
-    AlertCircle, TrendingDown, TrendingUp, 
-    Zap, Clock, ShieldAlert, Sparkles 
+import {
+    AlertCircle, TrendingDown, TrendingUp,
+    Zap, Clock, ShieldAlert, Sparkles
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

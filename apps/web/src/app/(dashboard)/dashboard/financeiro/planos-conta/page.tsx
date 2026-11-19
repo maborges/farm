@@ -200,7 +200,7 @@ function PlanoTreeItem({
             </span>
             <span className="truncate text-sm font-medium text-foreground">{node.nome}</span>
             {!node.ativo && <span className="shrink-0 rounded-sm bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-red-700">Inativo</span>}
-            
+
             <div className="hidden items-center gap-2 text-[10px] text-muted-foreground md:flex ml-auto">
               <span className="bg-muted/50 px-1.5 py-0.5 rounded-sm">{getCategoriaLabel(node.categoria_rfb)}</span>
               <span className="bg-muted/50 px-1.5 py-0.5 rounded-sm">{node.tipo}</span>
@@ -576,8 +576,8 @@ function PlanoModal({
               <Button type="button" variant="outline" size="sm" onClick={onClose} className="rounded-sm">
                 Cancelar
               </Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 variant="outline"
                 size="sm"
                 disabled={mutation.isPending}
@@ -704,10 +704,10 @@ export default function PlanosContaPage() {
               )}
               Carregar padrão
             </Button>
-            <Button 
+            <Button
               variant="outline"
               size="sm"
-              onClick={openCreateModal} 
+              onClick={openCreateModal}
               disabled={Boolean(limitStateEffective)}
               className="rounded-sm"
             >

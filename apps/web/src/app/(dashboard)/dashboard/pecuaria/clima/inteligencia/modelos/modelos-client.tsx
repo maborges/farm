@@ -5,10 +5,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { 
-  fetchModelosZoosanitarios, 
-  createModeloZoosanitario, 
-  updateModeloZoosanitario, 
+import {
+  fetchModelosZoosanitarios,
+  createModeloZoosanitario,
+  updateModeloZoosanitario,
   deleteModeloZoosanitario,
   copiarModeloZoosanitario,
   ModeloZoosanitario,
@@ -87,7 +87,7 @@ export default function ModelosZoosanitariosClient() {
           nivel_medio: data.nivel_medio,
         }
       };
-      
+
       if (editingModelo) {
         return updateModeloZoosanitario(editingModelo.id, payload);
       }
@@ -307,7 +307,7 @@ export default function ModelosZoosanitariosClient() {
           <DialogBody>
             <Form {...form}>
               <form onSubmit={form.handleSubmit((d) => saveMutation.mutate(d))} className="space-y-6">
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -315,7 +315,7 @@ export default function ModelosZoosanitariosClient() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Espécie</FormLabel>
-                        <Select 
+                        <Select
                           onValueChange={(value) => {
                             field.onChange(value);
                             if (!editingModelo && PADROES_ESPECIE[value]) {
@@ -364,7 +364,7 @@ export default function ModelosZoosanitariosClient() {
 
                 <div className="border rounded-md p-4 space-y-4">
                   <h4 className="font-medium text-sm">Gatilhos do Índice (ITH)</h4>
-                  
+
                   <div className="grid grid-cols-3 gap-4">
                     <FormField
                       control={form.control}
@@ -379,7 +379,7 @@ export default function ModelosZoosanitariosClient() {
                         </FormItem>
                       )}
                     />
-                    
+
                     <FormField
                       control={form.control}
                       name="nivel_alto"
@@ -393,7 +393,7 @@ export default function ModelosZoosanitariosClient() {
                         </FormItem>
                       )}
                     />
-                    
+
                     <FormField
                       control={form.control}
                       name="nivel_medio"

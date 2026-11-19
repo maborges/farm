@@ -55,17 +55,17 @@ import {
 // Components
 // ---------------------------------------------------------------------------
 
-function MetricCard({ 
-    title, 
-    value, 
-    subtitle, 
-    icon: Icon, 
-    color = "emerald" 
-}: { 
-    title: string; 
-    value: string; 
-    subtitle?: string; 
-    icon: any; 
+function MetricCard({
+    title,
+    value,
+    subtitle,
+    icon: Icon,
+    color = "emerald"
+}: {
+    title: string;
+    value: string;
+    subtitle?: string;
+    icon: any;
     color?: string;
 }) {
     const colorClasses: Record<string, string> = {
@@ -207,7 +207,7 @@ export default function IAPerformancePage() {
 
     return (
         <div className="p-6 space-y-6 bg-slate-50/50 dark:bg-slate-950/50 min-h-screen">
-            <PageHeader 
+            <PageHeader
                 title="Performance & Eficiência"
                 description="Consolidado de eficiência, taxas de conversão e ROI das ações assistidas."
                 icon={<Activity className="text-emerald-600" size={24} />}
@@ -245,29 +245,29 @@ export default function IAPerformancePage() {
 
             {/* KPIs Principais */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <MetricCard 
-                    title="Economia Total" 
+                <MetricCard
+                    title="Economia Total"
                     value={`R$ ${metrics.economia_total_gerada.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
                     subtitle="Gerada por decisões da IA"
                     icon={DollarSign}
                     color="emerald"
                 />
-                <MetricCard 
-                    title="Taxa de Acerto" 
+                <MetricCard
+                    title="Taxa de Acerto"
                     value={`${metrics.taxa_acerto_ia}%`}
                     subtitle="Feedbacks positivos de utilidade"
                     icon={Target}
                     color="blue"
                 />
-                <MetricCard 
-                    title="Tempo Médio" 
+                <MetricCard
+                    title="Tempo Médio"
                     value={`${metrics.tempo_medio_decisao} min`}
                     subtitle="Entre alerta e execução"
                     icon={Clock}
                     color="purple"
                 />
-                <MetricCard 
-                    title="Ações Concluídas" 
+                <MetricCard
+                    title="Ações Concluídas"
                     value={funil.concluidos.toString()}
                     subtitle={`${metrics.taxa_conclusao_acoes}% de conversão final`}
                     icon={CheckCircle2}
@@ -287,29 +287,29 @@ export default function IAPerformancePage() {
                     </CardHeader>
                     <CardContent className="p-8">
                         <div className="flex flex-col md:flex-row items-center justify-between gap-4 py-8">
-                            <FunnelStep 
-                                label="Alertas Gerados" 
-                                value={funil.gerados} 
-                                icon={AlertCircle} 
+                            <FunnelStep
+                                label="Alertas Gerados"
+                                value={funil.gerados}
+                                icon={AlertCircle}
                             />
-                            <FunnelStep 
-                                label="Visualizados" 
-                                value={funil.visualizados} 
+                            <FunnelStep
+                                label="Visualizados"
+                                value={funil.visualizados}
                                 sublabel={`${((funil.visualizados / (funil.gerados || 1)) * 100).toFixed(0)}%`}
-                                icon={Clock} 
+                                icon={Clock}
                             />
-                            <FunnelStep 
-                                label="Executados" 
-                                value={funil.executados} 
+                            <FunnelStep
+                                label="Executados"
+                                value={funil.executados}
                                 sublabel={`${((funil.executados / (funil.visualizados || 1)) * 100).toFixed(0)}%`}
-                                icon={Zap} 
+                                icon={Zap}
                             />
-                            <FunnelStep 
-                                label="Concluídos" 
-                                value={funil.concluidos} 
+                            <FunnelStep
+                                label="Concluídos"
+                                value={funil.concluidos}
                                 sublabel={`${((funil.concluidos / (funil.executados || 1)) * 100).toFixed(0)}%`}
-                                icon={CheckCircle2} 
-                                isLast 
+                                icon={CheckCircle2}
+                                isLast
                             />
                         </div>
 
@@ -317,14 +317,14 @@ export default function IAPerformancePage() {
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={chartData}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis 
-                                        dataKey="name" 
-                                        axisLine={false} 
-                                        tickLine={false} 
-                                        tick={{fontSize: 10, fontWeight: 500}} 
+                                    <XAxis
+                                        dataKey="name"
+                                        axisLine={false}
+                                        tickLine={false}
+                                        tick={{ fontSize: 10, fontWeight: 500 }}
                                     />
                                     <YAxis hide />
-                                    <Tooltip 
+                                    <Tooltip
                                         contentStyle={{ borderRadius: '4px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                         cursor={{ fill: 'rgba(16, 185, 129, 0.05)' }}
                                     />
@@ -385,7 +385,7 @@ export default function IAPerformancePage() {
                                 <p className="text-sm font-medium text-card-title leading-snug">
                                     {recomendacao.mensagem}
                                 </p>
-                                
+
                                 <div className="bg-card/80 p-3 rounded-sm border border-alert-success-border">
                                     <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase font-bold mb-1">
                                         <span>Ganho Realizado</span>
@@ -397,7 +397,7 @@ export default function IAPerformancePage() {
                                     </div>
                                 </div>
 
-                                <button 
+                                <button
                                     onClick={handleUpgradeClick}
                                     className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold py-2.5 rounded-sm transition-all shadow-sm"
                                 >
@@ -418,22 +418,22 @@ export default function IAPerformancePage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <MetricCard 
-                        title="Automações" 
+                    <MetricCard
+                        title="Automações"
                         value={autopilotMetrics?.total_acoes_automaticas?.toString() || "0"}
                         subtitle="Ações executadas sem intervenção"
                         icon={Zap}
                         color="amber"
                     />
-                    <MetricCard 
-                        title="Impacto Automático" 
+                    <MetricCard
+                        title="Impacto Automático"
                         value={`R$ ${autopilotMetrics?.impacto_financeiro_simulado_total?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) || "0,00"}`}
                         subtitle="Valor otimizado pelo Autopilot"
                         icon={TrendingUp}
                         color="emerald"
                     />
-                    <MetricCard 
-                        title="Aceitação" 
+                    <MetricCard
+                        title="Aceitação"
                         value={`${autopilotMetrics?.taxa_aprovacao_implicita || 0}%`}
                         subtitle="Ações mantidas pelo usuário"
                         icon={CheckCircle2}
@@ -459,11 +459,11 @@ export default function IAPerformancePage() {
                     </Card>
                 </div>
 
-            <Card variant="warning" className="shadow-sm">
-                <CardContent className="p-4 flex items-start gap-3">
-                    <div className="p-2 rounded-full bg-alert-warning-border/40 text-alert-warning-icon mt-0.5">
-                        <BrainCircuit size={16} />
-                    </div>
+                <Card variant="warning" className="shadow-sm">
+                    <CardContent className="p-4 flex items-start gap-3">
+                        <div className="p-2 rounded-full bg-alert-warning-border/40 text-alert-warning-icon mt-0.5">
+                            <BrainCircuit size={16} />
+                        </div>
                         <div>
                             <p className="text-sm font-medium text-card-title">
                                 Insight do Autopilot
@@ -1328,7 +1328,7 @@ function GrowthChurnSection() {
                                     <div key={item.nivel} className="flex items-center justify-between rounded-sm border border-border/60 px-3 py-2">
                                         <div className="flex items-center gap-2">
                                             <Badge variant="outline" className={`rounded-sm text-[9px] ${churnTone[item.nivel] ?? churnTone.BAIXO}`}>
-                                            {item.nivel}
+                                                {item.nivel}
                                             </Badge>
                                             <span className="text-xs text-muted-foreground">{item.usuarios} usuarios</span>
                                         </div>
