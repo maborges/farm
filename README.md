@@ -692,6 +692,20 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
   * **Problema corrigido:** `InteligenciaPecuariaService.analisar_estresse_termico()` chamava `get_or_copy_model()`, copiando e avaliando modelos globais automaticamente sem autorização do tenant; `ModeloZoosanitarioService.copy_global_to_tenant()` executava `commit=False` descartando a cópia persistida ao final da requisição; e `get_all_models()` não deduplicava espécies já personalizadas sobre os modelos globais.
   * **Comportamento esperado:** `analisar_estresse_termico()` consulta exclusivamente `get_tenant_model()` e retorna `None` quando o tenant ainda não habilitou modelo para a espécie; `copy_global_to_tenant()` valida regras, faz upsert com `deepcopy`, comita e atualiza o registro retornado; e `get_all_models()` deduplica por `(especie, tipo_risco)` priorizando personalizações do tenant.
 
+### Correção: Renderização de /operacional (Painel da Frota) em Produção
+- **Problema corrigido:** a rota `/operacional` (`apps/web/src/app/(dashboard)/operacional/page.tsx`) era um Server Component passando referências de componentes de ícone (`lucide-react`) em `actions` diretamente para o Client Component `QuickActionGrid`, causando erro de serialização RSC em produção (`Functions cannot be passed directly to Client Components`).
+- **Comportamento esperado:** `apps/web/src/app/(dashboard)/operacional/page.tsx` delega a renderização ao Client Component `OperacionalDashboardClient` (`apps/web/src/components/operacional/operacional-dashboard-client.tsx`), eliminando o erro de fronteira Server → Client e carregando o Painel Operacional & Frota normalmente.
+
+### Pecuária — Modo Híbrido de Lotes (Por Lote / Individual), Custo Real da Arroba e Valor de Mercado
+- **Descrição curta:** Suporte híbrido para gestão de lotes pecuários no modo coletivo (`POR_LOTE`, sem obrigatoriedade de brinco individual) ou individual (`INDIVIDUAL`), acompanhado da consolidação completa de custos (aquisição, sanidade, nutrição e outros), cálculo de arrobas produzidas, break-even (R$/@) e estimativa de valor de mercado com base na cotação de boi gordo (`public_mercado` ou cotação personalizada no lote).
+- **Fluxo de funcionamento:**
+  1. Na criação ou edição de lotes (`/dashboard/pecuaria/lotes`), o produtor escolhe o modo de gestão, piquete, rendimento de carcaça (padrão 50%), peso inicial médio, valor de aquisição e cotação manual opcional.
+  2. Manejos coletivos (`NASCIMENTO`, `COMPRA`, `MORTE`, `VENDA`, `ABATE`, `PESAGEM`) em lotes `POR_LOTE` atualizam automaticamente o saldo de cabeças, valor de aquisição e peso médio, calculando GMD coletivo e arrobas produzidas.
+  3. O painel executivo (`/dashboard/pecuaria`) e o drawer de indicadores de lote consolidam cabeças, UA real (`peso_total / 450`), lotação, custos operacionais, break-even e margem bruta estimada.
+- **Bugfix Focado:**
+  * **Problema corrigido:** o cálculo de custo por arroba nos serviços de lote e dashboard multiplicava por 15 sobre o peso vivo (subestimando pela metade em carcaça 50%), o dashboard executivo considerava apenas custos sanitários e o painel web exibia totais de cabeças/UA divergentes entre `LoteAnimal` e `pec_animais`.
+  * **Comportamento esperado:** ambos os serviços utilizam `arroba_utils` (`peso_vivo * rendimento_carcaca_pct / 100 / 15`), somam sanidade, nutrição e outros custos sobre rebanho híbrido e alimentam integralmente os cartões do `/dashboard/pecuaria`.
+
 ## Conceitos-Chave: Propriedade, Talhão e Unidade Produtiva
 
 

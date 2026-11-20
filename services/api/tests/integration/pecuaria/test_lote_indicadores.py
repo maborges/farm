@@ -339,7 +339,7 @@ async def test_indicadores_custo_sanitario_calcula_rateios(client: AsyncClient, 
     assert body["custo_sanitario_total"] == 30.0
     assert body["custo_sanitario_por_cabeca"] == 15.0
     assert body["custo_sanitario_por_kg"] == 0.06
-    assert body["custo_sanitario_por_arroba"] == 0.9
+    assert body["custo_sanitario_por_arroba"] == 1.8
 
 
 async def test_indicadores_isolamento_multi_tenant(client: AsyncClient, session: AsyncSession, outro_tenant_id: uuid.UUID) -> None:

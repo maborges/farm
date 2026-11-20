@@ -22,6 +22,7 @@ from financeiro.models.lancamento import LancamentoFinanceiro
 from operacional.models.estoque import Deposito, EstoqueMovimento
 from pecuaria.advanced_service import PecuariaAdvancedService
 from pecuaria.animal.models import Animal, EventoAnimal, LoteAnimal
+from pecuaria.models.manejo import ManejoLote
 from pecuaria.producao.models import ProducaoLeite
 from pecuaria.services.dashboard_resumo_service import PecuariaDashboardResumoService
 from pecuaria.services.lote_indicadores_service import LoteIndicadoresService
@@ -56,6 +57,7 @@ async def async_session():
                     Deposito.__table__,
                     Pessoa.__table__,
                     LoteAnimal.__table__,
+                    ManejoLote.__table__,
                     Animal.__table__,
                     EventoAnimal.__table__,
                     ProducaoLeite.__table__,
@@ -215,19 +217,20 @@ async def test_corte_lote_indicadores_calcula_lotacao_arrobas_ha_e_custo_total_a
     indicadores = await LoteIndicadoresService(async_session, tenant_id).resumir(lote_id)
 
     # 2 bois de 450 kg = 900 kg total = 2.0 UA; em 10 ha => 0.2 UA/ha
-    # 900 kg / 30 = 30 @ totais; em 10 ha => 3.0 @/ha
-    # Custo operacional = R$ 600; (600 / 900) * 15 = R$ 10,00/@
+    # 900 kg * 50% / 15 = 30 @ totais; em 10 ha => 3.0 @/ha
+    # Custo operacional = R$ 600; 600 / 30 @ = R$ 20,00/@
     assert indicadores.area_piquete_ha == pytest.approx(10.0, rel=1e-3)
     assert indicadores.lotacao_ua_ha == pytest.approx(0.2, rel=1e-3)
     assert indicadores.arrobas_por_hectare == pytest.approx(3.0, rel=1e-3)
     assert indicadores.custo_nutricao_total == pytest.approx(600.0, rel=1e-3)
-    assert indicadores.custo_total_por_arroba == pytest.approx(10.0, rel=1e-3)
+    assert indicadores.custo_total_por_arroba == pytest.approx(20.0, rel=1e-3)
 
     resumo_fazenda = await PecuariaDashboardResumoService(async_session, tenant_id, fazenda_id).resumir()
     assert resumo_fazenda.area_pastagem_ha == pytest.approx(10.0, rel=1e-3)
     assert resumo_fazenda.lotacao_ua_ha == pytest.approx(0.2, rel=1e-3)
     assert resumo_fazenda.arrobas_totais == pytest.approx(30.0, rel=1e-3)
     assert resumo_fazenda.arrobas_por_hectare == pytest.approx(3.0, rel=1e-3)
+    assert resumo_fazenda.custo_total_por_arroba == pytest.approx(20.0, rel=1e-3)
 
 
 @pytest.mark.asyncio

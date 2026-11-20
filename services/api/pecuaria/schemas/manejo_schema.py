@@ -4,7 +4,7 @@ from datetime import date, datetime
 import uuid
 
 TIPO_EVENTO_VALID = {
-    "NASCIMENTO", "MORTE", "PESAGEM", "VACINACAO",
+    "NASCIMENTO", "COMPRA", "MORTE", "PESAGEM", "VACINACAO",
     "TRANSFERENCIA", "MEDICACAO", "VENDA", "ABATE", "CASTRACAO",
 }
 
@@ -13,7 +13,7 @@ class ManejoLoteCreate(BaseModel):
     lote_id: uuid.UUID
     tipo_evento: str = Field(
         ...,
-        description="NASCIMENTO | MORTE | PESAGEM | VACINACAO | TRANSFERENCIA | MEDICACAO | VENDA | ABATE | CASTRACAO",
+        description="NASCIMENTO | COMPRA | MORTE | PESAGEM | VACINACAO | TRANSFERENCIA | MEDICACAO | VENDA | ABATE | CASTRACAO",
     )
     data_evento: Optional[date] = None
     quantidade_cabecas: Optional[int] = Field(None, ge=0)

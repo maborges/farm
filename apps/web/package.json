@@ -2,7 +2,8 @@
   "name": "web",
   "private": true,
   "scripts": {
-    "dev": "WATCHPACK_POLLING=1000 next dev --webpack",
+    "dev": "next dev --turbopack",
+    "dev:webpack": "WATCHPACK_POLLING=1000 next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
     "typecheck": "tsc --noEmit -p tsconfig.json",

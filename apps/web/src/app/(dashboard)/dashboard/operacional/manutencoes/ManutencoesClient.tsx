@@ -8,6 +8,7 @@ import { Wrench, Plus, CheckCircle2, Clock, AlertTriangle, DollarSign } from "lu
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -15,8 +16,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { WorkflowStatusBadge } from "@/components/ui/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable, type ColumnDef } from "@/components/ui/data-table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -170,31 +171,43 @@ export function ManutencoesClient({
 function OSForm({ maquinarios, onClose, onSubmit, loading }: { maquinarios: Maquinario[]; onClose: () => void; onSubmit: (d: any) => void; loading: boolean }) {
     const { register, handleSubmit, reset, setValue } = useForm<any>();
     return (
-        <DialogContent className="max-w-md rounded-sm">
-            <DialogHeader><DialogTitle className="font-bold text-primary italic border-b pb-2">Abertura de OS</DialogTitle></DialogHeader>
-            <form onSubmit={handleSubmit(d => { onSubmit(d); reset(); })} className="space-y-4 pt-4">
-                <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Máquina / Equipamento *</Label>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-2xl gap-0 rounded-sm p-0">
+            <DialogHeader className="border-b px-4 py-4 pr-12 sm:px-6">
+                <DialogTitle>Abertura de OS</DialogTitle>
+                <DialogDescription>
+                    Registre a solicitação de manutenção e o estado atual do equipamento.
+                </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit(d => { onSubmit(d); reset(); })} className="flex min-h-0 flex-1 flex-col">
+                <DialogBody className="flex flex-col gap-4 px-4 py-4 sm:px-6">
+                <div className="flex flex-col gap-2">
+                    <Label htmlFor="os-maquinario" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Máquina / Equipamento *</Label>
                     <Select onValueChange={(v: string) => setValue("maquinario_id", v)}>
-                        <SelectTrigger className="h-8 rounded-sm text-xs"><SelectValue placeholder="Selecione o maquinário..." /></SelectTrigger>
-                        <SelectContent className="rounded-sm text-xs">{maquinarios.map(m => <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>)}</SelectContent>
-                    </Select>
-                </div>
-                <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Tipo de Serviço *</Label>
-                    <Select onValueChange={(v: string) => setValue("tipo", v)}>
-                        <SelectTrigger className="h-8 rounded-sm text-xs"><SelectValue placeholder="Selecione o tipo..." /></SelectTrigger>
+                        <SelectTrigger id="os-maquinario" className="h-9 rounded-sm text-xs"><SelectValue placeholder="Selecione o maquinário..." /></SelectTrigger>
                         <SelectContent className="rounded-sm text-xs">
-                            {["CORRETIVA", "PREVENTIVA", "REVISAO", "EMERGENCIAL"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                            <SelectGroup>{maquinarios.map(m => <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>)}</SelectGroup>
                         </SelectContent>
                     </Select>
                 </div>
-                <div className="space-y-2"><Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Descrição do Problema *</Label><Input {...register("descricao_problema", { required: true })} className="h-8 rounded-sm text-xs" placeholder="Descreva brevemente o problema..." /></div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2"><Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Horas Atuais</Label><Input {...register("horas_uso_atual")} className="h-8 rounded-sm text-xs" type="number" step="0.1" /></div>
-                    <div className="space-y-2"><Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">KM/Hodômetro</Label><Input {...register("km_atual")} className="h-8 rounded-sm text-xs" type="number" /></div>
+                <div className="flex flex-col gap-2">
+                    <Label htmlFor="os-tipo" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Tipo de Serviço *</Label>
+                    <Select onValueChange={(v: string) => setValue("tipo", v)}>
+                        <SelectTrigger id="os-tipo" className="h-9 rounded-sm text-xs"><SelectValue placeholder="Selecione o tipo..." /></SelectTrigger>
+                        <SelectContent className="rounded-sm text-xs">
+                            <SelectGroup>{["CORRETIVA", "PREVENTIVA", "REVISAO", "EMERGENCIAL"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectGroup>
+                        </SelectContent>
+                    </Select>
                 </div>
-                <DialogFooter className="gap-2 pt-2">
+                <div className="flex flex-col gap-2">
+                    <Label htmlFor="os-descricao" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Descrição do Problema *</Label>
+                    <Textarea id="os-descricao" {...register("descricao_problema", { required: true })} className="min-h-24 resize-y text-xs" placeholder="Descreva o sintoma, a urgência e qualquer observação relevante..." />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="flex min-w-0 flex-col gap-2"><Label htmlFor="os-horas" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Horas Atuais</Label><Input id="os-horas" {...register("horas_uso_atual")} className="h-9 rounded-sm text-xs" type="number" step="0.1" /></div>
+                    <div className="flex min-w-0 flex-col gap-2"><Label htmlFor="os-km" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">KM/Hodômetro</Label><Input id="os-km" {...register("km_atual")} className="h-9 rounded-sm text-xs" type="number" /></div>
+                </div>
+                </DialogBody>
+                <DialogFooter className="shrink-0 px-4 sm:px-6">
                     <Button type="button" variant="outline" size="sm" className="rounded-sm" onClick={() => { onClose(); reset(); }}>Cancelar</Button>
                     <Button type="submit" size="sm" className="rounded-sm" disabled={loading}>{loading ? "Abrindo…" : "Abrir OS"}</Button>
                 </DialogFooter>

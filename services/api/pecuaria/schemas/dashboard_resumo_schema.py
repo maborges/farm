@@ -9,14 +9,23 @@ class PecuariaDashboardResumoExecutivoResponse(BaseModel):
     piquetes_ativos: int = Field(ge=0)
     peso_total_kg: float = Field(ge=0)
     peso_medio_kg: float = Field(ge=0)
+    ua_total: float = Field(0.0, ge=0)
     manejos_pendentes: int = Field(ge=0)
     vacinacoes_pendentes: int = Field(ge=0)
     custo_sanitario_acumulado: float = Field(ge=0)
+    custo_aquisicao_acumulado: float = Field(0.0, ge=0)
+    custo_nutricao_acumulado: float = Field(0.0, ge=0)
+    custo_outros_acumulado: float = Field(0.0, ge=0)
+    custo_operacional_acumulado: float = Field(0.0, ge=0)
     area_pastagem_ha: float = Field(0.0, ge=0)
     lotacao_ua_ha: float = Field(0.0, ge=0)
     arrobas_totais: float = Field(0.0, ge=0)
     arrobas_por_hectare: float = Field(0.0, ge=0)
     custo_total_por_arroba: float = Field(0.0, ge=0)
+    custo_break_even_por_arroba: float = Field(0.0, ge=0)
+    cotacao_arroba_referencia: float | None = Field(None, ge=0)
+    fonte_cotacao: str | None = None
+    valor_mercado_estimado: float | None = Field(None, ge=0)
+    margem_bruta_estimada: float | None = None
 
     model_config = ConfigDict(from_attributes=True)
-

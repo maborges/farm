@@ -1,11 +1,16 @@
 import uuid
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import get_session, get_tenant_id, require_module
+from core.exceptions import BusinessRuleError, EntityNotFoundError
 
-from pecuaria.schemas.lote_schema import LoteBovinoCreate, LoteBovinoResponse
+from pecuaria.schemas.lote_schema import (
+    LoteBovinoCreate,
+    LoteBovinoResponse,
+    LoteBovinoUpdate,
+)
 from pecuaria.services.lote_service import LoteBovinoService
 from pecuaria.schemas.lote_resumo_sanitario_schema import LoteResumoSanitarioResponse
 from pecuaria.services.lote_resumo_sanitario_service import LoteResumoSanitarioService
@@ -50,6 +55,27 @@ async def criar_lote(
     lote = await svc.create_lote(db, obj_in=payload)
     await db.commit()
     return lote
+
+
+@router.patch("/{lote_id}", response_model=LoteBovinoResponse)
+async def atualizar_lote(
+    lote_id: uuid.UUID,
+    payload: LoteBovinoUpdate,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_session),
+):
+    """Atualiza parâmetros híbridos, econômicos e piquete de um lote."""
+    svc = LoteBovinoService(tenant_id)
+    try:
+        lote = await svc.update_lote(db, lote_id, payload)
+        await db.commit()
+        return lote
+    except EntityNotFoundError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except BusinessRuleError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.get("/{lote_id}/resumo-sanitario", response_model=LoteResumoSanitarioResponse)

@@ -1,8 +1,6 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 
-process.env.WATCHPACK_POLLING = process.env.WATCHPACK_POLLING || "1000";
-
 const nextConfig: NextConfig = {
   skipTrailingSlashRedirect: true,
   typescript: {
@@ -16,7 +14,7 @@ const nextConfig: NextConfig = {
     ],
   },
   turbopack: {
-    root: path.resolve(__dirname),
+    root: path.resolve(__dirname, "../.."),
   },
   webpack: (config, { dev }) => {
     if (dev) {

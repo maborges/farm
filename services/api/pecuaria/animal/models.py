@@ -51,6 +51,11 @@ class StatusAnimal(str, enum.Enum):
     TRANSFERIDO     = "TRANSFERIDO"     # saiu da fazenda para outra unidade
 
 
+class ModoGestaoLote(str, enum.Enum):
+    POR_LOTE    = "POR_LOTE"
+    INDIVIDUAL  = "INDIVIDUAL"
+
+
 class TipoEvento(str, enum.Enum):
     # Entrada
     NASCIMENTO      = "NASCIMENTO"
@@ -121,8 +126,13 @@ class LoteAnimal(Base):
     raca: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # Contagem e peso calculados (desnormalizado para performance — atualizado por trigger/evento)
+    modo_gestao: Mapped[str] = mapped_column(String(20), default="POR_LOTE", nullable=False)
     quantidade_cabecas: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     peso_medio_kg: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    peso_inicial_medio_kg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rendimento_carcaca_pct: Mapped[float] = mapped_column(Float, default=50.0, nullable=False)
+    valor_aquisicao_total: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cotacao_arroba_override: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     data_formacao: Mapped[date] = mapped_column(Date, nullable=False, default=date.today)
     observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)

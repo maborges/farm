@@ -1,12 +1,13 @@
 import uuid
 from datetime import date
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from core.base_service import BaseService
 from core.exceptions import EntityNotFoundError, BusinessRuleError
 from pecuaria.models.manejo import ManejoLote
-from pecuaria.animal.models import LoteAnimal as LoteBovino
+from pecuaria.animal.models import Animal, LoteAnimal as LoteBovino
 from pecuaria.schemas.manejo_schema import ManejoLoteCreate, TIPO_EVENTO_VALID
 
 TIPOS_VALIDOS = TIPO_EVENTO_VALID
@@ -86,6 +87,7 @@ class ManejoLoteService(BaseService[ManejoLote]):
         db_manejo = ManejoLote(**obj_data, tenant_id=self.tenant_id)
         db.add(db_manejo)
         await db.flush()
+        await self._atualizar_saldo_por_lote(db, lote, db_manejo)
         await db.refresh(db_manejo)
 
         # ── Integração Financeira ─────────────────────────────────────────
@@ -155,3 +157,62 @@ class ManejoLoteService(BaseService[ManejoLote]):
                 db.add(receita)
 
         return db_manejo
+
+    async def _contar_animais_individuais(
+        self, db: AsyncSession, lote_id: uuid.UUID
+    ) -> int:
+        """Conta animais individuais ativos para evitar sobrescrever saldo agregado."""
+        stmt = select(func.count(Animal.id)).where(
+            Animal.tenant_id == self.tenant_id,
+            Animal.lote_id == lote_id,
+            Animal.status == "ATIVO",
+        )
+        return int((await db.execute(stmt)).scalar_one() or 0)
+
+    @staticmethod
+    def _atualizar_peso_por_lote(lote: LoteBovino, db_manejo: ManejoLote) -> None:
+        """Atualiza o peso médio coletivo do lote após pesagem em massa."""
+        peso_total = float(db_manejo.peso_total_kg or 0.0)
+        if peso_total <= 0:
+            return
+        divisor = int(db_manejo.quantidade_cabecas or lote.quantidade_cabecas or 0)
+        if divisor <= 0:
+            return
+        peso_medio = round(peso_total / divisor, 2)
+        lote.peso_medio_kg = peso_medio
+        if lote.peso_inicial_medio_kg is None:
+            lote.peso_inicial_medio_kg = peso_medio
+
+    async def _atualizar_saldo_por_lote(
+        self, db: AsyncSession, lote: LoteBovino, db_manejo: ManejoLote
+    ) -> None:
+        """Atualiza cabeças, aquisição e peso de lotes em modo POR_LOTE.
+
+        Args:
+            db: Sessão assíncrona ativa.
+            lote: Lote alvo do manejo.
+            db_manejo: Evento de manejo recém-persistido.
+
+        Raises:
+            BusinessRuleError: Se a baixa deixar saldo negativo no lote.
+        """
+        if lote.modo_gestao != "POR_LOTE":
+            return
+        if await self._contar_animais_individuais(db, lote.id) > 0:
+            return
+
+        tipo = db_manejo.tipo_evento
+        qtd = int(db_manejo.quantidade_cabecas or 0)
+        if tipo in ("NASCIMENTO", "COMPRA") and qtd > 0:
+            lote.quantidade_cabecas = int(lote.quantidade_cabecas or 0) + qtd
+            if tipo == "COMPRA" and (db_manejo.custo_total or 0) > 0:
+                lote.valor_aquisicao_total = float(lote.valor_aquisicao_total or 0.0) + float(db_manejo.custo_total)
+        elif tipo in ("MORTE", "VENDA", "ABATE") and qtd > 0:
+            atual = int(lote.quantidade_cabecas or 0)
+            if qtd > atual:
+                raise BusinessRuleError(
+                    f"Saldo insuficiente de cabeças no lote ({atual} disponíveis para baixa de {qtd})."
+                )
+            lote.quantidade_cabecas = atual - qtd
+        elif tipo == "PESAGEM":
+            self._atualizar_peso_por_lote(lote, db_manejo)

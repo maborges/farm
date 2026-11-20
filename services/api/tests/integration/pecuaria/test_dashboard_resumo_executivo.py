@@ -357,16 +357,20 @@ async def test_resumo_vazio(client: AsyncClient, session: AsyncSession):
 
     response = await client.get("/api/v1/pecuaria/dashboard/resumo-executivo", headers=headers)
     assert response.status_code == 200, response.text
-    assert response.json() == {
-        "animais_ativos": 0,
-        "lotes_ativos": 0,
-        "piquetes_ativos": 0,
-        "peso_total_kg": 0.0,
-        "peso_medio_kg": 0.0,
-        "manejos_pendentes": 0,
-        "vacinacoes_pendentes": 0,
-        "custo_sanitario_acumulado": 0.0,
-    }
+    data = response.json()
+    assert data["animais_ativos"] == 0
+    assert data["lotes_ativos"] == 0
+    assert data["piquetes_ativos"] == 0
+    assert data["peso_total_kg"] == 0.0
+    assert data["peso_medio_kg"] == 0.0
+    assert data["ua_total"] == 0.0
+    assert data["manejos_pendentes"] == 0
+    assert data["vacinacoes_pendentes"] == 0
+    assert data["custo_sanitario_acumulado"] == 0.0
+    assert data["custo_operacional_acumulado"] == 0.0
+    assert data["arrobas_totais"] == 0.0
+    assert data["custo_total_por_arroba"] == 0.0
+    assert data["custo_break_even_por_arroba"] == 0.0
 
 
 @pytest.mark.asyncio

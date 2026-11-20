@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod/v4";
-import { Tractor, Plus, Info, Pencil, PowerOff, FileText, Loader2, Power } from "lucide-react";
+import { Tractor, Plus, Pencil, PowerOff, FileText, Loader2, Power } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -16,7 +16,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogBody
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogBody
 } from "@/components/ui/dialog";
 import { XCircle, Save, CheckCircle2 } from "lucide-react";
 import {
@@ -24,9 +24,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { DataTable, type ColumnDef } from "@/components/ui/data-table";
 
@@ -410,190 +409,107 @@ export default function EquipamentosPage() {
 
       {/* Dialog — Novo/Editar Equipamento */}
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
-        <DialogContent className="max-w-lg p-0">
-          <DialogHeader>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-6xl gap-0 overflow-y-auto p-0 lg:overflow-hidden">
+          <DialogHeader className="border-b px-4 py-3 pr-12 sm:px-6">
             <div className="flex items-center gap-2.5">
               <div className="size-8 rounded-sm bg-primary/10 flex items-center justify-center">
                 <Tractor className="size-4 text-primary" />
               </div>
-              <DialogTitle>{editId ? "Editar Equipamento" : "Novo Equipamento"}</DialogTitle>
+              <div className="flex flex-col gap-0.5">
+                <DialogTitle>{editId ? "Editar Equipamento" : "Novo Equipamento"}</DialogTitle>
+                <DialogDescription>
+                  Dados cadastrais, técnicos e de identificação. Documentos regulatórios são gerenciados em Frota › Documentos.
+                </DialogDescription>
+              </div>
             </div>
           </DialogHeader>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSave)}>
-              <DialogBody className="space-y-4 overflow-y-auto max-h-[75vh]">
-
-                {/* ── Identificação ── */}
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Identificação</p>
-                <FormField
-                  control={form.control}
-                  name="nome"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nome / Descrição *</FormLabel>
-                      <FormControl>
-                        <Input {...field} className="h-8 rounded-sm text-xs"
-                          placeholder="Ex: Trator John Deere 8R 310 — Frota 03"
-                          disabled={createMutation.isPending || updateMutation.isPending} />
-                      </FormControl>
+            <form onSubmit={form.handleSubmit(handleSave)} className="flex flex-col lg:max-h-none">
+              <DialogBody className="overflow-y-auto px-4 py-3 sm:px-6 lg:overflow-visible">
+                <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                  <p className="col-span-full text-xs font-semibold uppercase tracking-wide text-muted-foreground">Identificação</p>
+                  <FormField
+                    control={form.control}
+                    name="nome"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0 sm:col-span-2">
+                        <FormLabel>Nome / Descrição *</FormLabel>
+                        <FormControl>
+                          <Input {...field} className="h-8 rounded-sm text-xs" placeholder="Ex: Trator John Deere 8R 310 — Frota 03" disabled={createMutation.isPending || updateMutation.isPending} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField control={form.control} name="tipo" render={({ field }) => (
+                    <FormItem className="min-w-0">
+                      <FormLabel>Tipo *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={createMutation.isPending || updateMutation.isPending}>
+                        <FormControl><SelectTrigger className="h-8 rounded-sm text-xs"><SelectValue /></SelectTrigger></FormControl>
+                        <SelectContent><SelectGroup>{TIPOS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectGroup></SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
-                  )}
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <FormField
-                    control={form.control}
-                    name="tipo"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tipo *</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value} disabled={createMutation.isPending || updateMutation.isPending}>
-                          <FormControl>
-                            <SelectTrigger className="h-8 rounded-sm text-xs"><SelectValue /></SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {TIPOS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="categoria_patrimonial"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Categoria patrimonial *</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value} disabled={createMutation.isPending || updateMutation.isPending}>
-                          <FormControl>
-                            <SelectTrigger className="h-8 rounded-sm text-xs"><SelectValue /></SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {CATEGORIAS_PATRIMONIAIS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="combustivel"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Combustível</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value} disabled={createMutation.isPending || updateMutation.isPending}>
-                          <FormControl>
-                            <SelectTrigger className="h-8 rounded-sm text-xs"><SelectValue /></SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {COMBUSTIVEIS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                  )} />
+                  <FormField control={form.control} name="categoria_patrimonial" render={({ field }) => (
+                    <FormItem className="min-w-0">
+                      <FormLabel>Categoria patrimonial *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={createMutation.isPending || updateMutation.isPending}>
+                        <FormControl><SelectTrigger className="h-8 rounded-sm text-xs"><SelectValue /></SelectTrigger></FormControl>
+                        <SelectContent><SelectGroup>{CATEGORIAS_PATRIMONIAIS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectGroup></SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="combustivel" render={({ field }) => (
+                    <FormItem className="min-w-0">
+                      <FormLabel>Combustível</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={createMutation.isPending || updateMutation.isPending}>
+                        <FormControl><SelectTrigger className="h-8 rounded-sm text-xs"><SelectValue /></SelectTrigger></FormControl>
+                        <SelectContent><SelectGroup>{COMBUSTIVEIS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectGroup></SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
 
-                <Separator />
-
-                {/* ── Especificações Técnicas ── */}
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Especificações Técnicas</p>
-                <div className="grid grid-cols-2 gap-3">
+                  <p className="col-span-full mt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Especificações técnicas</p>
                   <FormField control={form.control} name="marca" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Marca</FormLabel>
-                      <FormControl><Input {...field} className="h-8 rounded-sm text-xs" placeholder="John Deere" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
+                    <FormItem className="min-w-0"><FormLabel>Marca</FormLabel><FormControl><Input {...field} className="h-8 rounded-sm text-xs" placeholder="John Deere" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="modelo" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Modelo</FormLabel>
-                      <FormControl><Input {...field} className="h-8 rounded-sm text-xs" placeholder="8R 310" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
+                    <FormItem className="min-w-0"><FormLabel>Modelo</FormLabel><FormControl><Input {...field} className="h-8 rounded-sm text-xs" placeholder="8R 310" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="potencia_cv" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Potência (cv)</FormLabel>
-                      <FormControl><Input type="number" min="0" {...field} className="h-8 rounded-sm text-xs" placeholder="310" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
+                    <FormItem className="min-w-0"><FormLabel>Potência (cv)</FormLabel><FormControl><Input type="number" min="0" {...field} className="h-8 rounded-sm text-xs" placeholder="310" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="capacidade_tanque_l" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Cap. Tanque (L)</FormLabel>
-                      <FormControl><Input type="number" min="0" {...field} className="h-8 rounded-sm text-xs" placeholder="1135" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
+                    <FormItem className="min-w-0"><FormLabel>Cap. tanque (L)</FormLabel><FormControl><Input type="number" min="0" {...field} className="h-8 rounded-sm text-xs" placeholder="1135" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl><FormMessage /></FormItem>
                   )} />
-                </div>
 
-                <Separator />
-
-                {/* ── Ano, Documentação & Identificação Única ── */}
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ano & Documentação</p>
-                <div className="grid grid-cols-2 gap-3">
+                  <p className="col-span-full mt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Documentação e identificação</p>
                   <FormField control={form.control} name="ano_fabricacao" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Ano Fabricação</FormLabel>
-                      <FormControl><Input type="number" min="1900" max={new Date().getFullYear() + 1} {...field} className="h-8 rounded-sm text-xs" placeholder="2023" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
+                    <FormItem className="min-w-0"><FormLabel>Ano fabricação</FormLabel><FormControl><Input type="number" min="1900" max={new Date().getFullYear() + 1} {...field} className="h-8 rounded-sm text-xs" placeholder="2023" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="ano_modelo" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Ano Modelo</FormLabel>
-                      <FormControl><Input type="number" min="1900" max={new Date().getFullYear() + 1} {...field} className="h-8 rounded-sm text-xs" placeholder="2024" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
+                    <FormItem className="min-w-0"><FormLabel>Ano modelo</FormLabel><FormControl><Input type="number" min="1900" max={new Date().getFullYear() + 1} {...field} className="h-8 rounded-sm text-xs" placeholder="2024" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="placa" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Placa</FormLabel>
-                      <FormControl><Input {...field} className="h-8 rounded-sm text-xs" placeholder="ABC-1D23" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
+                    <FormItem className="min-w-0"><FormLabel>Placa</FormLabel><FormControl><Input {...field} className="h-8 rounded-sm text-xs" placeholder="ABC-1D23" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="patrimonio" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Patrimônio</FormLabel>
-                      <FormControl><Input {...field} className="h-8 rounded-sm text-xs" placeholder="TR-001" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
+                    <FormItem className="min-w-0"><FormLabel>Patrimônio</FormLabel><FormControl><Input {...field} className="h-8 rounded-sm text-xs" placeholder="TR-001" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="chassi" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Chassi / VIN</FormLabel>
-                      <FormControl><Input {...field} className="h-8 rounded-sm text-xs" placeholder="9BWM..." disabled={createMutation.isPending || updateMutation.isPending} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
+                    <FormItem className="min-w-0"><FormLabel>Chassi / VIN</FormLabel><FormControl><Input {...field} className="h-8 rounded-sm text-xs" placeholder="9BWM..." disabled={createMutation.isPending || updateMutation.isPending} /></FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="numero_serie" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Número de Série</FormLabel>
-                      <FormControl><Input {...field} className="h-8 rounded-sm text-xs" placeholder="SN00123456" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
+                    <FormItem className="min-w-0"><FormLabel>Número de série</FormLabel><FormControl><Input {...field} className="h-8 rounded-sm text-xs" placeholder="SN00123456" disabled={createMutation.isPending || updateMutation.isPending} /></FormControl><FormMessage /></FormItem>
                   )} />
                 </div>
-
-                {/* ── Info: Documentos Regulatórios ── */}
-                <div className="flex gap-2.5 rounded-sm border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-900 px-3 py-2.5 text-xs text-blue-700 dark:text-blue-300">
-                  <Info className="size-3.5 mt-0.5 shrink-0" />
-                  <p>
-                    <span className="font-semibold">RENAGRO, seguro, licenciamento (CRLV) e inspeção</span>
-                    {" "}são gerenciados em <strong>Frota › Documentos</strong> com controle de vencimento e alertas automáticos.
-                  </p>
-                </div>
-
               </DialogBody>
  
-              <DialogFooter>
+              <DialogFooter className="shrink-0 px-4 sm:px-6">
                 <FormField
                   control={form.control}
                   name="ativo"
