@@ -73,6 +73,17 @@ registros globais requer a migration `20261119_rls_global_catalog_admin_write`
 (`REQUIRE_RESTRICTED_RUNTIME_ROLE=true`), configure `CATALOG_ADMIN_DATABASE_URL`
 com uma role administrativa autorizada (`df_catalog_admin`).
 
+Para a pecuária, a biblioteca opcional de modelos-base zoossanitários pode ser
+carregada com `python scripts/initial_load/seed_modelos_zoosanitarios.py`
+(também suporta `--dry-run` e `--replace-legacy-globals`, bloqueado em produção,
+para substituir globais legados sem `metadados.fonte_parametros`). Ela registra
+10 modelos globais de `"Estresse Térmico"` cobrindo todas as espécies canônicas de
+`PADROES_ESTRESSE_TERMICO` (`tenant_id = NULL`, `is_global = True`) com
+referências técnicas da Embrapa. O motor `InteligenciaPecuariaService` avalia
+exclusivamente modelos habilitados pelo tenant em Modelos Zoossanitários, e a
+carga global obedece às mesmas regras da migration
+`20261119_rls_global_catalog_admin_write` e `CATALOG_ADMIN_DATABASE_URL`.
+
 ## Execução
 
 Por padrão, o comando apenas mostra o plano. Para gravar as cargas:

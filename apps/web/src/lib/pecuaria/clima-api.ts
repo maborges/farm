@@ -1,10 +1,19 @@
 import { apiFetch } from "@/lib/api";
-import type { JsonValue } from "@/lib/agricola/clima-api";
+import type {
+  JsonValue,
+  MetadadosModeloFitossanitario,
+} from "@/lib/agricola/clima-api";
 
-export interface RegrasZoosanitarias extends Record<string, JsonValue> {
+export interface RegrasZoosanitarias {
   nivel_critico?: number;
   nivel_alto?: number;
   nivel_medio?: number;
+  indice?: string;
+  fonte_parametros?: string;
+  fonte_url?: string;
+  observacao?: string;
+  metadados?: MetadadosModeloFitossanitario;
+  [key: string]: JsonValue | MetadadosModeloFitossanitario | undefined;
 }
 
 export interface InteligenciaPecuariaResponse {

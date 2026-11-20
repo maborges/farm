@@ -1,10 +1,27 @@
 "use client";
 
 import { useState } from "react";
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { Target, Plus, Pencil, Trash2, Copy, AlertTriangle, Eye, Save, XCircle } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DataTable, ColumnDef } from "@/components/ui/data-table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogBody } from "@/components/ui/dialog";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { PageHeader } from "@/components/shared/page-header";
+import { ModeloMetadadosCard } from "@/components/clima/inteligencia/agricultura/modelo-metadados-card";
+
+import { useToast } from "@/hooks/use-toast";
 import {
   fetchModelosZoosanitarios,
   createModeloZoosanitario,
@@ -13,40 +30,46 @@ import {
   copiarModeloZoosanitario,
   ModeloZoosanitario,
 } from "@/lib/pecuaria/clima-api";
-import { useToast } from "@/hooks/use-toast";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogBody } from "@/components/ui/dialog";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Check, Target, Plus, Pencil, Trash2, Copy, AlertTriangle, Eye } from "lucide-react";
-import { DataTable, ColumnDef } from "@/components/ui/data-table";
-import { PageHeader } from "@/components/shared/page-header";
-import {
-  Form, FormField, FormItem, FormLabel, FormControl, FormMessage,
-} from "@/components/ui/form";
-import { Card, CardContent } from "@/components/ui/card";
 
 const schema = z.object({
   especie: z.string().min(2, "Espécie obrigatória"),
   tipo_risco: z.string().min(2, "Tipo de risco obrigatório"),
-  nivel_critico: z.coerce.number().min(0).max(100),
-  nivel_alto: z.coerce.number().min(0).max(100),
-  nivel_medio: z.coerce.number().min(0).max(100),
-});
+  nivel_critico: z.coerce.number().min(1, "Mínimo 1").max(100, "Máximo 100"),
+  nivel_alto: z.coerce.number().min(1, "Mínimo 1").max(100, "Máximo 100"),
+  nivel_medio: z.coerce.number().min(1, "Mínimo 1").max(100, "Máximo 100"),
+}).refine(
+  (d) => d.nivel_medio < d.nivel_alto && d.nivel_alto < d.nivel_critico,
+  {
+    message: "Limiares devem obedecer Médio < Alto < Crítico",
+    path: ["nivel_critico"],
+  }
+);
 
 const PADROES_ESPECIE: Record<string, { nivel_critico: number; nivel_alto: number; nivel_medio: number }> = {
   "Bovino de Leite": { nivel_critico: 82, nivel_alto: 78, nivel_medio: 72 },
-  "Bovino de Corte": { nivel_critico: 84, nivel_alto: 79, nivel_medio: 75 },
-  "Ovino": { nivel_critico: 85, nivel_alto: 81, nivel_medio: 78 },
-  "Caprino": { nivel_critico: 85, nivel_alto: 81, nivel_medio: 78 },
+  "Bovino de Corte": { nivel_critico: 85, nivel_alto: 80, nivel_medio: 75 },
+  "Ovino": { nivel_critico: 84, nivel_alto: 79, nivel_medio: 74 },
+  "Caprino": { nivel_critico: 85, nivel_alto: 80, nivel_medio: 75 },
+  "Equino": { nivel_critico: 83, nivel_alto: 78, nivel_medio: 72 },
   "Suíno": { nivel_critico: 78, nivel_alto: 74, nivel_medio: 68 },
   "Aves de Corte": { nivel_critico: 83, nivel_alto: 80, nivel_medio: 76 },
   "Aves de Postura": { nivel_critico: 83, nivel_alto: 80, nivel_medio: 76 },
   "Bubalino": { nivel_critico: 85, nivel_alto: 80, nivel_medio: 75 },
   "Asinino": { nivel_critico: 83, nivel_alto: 78, nivel_medio: 72 },
+};
+
+const extrairMetadadosVisualizacao = (modelo: ModeloZoosanitario | null) => {
+  if (!modelo) return undefined;
+  const regras = modelo.regras_risco;
+  if (regras.metadados) return regras.metadados;
+  if (regras.fonte_parametros || regras.fonte_url || regras.observacao) {
+    return {
+      fonte_parametros: regras.fonte_parametros,
+      fonte_url: regras.fonte_url,
+      observacao: regras.observacao,
+    };
+  }
+  return undefined;
 };
 
 type FormData = z.infer<typeof schema>;
@@ -76,16 +99,20 @@ export default function ModelosZoosanitariosClient() {
     queryFn: fetchModelosZoosanitarios,
   });
 
+  const metadadosVisualizacao = extrairMetadadosVisualizacao(editingModelo);
+
   const saveMutation = useMutation({
     mutationFn: async (data: FormData) => {
+      const regrasBase = editingModelo?.regras_risco ?? { indice: "ITH_CLÁSSICO" };
       const payload = {
         especie: data.especie,
         tipo_risco: data.tipo_risco,
         regras_risco: {
+          ...regrasBase,
           nivel_critico: data.nivel_critico,
           nivel_alto: data.nivel_alto,
           nivel_medio: data.nivel_medio,
-        }
+        },
       };
 
       if (editingModelo) {
@@ -98,8 +125,9 @@ export default function ModelosZoosanitariosClient() {
       setIsModalOpen(false);
       toast({ title: "Sucesso", description: "Modelo salvo com sucesso" });
     },
-    onError: () => {
-      toast({ title: "Erro", description: "Não foi possível salvar o modelo", variant: "destructive" });
+    onError: (error: unknown) => {
+      const msg = error instanceof Error ? error.message : "Não foi possível salvar o modelo";
+      toast({ title: "Erro", description: msg, variant: "destructive" });
     }
   });
 
@@ -316,17 +344,17 @@ export default function ModelosZoosanitariosClient() {
                       <FormItem>
                         <FormLabel>Espécie</FormLabel>
                         <Select
+                          value={field.value}
                           onValueChange={(value) => {
                             field.onChange(value);
                             if (!editingModelo && PADROES_ESPECIE[value]) {
                               form.reset({ especie: value, tipo_risco: "Estresse Térmico", ...PADROES_ESPECIE[value] });
                             }
                           }}
-                          defaultValue={field.value}
-                          disabled={isViewing}
+                          disabled={isViewing || Boolean(editingModelo)}
                         >
                           <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger className="h-8 rounded-sm text-sm">
                               <SelectValue placeholder="Selecione..." />
                             </SelectTrigger>
                           </FormControl>
@@ -335,6 +363,7 @@ export default function ModelosZoosanitariosClient() {
                             <SelectItem value="Bovino de Corte">Bovino de Corte</SelectItem>
                             <SelectItem value="Ovino">Ovinos</SelectItem>
                             <SelectItem value="Caprino">Caprinos</SelectItem>
+                            <SelectItem value="Equino">Equinos</SelectItem>
                             <SelectItem value="Suíno">Suínos</SelectItem>
                             <SelectItem value="Aves de Corte">Aves de Corte</SelectItem>
                             <SelectItem value="Aves de Postura">Aves de Postura</SelectItem>
@@ -354,7 +383,12 @@ export default function ModelosZoosanitariosClient() {
                       <FormItem>
                         <FormLabel>Tipo de Risco</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="Ex: Estresse Térmico" disabled={isViewing} />
+                          <Input
+                            {...field}
+                            placeholder="Ex: Estresse Térmico"
+                            disabled={isViewing || Boolean(editingModelo)}
+                            className="h-8 rounded-sm text-sm"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -362,7 +396,9 @@ export default function ModelosZoosanitariosClient() {
                   />
                 </div>
 
-                <div className="border rounded-md p-4 space-y-4">
+                <ModeloMetadadosCard metadados={metadadosVisualizacao} />
+
+                <div className="border rounded-sm p-4 space-y-4">
                   <h4 className="font-medium text-sm">Gatilhos do Índice (ITH)</h4>
 
                   <div className="grid grid-cols-3 gap-4">
@@ -373,7 +409,7 @@ export default function ModelosZoosanitariosClient() {
                         <FormItem>
                           <FormLabel className="text-destructive">Risco Crítico (&gt;=)</FormLabel>
                           <FormControl>
-                            <Input type="number" {...field} disabled={isViewing} />
+                            <Input type="number" {...field} disabled={isViewing} className="h-8 rounded-sm text-sm" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -387,7 +423,7 @@ export default function ModelosZoosanitariosClient() {
                         <FormItem>
                           <FormLabel className="text-orange-500">Risco Alto (&gt;=)</FormLabel>
                           <FormControl>
-                            <Input type="number" {...field} disabled={isViewing} />
+                            <Input type="number" {...field} disabled={isViewing} className="h-8 rounded-sm text-sm" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -401,7 +437,7 @@ export default function ModelosZoosanitariosClient() {
                         <FormItem>
                           <FormLabel className="text-yellow-500">Risco Médio (&gt;=)</FormLabel>
                           <FormControl>
-                            <Input type="number" {...field} disabled={isViewing} />
+                            <Input type="number" {...field} disabled={isViewing} className="h-8 rounded-sm text-sm" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -411,13 +447,26 @@ export default function ModelosZoosanitariosClient() {
                 </div>
 
                 <DialogFooter className="mt-8">
-                  <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-sm"
+                    onClick={() => setIsModalOpen(false)}
+                  >
+                    <XCircle className="size-4 mr-1.5" />
                     {isViewing ? "Fechar" : "Cancelar"}
                   </Button>
                   {!isViewing && (
-                    <Button type="submit" disabled={saveMutation.isPending} size="sm">
-                      {saveMutation.isPending && <span className="animate-spin mr-2">⟳</span>}
-                      Salvar
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-sm"
+                      disabled={saveMutation.isPending}
+                    >
+                      <Save className="size-4 mr-1.5" />
+                      {saveMutation.isPending ? "Salvando..." : "Salvar"}
                     </Button>
                   )}
                 </DialogFooter>
@@ -431,7 +480,7 @@ export default function ModelosZoosanitariosClient() {
         open={!!deleteId}
         onCancel={() => setDeleteId(null)}
         title="Excluir Modelo"
-        description="Tem certeza que deseja excluir esta personalização? O sistema voltará a utilizar o modelo padrão global."
+        description="Tem certeza que deseja excluir este modelo personalizado? A inteligência pecuária deixará de avaliar esta espécie até que outro modelo seja criado ou copiado do catálogo padrão."
         onConfirm={() => {
           if (deleteId) deleteMutation.mutate(deleteId);
         }}

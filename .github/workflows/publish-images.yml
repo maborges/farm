@@ -51,6 +51,8 @@ jobs:
         run: |
           set -euo pipefail
           base="$BASE_SHA_INPUT"
+          base="${base#"${base%%[![:space:]]*}"}"
+          base="${base%"${base##*[![:space:]]}"}"
           all_args=()
           if [[ -z "$base" ]]; then
             echo "base_sha is required" >&2

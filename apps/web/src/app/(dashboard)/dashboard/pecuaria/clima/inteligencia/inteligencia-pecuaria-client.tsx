@@ -144,9 +144,9 @@ export function InteligenciaPecuariaClient() {
                             <div className="absolute inset-0 bg-primary/5 rounded-full animate-ping opacity-75"></div>
                             <AlertCircle className="size-10 text-muted-foreground/40" />
                         </div>
-                        <h3 className="text-xl font-semibold text-foreground">Sem Dados Climáticos Recentes</h3>
+                        <h3 className="text-xl font-semibold text-foreground">Análise Zoossanitária Indisponível</h3>
                         <p className="max-w-md mt-3 text-sm leading-relaxed">
-                            Os painéis de inteligência zoossanitária e cálculo de risco térmico (ITH) baseiam-se na temperatura e umidade da fazenda nos últimos 2 dias. Registre novos dados para visualizar.
+                            Para visualizar o cálculo de risco térmico (ITH), habilite ou crie um modelo zoossanitário para a espécie selecionada e mantenha os registros climáticos recentes da fazenda atualizados.
                         </p>
                     </CardContent>
                 </Card>

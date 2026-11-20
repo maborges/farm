@@ -683,6 +683,15 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
   * **Problema corrigido:** sob `FORCE ROW LEVEL SECURITY`, todas as policies de escrita (`INSERT`, `UPDATE`, `DELETE`) de `modelos_fitossanitarios` e `modelos_zoosanitarios` exigiam `tenant_id = current_tenant_id`, bloqueando também a carga inicial de modelos globais (`tenant_id IS NULL`) e a gestão via Backoffice administrativo.
   * **Comportamento esperado:** a migration `20261119_rls_global_catalog_admin_write` cria policies permissivas nominativas restritas ao owner da tabela e roles dedicadas de catálogo (`df_catalog_admin`, `deepfarms_catalog_admin`) exigindo `tenant_id IS NULL` e ausência de `app.current_tenant_id`, enquanto rotas de Backoffice utilizam `get_catalog_admin_session` (`CATALOG_ADMIN_DATABASE_URL`, fail-closed com HTTP 503 em modo restrito) e tenants comuns permanecem impedidos de escrever registros globais.
 
+### Modelos Zoossanitários Base (Referência Embrapa) e Trava de Uso Personalizado
+- **Descrição curta:** Biblioteca opcional de 10 modelos-base globais de estresse térmico (ITH clássico) cobrindo todas as espécies pecuárias canônicas (`Bovino de Leite`, `Bovino de Corte`, `Ovino`, `Caprino`, `Equino`, `Suíno`, `Aves de Corte`, `Aves de Postura`, `Bubalino` e `Asinino`) referenciados em publicações técnicas da Embrapa (`scripts/initial_load/seed_modelos_zoosanitarios.py`), acompanhada de trava no motor climático pecuário para que modelos globais atuem exclusivamente como referência para cópia.
+- **Fluxo de funcionamento:**
+  1. Os modelos globais (`tenant_id IS NULL`) armazenam limiares validados (`0 < nivel_medio < nivel_alto < nivel_critico <= 100`), fonte institucional, URL `https://` validada e observação de triagem dentro de `regras_risco` e `regras_risco.metadados`, exibidos nos modais de `/dashboard/pecuaria/clima/inteligencia/modelos` e preservados durante edições do produtor.
+  2. O produtor visualiza os modelos padrão do sistema ao habilitar *"Listar itens do sistema"*, copia explicitamente o modelo desejado para o seu tenant e ajusta os limiares com o responsável técnico antes de utilizá-lo na Inteligência Pecuária.
+- **Bugfix Focado:**
+  * **Problema corrigido:** `InteligenciaPecuariaService.analisar_estresse_termico()` chamava `get_or_copy_model()`, copiando e avaliando modelos globais automaticamente sem autorização do tenant; `ModeloZoosanitarioService.copy_global_to_tenant()` executava `commit=False` descartando a cópia persistida ao final da requisição; e `get_all_models()` não deduplicava espécies já personalizadas sobre os modelos globais.
+  * **Comportamento esperado:** `analisar_estresse_termico()` consulta exclusivamente `get_tenant_model()` e retorna `None` quando o tenant ainda não habilitou modelo para a espécie; `copy_global_to_tenant()` valida regras, faz upsert com `deepcopy`, comita e atualiza o registro retornado; e `get_all_models()` deduplica por `(especie, tipo_risco)` priorizando personalizações do tenant.
+
 ## Conceitos-Chave: Propriedade, Talhão e Unidade Produtiva
 
 

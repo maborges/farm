@@ -1,3 +1,4 @@
+import copy
 from datetime import date, datetime, timedelta
 from uuid import UUID
 
@@ -11,7 +12,22 @@ from pecuaria.climatico.schemas import (
     InteligenciaPecuariaResponse,
     ModeloZoosanitarioCreate,
     ModeloZoosanitarioUpdate,
+    validar_regras_zoosanitarias,
 )
+
+
+def _deduplicar_modelos_por_chave(
+    modelos: list[ModeloZoosanitario],
+) -> list[ModeloZoosanitario]:
+    """Prioriza modelos do tenant sobre modelos globais para cada (especie, tipo_risco)."""
+    resolvidos: dict[tuple[str, str], ModeloZoosanitario] = {}
+    for modelo in modelos:
+        chave = (modelo.especie, modelo.tipo_risco)
+        if chave not in resolvidos or modelo.tenant_id is not None:
+            resolvidos[chave] = modelo
+    for modelo in resolvidos.values():
+        modelo.is_global = modelo.tenant_id is None
+    return list(resolvidos.values())
 
 
 class ModeloZoosanitarioService:
@@ -26,84 +42,93 @@ class ModeloZoosanitarioService:
             {"tenant_id": value},
         )
 
-    async def _copy_global_model_if_not_exists(self, tenant_id: UUID, especie: str, tipo_risco: str) -> ModeloZoosanitario | None:
-        """Busca o modelo global correspondente e copia para o tenant se ainda não existir."""
-        stmt_global = select(ModeloZoosanitario).where(
-            ModeloZoosanitario.tenant_id.is_(None),
-            ModeloZoosanitario.is_global.is_(True),
-            ModeloZoosanitario.especie == especie,
-            ModeloZoosanitario.tipo_risco == tipo_risco
-        )
-        global_result = await self.session.execute(stmt_global)
-        modelo_global = global_result.scalars().first()
+    @staticmethod
+    def _filtro_tenant(tenant_id: UUID | None):
+        """Constrói predicado SQLAlchemy seguro para tenant_id opcional."""
+        if tenant_id is None:
+            return ModeloZoosanitario.tenant_id.is_(None)
+        return ModeloZoosanitario.tenant_id == tenant_id
 
-        if not modelo_global:
-            return None
+    async def get_tenant_model(
+        self, tenant_id: UUID, especie: str, tipo_risco: str
+    ) -> ModeloZoosanitario | None:
+        """Busca exclusivamente o modelo ativo do tenant, sem copiar globais.
 
-        novo_modelo = ModeloZoosanitario(
-            tenant_id=tenant_id,
-            especie=especie,
-            tipo_risco=tipo_risco,
-            regras_risco=modelo_global.regras_risco,
-            is_global=False
-        )
-        self.session.add(novo_modelo)
-        await self.session.flush()
-        # Não fazer commit aqui para não quebrar a transação e o RLS (SET LOCAL)!
-        return novo_modelo
+        Args:
+            tenant_id: Identificador do tenant autenticado.
+            especie: Espécie animal configurada.
+            tipo_risco: Tipo de risco zoossanitário (ex: Estresse Térmico).
 
-    async def get_or_copy_model(self, tenant_id: UUID, especie: str, tipo_risco: str) -> ModeloZoosanitario | None:
+        Returns:
+            Instância de ModeloZoosanitario do tenant ou None se não habilitado.
+        """
         await self._set_tenant_context(tenant_id)
         stmt = select(ModeloZoosanitario).where(
             ModeloZoosanitario.tenant_id == tenant_id,
             ModeloZoosanitario.especie == especie,
-            ModeloZoosanitario.tipo_risco == tipo_risco
+            ModeloZoosanitario.tipo_risco == tipo_risco,
         )
         result = await self.session.execute(stmt)
-        modelo = result.scalars().first()
-
-        if modelo:
-            return modelo
-
-        # Se não existe, tenta copiar do global
-        return await self._copy_global_model_if_not_exists(tenant_id, especie, tipo_risco)
+        return result.scalars().first()
 
     async def get_all_models(self, tenant_id: UUID | None) -> list[ModeloZoosanitario]:
-        """
-        Retorna os modelos do tenant, ou todos os globais se tenant_id for None.
-        Para tenants, inclui os globais também (apenas para listagem visual ou cópia).
+        """Lista modelos do tenant deduplicados contra o catálogo global de referência.
+
+        Args:
+            tenant_id: Identificador do tenant ou None para catálogo global do backoffice.
+
+        Returns:
+            Lista de modelos com flag is_global coerente e prioridade para personalizações do tenant.
         """
         await self._set_tenant_context(tenant_id)
         if tenant_id:
             stmt = select(ModeloZoosanitario).where(
                 or_(
                     ModeloZoosanitario.tenant_id == tenant_id,
-                    ModeloZoosanitario.is_global.is_(True)
+                    ModeloZoosanitario.tenant_id.is_(None),
                 )
-            ).order_by(ModeloZoosanitario.especie)
-        else:
-            stmt = select(ModeloZoosanitario).where(ModeloZoosanitario.tenant_id.is_(None)).order_by(ModeloZoosanitario.especie)
-            
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+            ).order_by(
+                ModeloZoosanitario.especie,
+                ModeloZoosanitario.tipo_risco,
+                ModeloZoosanitario.tenant_id.nulls_last(),
+            )
+            modelos = list((await self.session.execute(stmt)).scalars().all())
+            return _deduplicar_modelos_por_chave(modelos)
 
-    async def create_model(self, tenant_id: UUID | None, payload: ModeloZoosanitarioCreate, is_global: bool = False, commit: bool = True) -> ModeloZoosanitario:
-        await self._set_tenant_context(tenant_id)
-        # Verifica duplicidade
         stmt = select(ModeloZoosanitario).where(
-            ModeloZoosanitario.tenant_id == tenant_id,
+            ModeloZoosanitario.tenant_id.is_(None)
+        ).order_by(ModeloZoosanitario.especie, ModeloZoosanitario.tipo_risco)
+        modelos = list((await self.session.execute(stmt)).scalars().all())
+        for modelo in modelos:
+            modelo.is_global = True
+        return modelos
+
+    async def create_model(
+        self,
+        tenant_id: UUID | None,
+        payload: ModeloZoosanitarioCreate,
+        is_global: bool = False,
+        commit: bool = True,
+    ) -> ModeloZoosanitario:
+        """Cria um novo modelo zoossanitário para tenant ou catálogo global."""
+        await self._set_tenant_context(tenant_id)
+        stmt = select(ModeloZoosanitario).where(
+            self._filtro_tenant(tenant_id),
             ModeloZoosanitario.especie == payload.especie,
-            ModeloZoosanitario.tipo_risco == payload.tipo_risco
+            ModeloZoosanitario.tipo_risco == payload.tipo_risco,
         )
         if (await self.session.execute(stmt)).scalars().first():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Modelo já existe para esta espécie e risco")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Modelo já existe para esta espécie e risco",
+            )
 
         modelo = ModeloZoosanitario(
             tenant_id=tenant_id,
             especie=payload.especie,
             tipo_risco=payload.tipo_risco,
-            regras_risco=payload.regras_risco,
-            is_global=is_global
+            regras_risco=copy.deepcopy(payload.regras_risco),
+            is_global=is_global if tenant_id is None else False,
         )
         self.session.add(modelo)
         if commit:
@@ -113,26 +138,30 @@ class ModeloZoosanitarioService:
             await self.session.flush()
         return modelo
 
-    async def update_model(self, tenant_id: UUID | None, model_id: UUID, payload: ModeloZoosanitarioUpdate) -> ModeloZoosanitario:
+    async def update_model(
+        self, tenant_id: UUID | None, model_id: UUID, payload: ModeloZoosanitarioUpdate
+    ) -> ModeloZoosanitario:
+        """Atualiza as regras de risco de um modelo existente no contexto informado."""
         await self._set_tenant_context(tenant_id)
         stmt = select(ModeloZoosanitario).where(
             ModeloZoosanitario.id == model_id,
-            ModeloZoosanitario.tenant_id == tenant_id
+            self._filtro_tenant(tenant_id),
         )
         modelo = (await self.session.execute(stmt)).scalars().first()
         if not modelo:
             raise HTTPException(status_code=404, detail="Modelo não encontrado")
 
-        modelo.regras_risco = payload.regras_risco
+        modelo.regras_risco = copy.deepcopy(payload.regras_risco)
         await self.session.commit()
         await self.session.refresh(modelo)
         return modelo
 
     async def delete_model(self, tenant_id: UUID | None, model_id: UUID) -> None:
+        """Remove um modelo zoossanitário pertencente ao contexto informado."""
         await self._set_tenant_context(tenant_id)
         stmt = select(ModeloZoosanitario).where(
             ModeloZoosanitario.id == model_id,
-            ModeloZoosanitario.tenant_id == tenant_id
+            self._filtro_tenant(tenant_id),
         )
         modelo = (await self.session.execute(stmt)).scalars().first()
         if not modelo:
@@ -141,23 +170,71 @@ class ModeloZoosanitarioService:
         await self.session.delete(modelo)
         await self.session.commit()
 
-    async def copy_global_to_tenant(self, tenant_id: UUID, global_id: UUID) -> ModeloZoosanitario:
-        await self._set_tenant_context(tenant_id)
-        stmt_global = select(ModeloZoosanitario).where(ModeloZoosanitario.id == global_id, ModeloZoosanitario.is_global.is_(True))
-        modelo_global = (await self.session.execute(stmt_global)).scalars().first()
+    async def _buscar_modelo_global(self, global_id: UUID) -> ModeloZoosanitario:
+        """Busca modelo global válido para cópia, levantando 404 se ausente."""
+        stmt = select(ModeloZoosanitario).where(
+            ModeloZoosanitario.id == global_id,
+            ModeloZoosanitario.tenant_id.is_(None),
+        )
+        modelo_global = (await self.session.execute(stmt)).scalars().first()
         if not modelo_global:
             raise HTTPException(status_code=404, detail="Modelo global não encontrado")
-            
-        return await self.create_model(
-            tenant_id=tenant_id,
-            payload=ModeloZoosanitarioCreate(
-                especie=modelo_global.especie,
-                tipo_risco=modelo_global.tipo_risco,
-                regras_risco=modelo_global.regras_risco
-            ),
-            is_global=False,
-            commit=False
+        return modelo_global
+
+    async def _upsert_copia_tenant(
+        self, tenant_id: UUID, modelo_global: ModeloZoosanitario
+    ) -> ModeloZoosanitario:
+        """Cria ou atualiza o modelo do tenant a partir do modelo global validado."""
+        regras_copia = copy.deepcopy(modelo_global.regras_risco)
+        stmt = select(ModeloZoosanitario).where(
+            ModeloZoosanitario.tenant_id == tenant_id,
+            ModeloZoosanitario.especie == modelo_global.especie,
+            ModeloZoosanitario.tipo_risco == modelo_global.tipo_risco,
         )
+        existente = (await self.session.execute(stmt)).scalars().first()
+        if existente:
+            existente.regras_risco = regras_copia
+            existente.is_global = False
+            return existente
+
+        modelo = ModeloZoosanitario(
+            tenant_id=tenant_id,
+            especie=modelo_global.especie,
+            tipo_risco=modelo_global.tipo_risco,
+            regras_risco=regras_copia,
+            is_global=False,
+        )
+        self.session.add(modelo)
+        return modelo
+
+    async def copy_global_to_tenant(self, tenant_id: UUID, global_id: UUID) -> ModeloZoosanitario:
+        """Valida e persiste uma cópia do modelo global para uso explícito pelo tenant.
+
+        Args:
+            tenant_id: Identificador do tenant que adota o modelo.
+            global_id: Identificador do modelo global de referência.
+
+        Returns:
+            ModeloZoosanitario persistido com tenant_id do solicitante e is_global=False.
+
+        Raises:
+            HTTPException: 404 se o modelo global não existir ou 422 se suas regras forem inválidas.
+        """
+        await self._set_tenant_context(tenant_id)
+        modelo_global = await self._buscar_modelo_global(global_id)
+        try:
+            validar_regras_zoosanitarias(modelo_global.regras_risco)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="O modelo global possui regras inválidas e não pode ser copiado.",
+            ) from exc
+
+        modelo = await self._upsert_copia_tenant(tenant_id, modelo_global)
+        await self.session.commit()
+        await self.session.refresh(modelo)
+        modelo.is_global = False
+        return modelo
 
 
 class InteligenciaPecuariaService:
@@ -174,8 +251,8 @@ class InteligenciaPecuariaService:
 
     async def analisar_estresse_termico(self, tenant_id: UUID, unidade_produtiva_id: UUID, especie: str) -> InteligenciaPecuariaResponse | None:
         """Calcula o risco de estresse térmico baseado nos registros de clima recentes."""
-        # 1. Buscar o modelo zoossanitário para estresse térmico e espécie
-        modelo = await self.model_svc.get_or_copy_model(tenant_id, especie, "Estresse Térmico")
+        # 1. Buscar exclusivamente o modelo zoossanitário habilitado pelo tenant
+        modelo = await self.model_svc.get_tenant_model(tenant_id, especie, "Estresse Térmico")
         if not modelo:
             return None  # Não há regra cadastrada
 
