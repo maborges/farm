@@ -1,18 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
-import { toast } from "sonner";
-import { 
-    RefreshCcw, AlertCircle, CheckCircle2, 
-    Clock, Smartphone, CalendarDays 
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import {
+  AlertCircle,
+  CalendarDays,
+  CheckCircle2,
+  Clock,
+  RefreshCcw,
+  Smartphone,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { DataTable, type ColumnDef } from "@/components/ui/data-table";
-import { format } from "date-fns";
 import {
   Select,
   SelectContent,
@@ -20,14 +32,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  CardAction,
-} from "@/components/ui/card";
+
+import { apiFetch } from "@/lib/api";
 
 interface SyncStatusResponse {
     tarefa_campo_id: string;
@@ -102,12 +108,12 @@ export default function SyncCampoPage() {
             header: "Atividade",
             cell: (_value, row) => (
                 <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-sm bg-neutral-100 dark:bg-white/5 flex items-center justify-center">
-                        <Smartphone size={16} className="text-neutral-500" />
+                    <div className="h-8 w-8 rounded-sm bg-muted dark:bg-white/5 flex items-center justify-center">
+                        <Smartphone size={16} className="text-muted-foreground" />
                     </div>
                     <div>
-                        <div className="font-bold">{row.type}</div>
-                        <div className="text-xs text-foreground/50 truncate w-32" title={row.tarefa_campo_id}>
+                        <div className="font-semibold">{row.type}</div>
+                        <div className="text-xs text-muted-foreground truncate w-32" title={row.tarefa_campo_id}>
                             {row.tarefa_campo_id.split("-")[0]}...
                         </div>
                     </div>
@@ -119,9 +125,9 @@ export default function SyncCampoPage() {
             accessorKey: "status_processamento",
             header: "Status Sincronização",
             cell: (status) => {
-                if (status === "SUCCESS") return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200"><CheckCircle2 size={12} className="mr-1"/> Sincronizado</Badge>;
-                if (status === "ERROR") return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200"><AlertCircle size={12} className="mr-1"/> Erro</Badge>;
-                return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200"><Clock size={12} className="mr-1"/> Pendente</Badge>;
+                if (status === "SUCCESS") return <Badge variant="outline" className="rounded-sm bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"><CheckCircle2 size={12} className="mr-1" /> Sincronizado</Badge>;
+                if (status === "ERROR") return <Badge variant="outline" className="rounded-sm bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"><AlertCircle size={12} className="mr-1" /> Erro</Badge>;
+                return <Badge variant="outline" className="rounded-sm bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800"><Clock size={12} className="mr-1" /> Pendente</Badge>;
             }
         },
         {
@@ -155,6 +161,7 @@ export default function SyncCampoPage() {
         {
             id: "acoes",
             header: "",
+            isActionColumn: true,
             exportable: false,
             sortable: false,
             filterable: false,
@@ -218,7 +225,7 @@ export default function SyncCampoPage() {
                 }
             />
 
-            <Card className="shadow-sm">
+            <Card className="shadow-sm rounded-sm">
                 <CardHeader className="border-b">
                     <CardTitle>Lista de Tarefas</CardTitle>
                     <CardDescription>

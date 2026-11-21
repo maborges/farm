@@ -6,17 +6,25 @@ export const PECUARIA_TASK_KIND = {
   REPRODUCAO: "REPRODUCAO",
 } as const;
 
-const PECUARIA_TASK_ALIASES = new Set([
-  "PESAGEM",
-  "PESAGEM_ANIMAL",
-  "VACINACAO",
-  "VACINACAO_LOTE",
+const REPRODUCAO_TASK_TYPES = new Set([
   "COBERTURA",
   "INSEMINACAO",
   "DIAGNOSTICO_PRENHEZ",
   "PARTO",
   "PARTO_REGISTRO",
   "DESMAME",
+]);
+
+const PECUARIA_TASK_ALIASES = new Set([
+  "PESAGEM",
+  "PESAGEM_ANIMAL",
+  "VACINACAO",
+  "VACINACAO_LOTE",
+  "MORTE_REGISTRO",
+  "NASCIMENTO_LOTE",
+  "MOVIMENTACAO_LOTE",
+  "MEDICACAO_ANIMAL",
+  ...REPRODUCAO_TASK_TYPES,
 ]);
 
 export type PecuariaTaskKind = (typeof PECUARIA_TASK_KIND)[keyof typeof PECUARIA_TASK_KIND];
@@ -39,7 +47,7 @@ export function resolvePecuariaTaskKind(type: string): PecuariaTaskKind | null {
   if (type === PECUARIA_TASK_KIND.VACINACAO || type === "VACINACAO_LOTE") {
     return PECUARIA_TASK_KIND.VACINACAO;
   }
-  if (PECUARIA_TASK_ALIASES.has(type) && type !== "PESAGEM" && type !== "PESAGEM_ANIMAL" && type !== "VACINACAO" && type !== "VACINACAO_LOTE") {
+  if (REPRODUCAO_TASK_TYPES.has(type)) {
     return PECUARIA_TASK_KIND.REPRODUCAO;
   }
   return null;
@@ -49,6 +57,10 @@ export function formatPecuariaTaskType(type: string): string {
   const kind = resolvePecuariaTaskKind(type);
   if (kind === PECUARIA_TASK_KIND.PESAGEM) return "Pesagem";
   if (kind === PECUARIA_TASK_KIND.VACINACAO) return "Vacinação";
+  if (type === "MORTE_REGISTRO") return "Registro de Morte";
+  if (type === "NASCIMENTO_LOTE") return "Nascimento Coletivo";
+  if (type === "MOVIMENTACAO_LOTE") return "Movimentação / Troca de Pasto";
+  if (type === "MEDICACAO_ANIMAL") return "Medicação / Tratamento";
   if (kind === PECUARIA_TASK_KIND.REPRODUCAO) {
     if (type === "COBERTURA") return "Cobertura";
     if (type === "INSEMINACAO") return "Inseminação";

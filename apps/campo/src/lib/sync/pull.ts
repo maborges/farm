@@ -34,6 +34,9 @@ interface SyncPullPayload {
     especie: string;
     quantidade_cabecas: number;
     unidade_produtiva_id: string;
+    modo_gestao?: string;
+    peso_medio_kg?: number;
+    area_id?: string | null;
   }>;
   animais?: Array<{
     id: string;

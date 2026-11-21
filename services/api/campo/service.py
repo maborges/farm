@@ -154,6 +154,10 @@ _TIPOS_TAREFA_PECUARIA_MATERIALIZAVEIS = {
     "DIAGNOSTICO_PRENHEZ",
     "PARTO",
     "DESMAME",
+    "MORTE_REGISTRO",
+    "NASCIMENTO_LOTE",
+    "MOVIMENTACAO_LOTE",
+    "MEDICACAO_ANIMAL",
 }
 
 
@@ -999,6 +1003,9 @@ class SyncService:
                     "especie": l.especie,
                     "quantidade_cabecas": l.quantidade_cabecas,
                     "unidade_produtiva_id": l.unidade_produtiva_id,
+                    "modo_gestao": l.modo_gestao,
+                    "peso_medio_kg": float(l.peso_medio_kg or 0.0),
+                    "area_id": l.area_id,
                 }
                 for l in lotes_rows
             ],

@@ -706,6 +706,20 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
   * **Problema corrigido:** o cálculo de custo por arroba nos serviços de lote e dashboard multiplicava por 15 sobre o peso vivo (subestimando pela metade em carcaça 50%), o dashboard executivo considerava apenas custos sanitários e o painel web exibia totais de cabeças/UA divergentes entre `LoteAnimal` e `pec_animais`.
   * **Comportamento esperado:** ambos os serviços utilizam `arroba_utils` (`peso_vivo * rendimento_carcaca_pct / 100 / 15`), somam sanidade, nutrição e outros custos sobre rebanho híbrido e alimentam integralmente os cartões do `/dashboard/pecuaria`.
 
+### Pecuária — Importação de Planilhas (.xlsx / .csv / .xls) de Lotes, Animais e Pesagens
+- **Descrição curta:** Fluxo em wizard para carga em lote de lotes pecuários, animais individuais e pesagens (individuais ou coletivas) com pré-visualização dry-run, remapeamento de colunas, templates baixáveis (`.xlsx`/`.csv`) e blindagem contra ataques em arquivos de planilha.
+- **Fluxo de funcionamento:**
+  1. Em `/dashboard/pecuaria/importar` (com atalhos em Lotes, Meus Animais e Painel Pecuária), o produtor escolhe o tipo de carga (`LOTES`, `ANIMAIS` ou `PESAGENS`), baixa o modelo `.xlsx` ou `.csv` preenchido e envia sua planilha (até 5 MB e 5.000 linhas).
+  2. A etapa de pré-visualização (`/api/v1/pecuaria/importacoes/preview`) analisa os dados em memória sem gravar no banco, sugere mapeamento automático de sinônimos pt-BR, classifica cada linha (`CRIAR`, `ATUALIZAR`, `IGNORAR`, `ERRO`) e permite remapeamento manual ou exportação de erros em CSV sanitizado.
+  3. Na confirmação (`/api/v1/pecuaria/importacoes/executar`), os registros são persistidos em transação única por fazenda, criando lotes individuais automaticamente (quando habilitado), materializando contagem/peso médio de lotes e atualizando histórico de pesagens para GMD, com proteção contra XXE/DTD, Zip Slip, Zip Bomb e CSV Formula Injection.
+
+### Bloco 3: Manejo Coletivo Híbrido no App Campo (Offline-First)
+- **Descrição curta:** Execução offline no aplicativo de campo (`apps/campo`) de manejos coletivos e híbridos (`PESAGEM`, `VACINACAO`, `MORTE_REGISTRO`, `NASCIMENTO_LOTE`, `MOVIMENTACAO_LOTE` e `MEDICACAO_ANIMAL`) com sincronização em idempotência com o backend (`api`) e telas web padronizadas (`apps/web`).
+- **Fluxo de funcionamento:**
+  1. O sync pull (`GET /api/v1/campo/sync/pull`) entrega os lotes com `modo_gestao` (`POR_LOTE` ou `INDIVIDUAL`), `peso_medio_kg` e `area_id` para cache offline no IndexedDB/Dexie.
+  2. No PWA de campo (`/pecuaria`), Pesagem e Vacinação adaptam o fluxo para lotes coletivos (por quantidade de cabeças e peso médio/total) ou individuais, e os fluxos de Movimentação entre Pastos/Áreas, Medicação/Ocorrência Clínica, Nascimento em Lote e Morte/Baixa gravam tarefas locais para operação offline.
+  3. Ao sincronizar (`POST /api/v1/campo/sync`), o backend processa cada tarefa de forma idempotente (`ManejoCampoColetivoService`), atualiza saldo de estoque, lotação do lote e custo unitário para indicadores econômicos, com acompanhamento nas interfaces web de `/dashboard/pecuaria/manejo` e `/dashboard/pecuaria/sync-campo`.
+
 ## Conceitos-Chave: Propriedade, Talhão e Unidade Produtiva
 
 

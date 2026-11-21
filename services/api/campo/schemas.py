@@ -114,6 +114,9 @@ class LoteSync(BaseModel):
     especie: str
     quantidade_cabecas: int
     unidade_produtiva_id: uuid.UUID
+    modo_gestao: str = "POR_LOTE"
+    peso_medio_kg: float = 0.0
+    area_id: uuid.UUID | None = None
 
 
 class InsumoSync(BaseModel):

@@ -1,21 +1,41 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+    Beef,
+    CalendarDays,
+    Edit,
+    Loader2,
+    Plus,
+    Scale,
+    Tag,
+    Trash2,
+    Upload,
+    Weight,
+    X,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import { PageHeader } from "@/components/shared/page-header";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DataTable, type ColumnDef } from "@/components/ui/data-table";
+import { Input } from "@/components/ui/input";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+
 import { apiFetch } from "@/lib/api";
 import { useAppStore } from "@/lib/stores/app-store";
-import { toast } from "sonner";
-import {
-    Plus, X, Loader2,
-    Tag, Hash, Scale, CalendarDays, Edit, Trash2, Beef, Weight
-} from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/shared/page-header";
-import { DataTable, type ColumnDef } from "@/components/ui/data-table";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface LoteBovino {
     id: string;
@@ -170,7 +190,7 @@ function AnimalModal({
         </div>
     );
 
-    const selectClass = "flex h-8 w-full rounded-sm border border-primary/20 bg-background px-3 py-1 text-sm transition-all focus-visible:border-primary/60 focus-visible:ring-4 focus-visible:ring-primary/5 outline-none";
+    const NONE_OPTION_VALUE = "__none__";
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -215,25 +235,78 @@ function AnimalModal({
                         <h3 className="text-sm font-bold border-b pb-1">Classificação</h3>
                         <div className="grid grid-cols-4 gap-4">
                             {field("Espécie", "especie", (
-                                <select id="especie" required className={selectClass} value={form.especie} onChange={e => setForm(f => ({ ...f, especie: e.target.value }))}>
-                                    {ESPECIES.map(c => <option key={c} value={c}>{c.replace("_", " ")}</option>)}
-                                </select>
+                                <Select
+                                    value={form.especie}
+                                    onValueChange={(value) => setForm((f) => ({ ...f, especie: value }))}
+                                >
+                                    <SelectTrigger id="especie" className="h-8 rounded-sm">
+                                        <SelectValue placeholder="Selecione..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {ESPECIES.map((c) => (
+                                            <SelectItem key={c} value={c}>
+                                                {c.replace("_", " ")}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             ), true)}
                             {field("Categoria", "categoria", (
-                                <select id="categoria" required className={selectClass} value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}>
-                                    {CATEGORIAS.map(c => <option key={c} value={c}>{c.replace("_", " ")}</option>)}
-                                </select>
+                                <Select
+                                    value={form.categoria}
+                                    onValueChange={(value) => setForm((f) => ({ ...f, categoria: value }))}
+                                >
+                                    <SelectTrigger id="categoria" className="h-8 rounded-sm">
+                                        <SelectValue placeholder="Selecione..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {CATEGORIAS.map((c) => (
+                                            <SelectItem key={c} value={c}>
+                                                {c.replace("_", " ")}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             ), true)}
                             {field("Sexo", "sexo", (
-                                <select id="sexo" required className={selectClass} value={form.sexo} onChange={e => setForm(f => ({ ...f, sexo: e.target.value }))}>
-                                    {SEXOS.map(c => <option key={c} value={c}>{c.replace("_", " ")}</option>)}
-                                </select>
+                                <Select
+                                    value={form.sexo}
+                                    onValueChange={(value) => setForm((f) => ({ ...f, sexo: value }))}
+                                >
+                                    <SelectTrigger id="sexo" className="h-8 rounded-sm">
+                                        <SelectValue placeholder="Selecione..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {SEXOS.map((c) => (
+                                            <SelectItem key={c} value={c}>
+                                                {c.replace("_", " ")}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             ), true)}
                             {field("Raça", "raca", (
-                                <select id="raca" className={selectClass} value={form.raca} onChange={e => setForm(f => ({ ...f, raca: e.target.value }))}>
-                                    <option value="">Nenhuma</option>
-                                    {RACAS.map(r => <option key={r} value={r}>{r}</option>)}
-                                </select>
+                                <Select
+                                    value={form.raca || NONE_OPTION_VALUE}
+                                    onValueChange={(value) =>
+                                        setForm((f) => ({
+                                            ...f,
+                                            raca: value === NONE_OPTION_VALUE ? "" : value,
+                                        }))
+                                    }
+                                >
+                                    <SelectTrigger id="raca" className="h-8 rounded-sm">
+                                        <SelectValue placeholder="Nenhuma" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={NONE_OPTION_VALUE}>Nenhuma</SelectItem>
+                                        {RACAS.map((r) => (
+                                            <SelectItem key={r} value={r}>
+                                                {r}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             ))}
                         </div>
                     </div>
@@ -255,16 +328,45 @@ function AnimalModal({
                                 </div>
                             ))}
                             {field("Status", "status", (
-                                <select id="status" required className={selectClass} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                                    {STATUS.map(s => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-                                </select>
+                                <Select
+                                    value={form.status}
+                                    onValueChange={(value) => setForm((f) => ({ ...f, status: value }))}
+                                >
+                                    <SelectTrigger id="status" className="h-8 rounded-sm">
+                                        <SelectValue placeholder="Selecione..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {STATUS.map((s) => (
+                                            <SelectItem key={s} value={s}>
+                                                {s.replace("_", " ")}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             ), true)}
 
                             {field("Lote Atual", "lote", (
-                                <select id="lote" className={selectClass} value={form.lote_id} onChange={e => setForm(f => ({ ...f, lote_id: e.target.value }))}>
-                                    <option value="">Sem Lote</option>
-                                    {lotes.map(l => <option key={l.id} value={l.id}>{l.identificacao}</option>)}
-                                </select>
+                                <Select
+                                    value={form.lote_id || NONE_OPTION_VALUE}
+                                    onValueChange={(value) =>
+                                        setForm((f) => ({
+                                            ...f,
+                                            lote_id: value === NONE_OPTION_VALUE ? "" : value,
+                                        }))
+                                    }
+                                >
+                                    <SelectTrigger id="lote" className="h-8 rounded-sm">
+                                        <SelectValue placeholder="Sem Lote" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={NONE_OPTION_VALUE}>Sem Lote</SelectItem>
+                                        {lotes.map((l) => (
+                                            <SelectItem key={l.id} value={l.id}>
+                                                {l.identificacao}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             ))}
                             {field("Val. Aquisição (R$)", "valor", (
                                 <Input id="valor" type="number" min={0} step={0.01} className="h-8 text-sm" value={form.valor_aquisicao} onChange={e => setForm(f => ({ ...f, valor_aquisicao: Number(e.target.value) }))} />
@@ -291,9 +393,12 @@ function AnimalModal({
                     </div>
 
                     <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle sticky bottom-0 bg-surface">
-                        <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancelar</Button>
-                        <Button type="submit" size="sm" disabled={mutation.isPending}>
-                            {mutation.isPending ? <Loader2 size={14} className="animate-spin mr-2" /> : <Plus size={16} className="mr-2" />}
+                        <Button type="button" variant="outline" size="sm" className="rounded-sm" onClick={onClose}>
+                            <X size={14} />
+                            Cancelar
+                        </Button>
+                        <Button type="submit" variant="outline" size="sm" className="rounded-sm" disabled={mutation.isPending}>
+                            {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
                             {mutation.isPending ? "Salvando..." : isEditing ? "Atualizar" : "Salvar"}
                         </Button>
                     </div>
@@ -352,7 +457,7 @@ export default function AnimaisPage() {
             toast.success("Pesagem solicitada à balança!");
             queryClient.invalidateQueries({ queryKey: ["animais"] });
         },
-        onError: (e: any) => toast.error(e?.message || "Erro ao solicitar pesagem"),
+        onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Erro ao solicitar pesagem"),
     });
 
     const handleDelete = (animal: Animal) => {
@@ -458,14 +563,22 @@ export default function AnimaisPage() {
                     { label: "Animais" },
                 ]}
                 actions={
-                    <Button onClick={() => { setEditingAnimal(undefined); setShowModal(true); }} size="sm" variant="outline" className="rounded-sm">
-                        <Plus className="size-3.5 mr-1.5" />
-                        Novo Animal
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button asChild size="sm" variant="outline" className="rounded-sm">
+                            <Link href="/dashboard/pecuaria/importar?tipo=ANIMAIS">
+                                <Upload className="size-3.5 mr-1.5" />
+                                Importar Planilha
+                            </Link>
+                        </Button>
+                        <Button onClick={() => { setEditingAnimal(undefined); setShowModal(true); }} size="sm" variant="outline" className="rounded-sm">
+                            <Plus className="size-3.5 mr-1.5" />
+                            Novo Animal
+                        </Button>
+                    </div>
                 }
             />
 
-            <Card className="shadow-sm">
+            <Card className="shadow-sm rounded-sm">
                 <CardHeader className="border-b">
                     <CardTitle>Lista de Animais</CardTitle>
                     <CardDescription>

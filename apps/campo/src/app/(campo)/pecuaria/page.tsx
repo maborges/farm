@@ -4,13 +4,16 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
+  ArrowRightLeft,
   Baby,
   ChevronDown,
   ChevronUp,
   Dna,
   HeartPulse,
+  Pill,
   Scale,
   Scissors,
+  Skull,
   Syringe,
 } from "lucide-react";
 import { PwaModuleNav } from "@/components/campo/pwa-module-nav";
@@ -23,6 +26,10 @@ import { formatDate, formatInt } from "@/lib/format";
 const QUICK_ACTIONS_MANEJO = [
   { key: "pesagem", label: "Pesagem", icon: Scale, path: "/campo/pesagem" },
   { key: "vacinacao", label: "Vacinação", icon: Syringe, path: "/campo/vacinacao" },
+  { key: "medicacao", label: "Medicação", icon: Pill, path: "/campo/medicacao" },
+  { key: "morte", label: "Morte", icon: Skull, path: "/campo/morte" },
+  { key: "movimentacao", label: "Troca Pasto", icon: ArrowRightLeft, path: "/campo/movimentacao" },
+  { key: "nascimento", label: "Nascimento", icon: Baby, path: "/campo/nascimento" },
 ] as const;
 
 const QUICK_ACTIONS_REPRO = [
@@ -47,6 +54,7 @@ const PECUARIA_TIPOS = new Set([
   "DESMAME",
   "MEDICACAO_ANIMAL",
   "MOVIMENTACAO_LOTE",
+  "NASCIMENTO_LOTE",
   "PARTO",
   "PARTO_REGISTRO",
   "MORTE_REGISTRO",
@@ -106,9 +114,9 @@ export default function PecuariaPage() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <section>
           <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-            Manejo de Curral
+            Manejo de Curral e Pasto
           </p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {QUICK_ACTIONS_MANEJO.map((act) => (
               <PwaQuickAction
                 key={act.key}

@@ -51,6 +51,11 @@ export default function VacinacaoPage() {
     const status = (animal.status ?? "ATIVO").toUpperCase();
     return status === "ATIVO" || status === "";
   });
+  const isPorLote =
+    Boolean(loteAtual) && loteAtual?.modo_gestao !== "INDIVIDUAL" && animaisAtivos.length === 0;
+  const quantidadeAnimais = isPorLote
+    ? (loteAtual?.quantidade_cabecas ?? 0)
+    : animaisAtivos.length;
 
   const handleSalvar = async () => {
     setSaving(true);
@@ -61,14 +66,17 @@ export default function VacinacaoPage() {
         fazenda_id: fazendaId,
         lote_id: loteId || undefined,
         dados: {
+          lote_id: loteId || undefined,
+          area_id: loteAtual?.area_id ?? null,
+          modo_gestao: isPorLote ? "POR_LOTE" : "INDIVIDUAL",
           vacina_id: vacinaAtual?.id ?? null,
           produto_id: vacinaAtual?.id ?? null,
           produto_nome: vacinaAtual?.nome ?? null,
           dose_ml: parseFloat(quantidade) || 0,
           dose: parseFloat(quantidade) || 0,
           unidade_medida: vacinaAtual?.unidade_medida ?? "ML",
-          quantidade_animais: animaisAtivos.length,
-          animais_ids: animaisAtivos.map((animal) => animal.id),
+          quantidade_animais: quantidadeAnimais,
+          animais_ids: isPorLote ? [] : animaisAtivos.map((animal) => animal.id),
           observacoes: obs,
         },
         fotos: cam.fotos,
@@ -106,20 +114,29 @@ export default function VacinacaoPage() {
             options={(lotes ?? []).map((l) => ({
               id: l.id,
               label: l.identificacao,
-              sublabel: `${l.especie} · ${l.quantidade_cabecas} cabeças`,
+              sublabel: `${l.especie} · ${l.quantidade_cabecas} cabeças · ${l.modo_gestao === "INDIVIDUAL" ? "Individual" : "Por Lote"}`,
             }))}
             value={loteId}
             onChange={setLoteId}
             placeholder={fazendaId ? "Selecione o lote" : "Selecione a unidade produtiva na barra superior"}
           />
           <CampoSurface className="flex flex-col gap-2 p-3.5 text-sm">
-            <p className="font-semibold text-foreground">Animais ativos sincronizados</p>
-            <p className="text-2xl font-semibold text-foreground">{animaisAtivos.length}</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-semibold text-foreground">Cabeças consideradas no lote</p>
+              {loteAtual && (
+                <span className="rounded-sm border border-border bg-muted px-2 py-0.5 text-[11px] font-semibold">
+                  {isPorLote ? "POR LOTE" : "INDIVIDUAL"}
+                </span>
+              )}
+            </div>
+            <p className="text-2xl font-semibold text-foreground">{quantidadeAnimais}</p>
             <p className="text-muted-foreground">
-              O registro manual aplica a vacinação para todos os animais ativos do lote.
+              {isPorLote
+                ? "Baixa proporcional de estoque será calculada pelo saldo de cabeças do lote."
+                : "Aplica a vacinação para todos os animais individuais ativos do lote."}
             </p>
           </CampoSurface>
-          <CampoStepNav onBack={() => router.back()} onNext={() => setStep("vacina")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!loteId} />
+          <CampoStepNav onBack={() => router.back()} onNext={() => setStep("vacina")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!loteId || quantidadeAnimais === 0} />
         </div>
       )}
 
@@ -144,7 +161,7 @@ export default function VacinacaoPage() {
 
           <NumPad value={quantidade} onChange={setQuantidade} suffix="mL/animal" label="Dose por animal (mL)" />
 
-          <CampoStepNav onBack={() => setStep("lote")} onNext={() => setStep("confirmar")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!vacinaAtual || !quantidade || quantidade === "0" || animaisAtivos.length === 0} />
+          <CampoStepNav onBack={() => setStep("lote")} onNext={() => setStep("confirmar")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!vacinaAtual || !quantidade || quantidade === "0" || quantidadeAnimais === 0} />
         </div>
       )}
 
@@ -153,7 +170,8 @@ export default function VacinacaoPage() {
           <GpsWarning status={gps.status} onRetry={gps.capture} />
           <CampoSurface className="grid gap-2.5 p-3.5 text-sm md:grid-cols-2">
             <SummaryRow label="Lote" value={loteAtual?.identificacao ?? "—"} />
-            <SummaryRow label="Animais" value={String(animaisAtivos.length)} />
+            <SummaryRow label="Modo" value={isPorLote ? "Por Lote (Coletivo)" : "Individual"} />
+            <SummaryRow label="Cabeças" value={String(quantidadeAnimais)} />
             <SummaryRow label="Vacina" value={vacinaAtual?.nome ?? "—"} />
             {quantidade && <SummaryRow label="Dose" value={`${quantidade} mL/animal`} />}
           </CampoSurface>

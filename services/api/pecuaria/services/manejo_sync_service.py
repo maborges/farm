@@ -21,17 +21,8 @@ from agricola.production_units.models import ProductionUnit
 from operacional.models.estoque import EstoqueMovimento
 from operacional.services.estoque_service import EstoqueService
 from pecuaria.animal.models import Animal, CategoriaAnimal, EventoAnimal, LoteAnimal, SexoAnimal
-
-
-class ManejoSyncResult(BaseModel):
-    status: str
-    total_recebido: int
-    total_processado: int
-    total_ignorados: int
-    erros: list[str]
-    tarefa_campo_id: UUID
-
-    model_config = ConfigDict(from_attributes=True)
+from pecuaria.schemas.campo_sync_schema import ManejoSyncResult
+from pecuaria.services.manejo_campo_coletivo_service import ManejoCampoColetivoService
 
 
 class ManejoSyncService(BaseService[EventoAnimal]):
@@ -41,6 +32,7 @@ class ManejoSyncService(BaseService[EventoAnimal]):
 
     def __init__(self, db: AsyncSession, tenant_id: UUID):
         super().__init__(EventoAnimal, db, tenant_id)
+        self._coletivo = ManejoCampoColetivoService(db, tenant_id)
 
     async def processar_tarefa_campo(self, tarefa_campo_id: UUID) -> ManejoSyncResult:
         tarefa = await self._buscar_tarefa(tarefa_campo_id)
@@ -54,11 +46,20 @@ class ManejoSyncService(BaseService[EventoAnimal]):
             res = await self._processar_pesagem(tarefa)
         elif tarefa.type == "VACINACAO":
             res = await self._processar_vacinacao(tarefa)
+        elif tarefa.type == "MORTE_REGISTRO":
+            res = await self._coletivo.processar_morte(tarefa)
+        elif tarefa.type == "NASCIMENTO_LOTE":
+            res = await self._coletivo.processar_nascimento_lote(tarefa)
+        elif tarefa.type == "MOVIMENTACAO_LOTE":
+            res = await self._coletivo.processar_movimentacao_lote(tarefa)
+        elif tarefa.type == "MEDICACAO_ANIMAL":
+            res = await self._coletivo.processar_medicacao(tarefa)
         elif tarefa.type in self.TIPOS_REPRODUCAO:
             res = await self._processar_reproducao(tarefa)
         else:
             return self._resultado_ignorado(tarefa_campo_id, f"Tipo '{tarefa.type}' não suportado nesta execução.")
-        await self._persistir_resultado(tarefa_campo_id, res)
+        if not (res.status == "IGNORED" and self._coletivo.ja_processado_com_sucesso(tarefa)):
+            await self._persistir_resultado(tarefa_campo_id, res)
         if res.status == "ERROR":
             await self._publish_sync_failure_event(
                 tarefa=tarefa,
@@ -91,6 +92,10 @@ class ManejoSyncService(BaseService[EventoAnimal]):
         if not animais_payload:
             animais_payload = await self._resolver_pesagem_coletiva_por_lote(dados)
         if not animais_payload:
+            lote_id = self._uuid_from_value(dados.get("lote_id") or tarefa.lote_id)
+            lote_col = await self._coletivo.buscar_lote_coletivo_elegivel(lote_id)
+            if lote_col is not None:
+                return await self._coletivo.processar_pesagem_por_lote(tarefa, lote_col)
             return self._resultado_ignorado(tarefa_id, "A tarefa não contém a chave 'animais' ou a lista está vazia.")
 
         validacao = self._validar_animais_payload_pesagem(animais_payload, dados)
@@ -129,10 +134,38 @@ class ManejoSyncService(BaseService[EventoAnimal]):
     async def _processar_vacinacao(self, tarefa: TarefaCampo) -> ManejoSyncResult:
         tarefa_id = tarefa.id
         dados = tarefa.dados or {}
-        lote_id = self._uuid_from_value(dados.get("lote_id"))
+        lote_id = self._uuid_from_value(dados.get("lote_id") or tarefa.lote_id)
         animais_ids = await self._resolver_animais_ids_vacinacao(dados, lote_id)
         if not animais_ids:
-            return self._resultado_ignorado(tarefa_id, "A tarefa não contém a chave 'animais_ids' ou a lista está vazia.")
+            lote_col = await self._coletivo.buscar_lote_coletivo_elegivel(lote_id)
+            if lote_col is None:
+                return self._resultado_ignorado(tarefa_id, "A tarefa não contém a chave 'animais_ids' ou a lista está vazia.")
+            try:
+                produto = await self._validar_produto_vacina(dados.get("produto_id") or dados.get("vacina_id"))
+                dose = self._validar_dose_vacinacao(dados.get("dose") or dados.get("dose_ml"))
+                unidade_medida = str(dados.get("unidade_medida") or produto.unidade_medida or "").strip().upper()
+                if not unidade_medida:
+                    raise ValueError("unidade_medida é obrigatória para vacinação.")
+                res_col = await self._coletivo.processar_vacinacao_por_lote(
+                    tarefa=tarefa,
+                    lote=lote_col,
+                    produto=produto,
+                    dose=dose,
+                    unidade_medida=unidade_medida,
+                    registrar_estoque_fn=self._registrar_estoque_vacinacao,
+                    registrar_custo_fn=self._registrar_custo_vacinacao,
+                )
+                if res_col.status == "SUCCESS":
+                    await self._publish_vacinacao_registrada_event(
+                        tarefa=tarefa,
+                        dados={**dados, "unidade_medida": unidade_medida},
+                        animais_ids=[],
+                        produto=produto,
+                        dose=dose,
+                    )
+                return res_col
+            except Exception as exc:
+                return self._resultado_erro(tarefa_id, 1, [str(exc)])
 
         try:
             if not lote_id:

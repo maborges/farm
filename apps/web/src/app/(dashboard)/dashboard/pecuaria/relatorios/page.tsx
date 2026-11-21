@@ -1,24 +1,30 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
+import { Beef, Calendar, Download, MapPin, Syringe } from "lucide-react";
 import {
-    FileText, Download, TrendingUp,
-    BarChart3, PieChart as PieChartIcon,
-    Calendar, Filter, Printer,
-    Activity, Beef, MapPin, Syringe
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+    Bar,
+    BarChart,
+    CartesianGrid,
+    Cell,
+    Legend,
+    Line,
+    Pie,
+    PieChart,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from "recharts";
+
 import { PageHeader } from "@/components/shared/page-header";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid,
-    Tooltip, ResponsiveContainer, Cell,
-    PieChart, Pie, Legend, LineChart, Line
-} from 'recharts';
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
+
+import { apiFetch } from "@/lib/api";
 
 interface PecuariaReport {
     rebanho: {
@@ -35,17 +41,31 @@ interface PecuariaReport {
     };
 }
 
-const ChartTooltip = ({ active, payload, label }: any) => {
+interface ChartTooltipEntry {
+    color?: string;
+    fill?: string;
+    name?: string | number;
+    value?: number | string;
+    unit?: string;
+}
+
+interface ChartTooltipProps {
+    active?: boolean;
+    payload?: ChartTooltipEntry[];
+    label?: string | number;
+}
+
+const ChartTooltip = ({ active, payload, label }: ChartTooltipProps) => {
     if (active && payload && payload.length) {
         return (
             <div className="bg-background/95 backdrop-blur-md border border-border p-3 rounded-sm shadow-2xl">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase mb-2 tracking-wider">{label}</p>
-                {payload.map((entry: any, index: number) => (
-                    <div key={index} className="flex items-center gap-3 py-1">
+                {payload.map((entry, index) => (
+                    <div key={`${entry.name ?? "serie"}-${index}`} className="flex items-center gap-3 py-1">
                         <div className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color || entry.fill }} />
                         <span className="text-xs font-medium text-foreground">{entry.name}:</span>
                         <span className="text-xs font-black ml-auto">
-                            {entry.value.toLocaleString()}
+                            {typeof entry.value === "number" ? entry.value.toLocaleString("pt-BR") : (entry.value ?? "")}
                             {entry.unit ? ` ${entry.unit}` : ""}
                         </span>
                     </div>
@@ -84,11 +104,11 @@ export default function PecuariaReportsPage() {
                 icon={<Beef className="h-8 w-8 text-primary" />}
                 actions={
                     <div className="flex gap-2">
-                        <Badge variant="outline" className="text-primary border-primary">Pecuária</Badge>
-                        <Button variant="outline" size="sm" className="gap-2">
+                        <Badge variant="outline" className="rounded-sm text-primary border-primary">Pecuária</Badge>
+                        <Button variant="outline" size="sm" className="gap-2 rounded-sm">
                             <Calendar size={14} /> Ciclo Atual
                         </Button>
-                        <Button size="sm" className="gap-2">
+                        <Button variant="outline" size="sm" className="gap-2 rounded-sm">
                             <Download size={14} /> Exportar Inventário
                         </Button>
                     </div>
@@ -235,7 +255,13 @@ export default function PecuariaReportsPage() {
                         <h4 className="font-bold">Ciclo de Vacinação Aftosa - Alerta de Pendência</h4>
                         <p className="text-sm opacity-90">145 animais cadastrados ainda não receberam a dose do ciclo atual.</p>
                     </div>
-                    <Button size="sm" variant="secondary" className="ml-auto font-bold">Ver Lista de Animais</Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="ml-auto rounded-sm font-bold border-white/40 bg-white/15 text-white hover:bg-white/25 hover:text-white"
+                    >
+                        Ver Lista de Animais
+                    </Button>
                 </div>
             </Card>
         </div>

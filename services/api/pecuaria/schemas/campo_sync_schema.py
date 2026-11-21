@@ -1,7 +1,19 @@
-from pydantic import BaseModel, ConfigDict
+from datetime import datetime
 from typing import List, Optional
-from datetime import datetime, date
 import uuid
+
+from pydantic import BaseModel, ConfigDict
+
+
+class ManejoSyncResult(BaseModel):
+    status: str
+    total_recebido: int
+    total_processado: int
+    total_ignorados: int
+    erros: list[str]
+    tarefa_campo_id: uuid.UUID
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SyncStatusResponse(BaseModel):

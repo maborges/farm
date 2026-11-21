@@ -25,6 +25,7 @@ export type TaskType =
   | "PARTO"
   | "PARTO_REGISTRO"
   | "MORTE_REGISTRO"
+  | "NASCIMENTO_LOTE"
   | "INSEMINACAO"
   | "ABASTECIMENTO_MAQUINA"
   | "MANUTENCAO_OCORRENCIA"
@@ -369,6 +370,9 @@ export interface CachedLote {
   especie: string;
   quantidade_cabecas: number;
   fazenda_id: string;
+  modo_gestao?: "POR_LOTE" | "INDIVIDUAL" | string;
+  peso_medio_kg?: number;
+  area_id?: string | null;
 }
 
 export interface CachedAnimal {

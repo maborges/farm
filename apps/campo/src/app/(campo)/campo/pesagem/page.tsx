@@ -40,14 +40,20 @@ export default function PesagemPage() {
   );
 
   const stepIndex = ["lote", "peso", "confirmar"].indexOf(step);
+  const loteAtual = lotes?.find((l) => l.id === loteId);
   const animaisAtivos = (animaisNoLote ?? []).filter((animal) => {
     const status = (animal.status ?? "ATIVO").toUpperCase();
     return status === "ATIVO" || status === "";
   });
-  const quantidadeAnimais = animaisAtivos.length;
+  const isPorLote =
+    Boolean(loteAtual) && loteAtual?.modo_gestao !== "INDIVIDUAL" && animaisAtivos.length === 0;
+  const quantidadeAnimais = isPorLote
+    ? (loteAtual?.quantidade_cabecas ?? 0)
+    : animaisAtivos.length;
 
   const handleSalvar = async () => {
     setSaving(true);
+    const pesoMedioValor = parseFloat(pesoMedio) || 0;
     try {
       await createTask({
         type: "PESAGEM",
@@ -55,18 +61,23 @@ export default function PesagemPage() {
         fazenda_id: fazendaId,
         lote_id: loteId || undefined,
         dados: {
+          lote_id: loteId || undefined,
+          modo_gestao: isPorLote ? "POR_LOTE" : "INDIVIDUAL",
           tipo_pesagem: "LOTE_BALANCA",
-          peso_medio_kg: parseFloat(pesoMedio) || 0,
+          peso_medio_kg: pesoMedioValor,
           quantidade_animais: quantidadeAnimais,
-          peso_total_estimado: (parseFloat(pesoMedio) || 0) * quantidadeAnimais,
+          peso_total_kg: Number((pesoMedioValor * quantidadeAnimais).toFixed(2)),
+          peso_total_estimado: pesoMedioValor * quantidadeAnimais,
           observacoes: obs,
-          animais: animaisAtivos.map((animal) => ({
-            animal_id: animal.id,
-            numero_brinco: animal.numero_brinco ?? "",
-            peso_kg: parseFloat(pesoMedio) || 0,
-            observacao: obs.trim() || null,
-          })),
-          animais_ids: animaisAtivos.map((animal) => animal.id),
+          animais: isPorLote
+            ? []
+            : animaisAtivos.map((animal) => ({
+                animal_id: animal.id,
+                numero_brinco: animal.numero_brinco ?? "",
+                peso_kg: pesoMedioValor,
+                observacao: obs.trim() || null,
+              })),
+          animais_ids: isPorLote ? [] : animaisAtivos.map((animal) => animal.id),
         },
         fotos: cam.fotos,
         localizacao_status: gps.status,
@@ -92,8 +103,6 @@ export default function PesagemPage() {
     );
   }
 
-  const loteAtual = lotes?.find((l) => l.id === loteId);
-
   return (
     <CampoShell className="gap-4">
       <TaskHeader title="Pesagem" icon={Scale} gpsStatus={gps.status} step={stepIndex + 1} totalSteps={3} domain="PECUARIA" />
@@ -105,19 +114,31 @@ export default function PesagemPage() {
             options={(lotes ?? []).map((l) => ({
               id: l.id,
               label: l.identificacao,
-              sublabel: `${l.especie} · ${l.quantidade_cabecas} cabeças`,
+              sublabel: `${l.especie} · ${l.quantidade_cabecas} cabeças · ${l.modo_gestao === "INDIVIDUAL" ? "Individual" : "Por Lote"}`,
             }))}
             value={loteId}
             onChange={setLoteId}
             placeholder={fazendaId ? "Selecione o lote" : "Selecione a unidade produtiva na barra superior"}
           />
           <CampoSurface className="flex flex-col gap-2 p-3.5 text-sm">
-            <p className="font-semibold text-foreground">Modo suportado no registro manual</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-semibold text-foreground">
+                {isPorLote ? "Pesagem Coletiva (Por Lote)" : "Pesagem Individual em Lote"}
+              </p>
+              {loteAtual && (
+                <span className="rounded-sm border border-border bg-muted px-2 py-0.5 text-[11px] font-semibold">
+                  {isPorLote ? "POR LOTE" : "INDIVIDUAL"}
+                </span>
+              )}
+            </div>
             <p className="text-muted-foreground">
-              Esta tela aplica a pesagem coletiva para todos os animais ativos do lote sincronizado.
+              {isPorLote
+                ? "Atualiza o peso médio e registra a pesagem coletiva sem exigir brincos."
+                : "Aplica o peso médio para todos os animais individuais ativos do lote."}
             </p>
             <p className="text-muted-foreground">
-              Animais disponíveis no cache: <span className="font-semibold text-foreground">{quantidadeAnimais}</span>
+              Cabeças consideradas no lote:{" "}
+              <span className="font-semibold text-foreground">{quantidadeAnimais}</span>
             </p>
           </CampoSurface>
           <CampoStepNav onBack={() => router.back()} onNext={() => setStep("peso")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!loteId || quantidadeAnimais === 0} />
@@ -128,10 +149,13 @@ export default function PesagemPage() {
         <div className="flex flex-1 flex-col gap-4">
           <NumPad value={pesoMedio} onChange={setPesoMedio} suffix="kg" label="Peso médio (kg/animal)" />
           <CampoSurface className="flex flex-col gap-2 p-3.5">
-            <label className="text-sm font-semibold text-foreground">Animais ativos que receberão a pesagem</label>
+            <label className="text-sm font-semibold text-foreground">Cabeças consideradas na pesagem</label>
             <p className="text-2xl font-semibold text-foreground">{quantidadeAnimais}</p>
             <p className="text-xs text-muted-foreground">
-              O mesmo peso será aplicado a todos os animais ativos deste lote.
+              Peso total estimado:{" "}
+              <span className="font-semibold text-foreground">
+                {((parseFloat(pesoMedio) || 0) * quantidadeAnimais).toFixed(1)} kg
+              </span>
             </p>
           </CampoSurface>
           <CampoStepNav onBack={() => setStep("lote")} onNext={() => setStep("confirmar")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!pesoMedio || pesoMedio === "0"} />
@@ -143,9 +167,9 @@ export default function PesagemPage() {
           <GpsWarning status={gps.status} onRetry={gps.capture} />
           <CampoSurface className="grid gap-2.5 p-3.5 text-sm md:grid-cols-2">
             <SummaryRow label="Lote" value={loteAtual?.identificacao ?? "—"} />
-            <SummaryRow label="Tipo" value="LOTE_BALANCA" />
+            <SummaryRow label="Modo" value={isPorLote ? "Por Lote (Coletivo)" : "Individual"} />
             <SummaryRow label="Peso médio" value={`${pesoMedio} kg`} />
-            <SummaryRow label="Animais" value={String(quantidadeAnimais)} />
+            <SummaryRow label="Cabeças" value={String(quantidadeAnimais)} />
             <SummaryRow label="Peso total est." value={`${((parseFloat(pesoMedio) || 0) * quantidadeAnimais).toFixed(0)} kg`} />
           </CampoSurface>
 
