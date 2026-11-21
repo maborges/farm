@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, Beef, ClipboardList, Pencil, Plus, Save, XCircle } from "lucide-react";
+import { BarChart3, Beef, ClipboardList, Pencil, Plus, Save, Upload, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { LoteIndicadoresDrawer } from "@/components/pecuaria/lote-indicadores-drawer";
@@ -664,22 +665,30 @@ export default function LotesBovinosPage() {
           { label: "Lotes" },
         ]}
         actions={
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-sm"
-            onClick={() => {
-              if (!activeFazendaId) {
-                toast.error("Selecione uma fazenda para adicionar lotes.");
-                return;
-              }
-              setEditingLote(null);
-              setModalOpen(true);
-            }}
-          >
-            <Plus className="size-3.5 mr-1.5" />
-            Novo Lote
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild size="sm" variant="outline" className="rounded-sm">
+              <Link href="/dashboard/pecuaria/importar?tipo=LOTES">
+                <Upload className="size-3.5 mr-1.5" />
+                Importar Planilha
+              </Link>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-sm"
+              onClick={() => {
+                if (!activeFazendaId) {
+                  toast.error("Selecione uma fazenda para adicionar lotes.");
+                  return;
+                }
+                setEditingLote(null);
+                setModalOpen(true);
+              }}
+            >
+              <Plus className="size-3.5 mr-1.5" />
+              Novo Lote
+            </Button>
+          </div>
         }
       />
 

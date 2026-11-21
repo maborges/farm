@@ -153,10 +153,13 @@ class AnimalService(BaseService[Animal]):
         if not lote or lote.tenant_id != self.tenant_id:
             return
 
-        lote.quantidade_cabecas = int(total or 0)
+        qtd_ativos = int(total or 0)
+        lote.quantidade_cabecas = qtd_ativos
         lote.peso_medio_kg = (
             float(peso_total or 0) / int(quantidade_com_peso or 0) if quantidade_com_peso else 0.0
         )
+        if qtd_ativos > 0 and lote.modo_gestao == "POR_LOTE":
+            lote.modo_gestao = "INDIVIDUAL"
         self.session.add(lote)
 
     async def _registrar_compra_financeira(

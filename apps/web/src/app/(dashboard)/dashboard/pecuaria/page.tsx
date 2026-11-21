@@ -22,6 +22,7 @@ import {
   Skull,
   Syringe,
   TrendingUp,
+  Upload,
   Weight,
 } from "lucide-react";
 import {
@@ -137,6 +138,7 @@ export default function PecuariaDashboard() {
     { href: "/dashboard/pecuaria/confinamento", icon: Layers, label: "Confinamento", desc: "Dietas e engorda" },
     { href: "/dashboard/pecuaria/leite", icon: TrendingUp, label: "Produção Leiteira", desc: "Ordenhas e tanques" },
     { href: "/dashboard/pecuaria/relatorios", icon: Scale, label: "Relatórios Zootécnicos", desc: "GMD e curva de peso" },
+    { href: "/dashboard/pecuaria/importar", icon: Upload, label: "Importar Planilhas", desc: "Carga via Excel/CSV" },
   ];
 
   const categoriaData = useMemo(() => {
@@ -216,7 +218,7 @@ export default function PecuariaDashboard() {
 
       <QuickActionGrid
         label="Ações & Comandos do Rebanho"
-        columnsClassName="grid-cols-2 sm:grid-cols-4 lg:grid-cols-7"
+        columnsClassName="grid-cols-2 sm:grid-cols-4 lg:grid-cols-8"
         actions={quickActions.map((act) => ({
           title: act.label,
           description: act.desc,

@@ -526,6 +526,7 @@ from pecuaria.routers import leite as pecuaria_leite
 from pecuaria.routers import piquetes
 from pecuaria.routers import campo_sync
 from pecuaria.routers import dashboard as pecuaria_dashboard
+from pecuaria.routers import importacoes as pecuaria_importacoes
 from pecuaria.climatico.router import router as pecuaria_climatico_router, router_backoffice as pecuaria_climatico_backoffice_router
 app.include_router(pecuaria_climatico_backoffice_router, prefix="/api/v1/backoffice")
 app.include_router(router_safras, prefix="/api/v1")
@@ -624,6 +625,7 @@ app.include_router(pecuaria_manejos.router, prefix="/api/v1")
 app.include_router(pecuaria_genetica.router, prefix="/api/v1")
 app.include_router(pecuaria_confinamento.router, prefix="/api/v1")
 app.include_router(pecuaria_leite.router, prefix="/api/v1")
+app.include_router(pecuaria_importacoes.router, prefix="/api/v1")
 app.include_router(pecuaria_climatico_router, prefix="/api/v1/pecuaria/climatico")
 app.include_router(piquetes.router, prefix="/api/v1")
 app.include_router(campo_sync.router, prefix="/api/v1/pecuaria/campo", tags=["Pecuaria - Campo Sync"])

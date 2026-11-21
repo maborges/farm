@@ -366,6 +366,7 @@ export const MODULOS_OPERACIONAIS: SidebarModuleGroup[] = [
         items: [
           { href: '/dashboard/pecuaria/animais', icon: Beef, label: 'Meus Animais', tip: 'Animais', permission: 'pecuaria:animais:view' },
           { href: '/dashboard/pecuaria/lotes', icon: ClipboardList, label: 'Lotes', tip: 'Lotes', permission: 'pecuaria:lotes:view' },
+          { href: '/dashboard/pecuaria/importar', icon: Upload, label: 'Importar Planilhas', tip: 'Importar CSV/Excel', permission: 'pecuaria:lotes:view' },
           { href: '/dashboard/pecuaria/manejos/planejamento', icon: CalendarClock, label: 'Planejamento de Manejos', tip: 'Planejamento', permission: 'pecuaria:manejos:view' },
           { href: '/dashboard/pecuaria/genetica', icon: Dna, label: 'Genética', tip: 'DEP e acasalamentos', permission: 'pecuaria:reproducao:view' },
         ],
