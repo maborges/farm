@@ -2,23 +2,34 @@
 
 import React, { useState, useMemo } from "react";
 import { ArrowRightLeft, RotateCcw, AlertCircle, Info, ArrowLeftRight, AlertTriangle } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input, inputBaseClassName } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   converterUnidadeGeral,
   type CategoriaGrandeza,
   CATALOGO_UNIDADES,
 } from "@/lib/calculadoras/core";
 import { parseNumeroPtBr, formatarNumero, detectarEntradaAmbiguaPtBr } from "@/lib/calculadoras/format";
+import { cn } from "@/lib/utils";
 
 const UNIDADES_POR_CATEGORIA: Record<CategoriaGrandeza, string[]> = {
   MASSA: ["KG", "G", "TONELADA", "ARROBA"],
   AREA: ["M2", "HECTARE", "KM2"],
   VOLUME: ["LITRO", "MILILITRO", "METRO_CUBICO"],
   COMPRIMENTO: ["METRO", "QUILOMETRO", "CENTIMETRO"],
+};
+
+const ROTULOS_CATEGORIA: Record<CategoriaGrandeza, string> = {
+  MASSA: "Massa (kg, t, @)",
+  AREA: "Área (m², ha, km²)",
+  VOLUME: "Volume (L, mL, m³)",
+  COMPRIMENTO: "Comprimento (m, km)",
 };
 
 export function CalculadoraConversorGeral() {
@@ -73,64 +84,58 @@ export function CalculadoraConversorGeral() {
   const defPara = CATALOGO_UNIDADES[unidadePara];
 
   return (
-    <Card className="border border-border/80 shadow-xs">
-      <CardHeader className="pb-3 border-b border-border/60">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-sm bg-emerald-600/10 text-emerald-700 dark:text-emerald-400">
-              <ArrowRightLeft className="w-5 h-5" />
-            </div>
-            <div>
-              <CardTitle className="text-base font-semibold">
-                Conversor Geral de Unidades
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Conversão de grandezas compatíveis: Massa, Área, Volume e Comprimento com proteção dimensional.
-              </CardDescription>
-            </div>
+    <Card>
+      <CardHeader className="border-b border-border/60">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-sm bg-emerald-600/10 text-emerald-700 dark:text-emerald-400">
+            <ArrowRightLeft className="size-5" />
           </div>
-          <Badge variant="outline" className="text-[10px] hidden sm:inline-flex">
+          <div>
+            <CardTitle className="text-base font-semibold">
+              Conversor Geral de Unidades
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Conversão de grandezas compatíveis: Massa, Área, Volume e Comprimento com proteção dimensional.
+            </CardDescription>
+          </div>
+        </div>
+        <CardAction>
+          <Badge variant="outline" className="hidden sm:inline-flex">
             Offline
           </Badge>
-        </div>
+        </CardAction>
       </CardHeader>
 
-      <CardContent className="pt-4 space-y-4">
-        {/* Seletor de Categoria de Grandeza */}
-        <div className="space-y-1.5">
-          <Label>Selecione a Grandeza Física</Label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {(["MASSA", "AREA", "VOLUME", "COMPRIMENTO"] as CategoriaGrandeza[]).map((cat) => {
-              const ativo = categoria === cat;
-              const rotulos: Record<CategoriaGrandeza, string> = {
-                MASSA: "Massa (kg, t, @)",
-                AREA: "Área (m², ha, km²)",
-                VOLUME: "Volume (L, mL, m³)",
-                COMPRIMENTO: "Comprimento (m, km)",
-              };
-
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => handleTrocarCategoria(cat)}
-                  className={`px-3 py-2 text-xs font-medium rounded-sm border transition-all text-left cursor-pointer ${
-                    ativo
-                      ? "border-emerald-600 bg-emerald-600/10 text-emerald-800 dark:text-emerald-400 font-semibold"
-                      : "border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {rotulos[cat]}
-                </button>
-              );
-            })}
-          </div>
+      <CardContent className="flex flex-col gap-4">
+        {/* Seletor de Categoria de Grandeza via ToggleGroup */}
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">Selecione a Grandeza Física</Label>
+          <ToggleGroup
+            type="single"
+            value={categoria}
+            onValueChange={(val) => {
+              if (typeof val === "string" && val) {
+                handleTrocarCategoria(val as CategoriaGrandeza);
+              }
+            }}
+            className="grid grid-cols-2 sm:grid-cols-4 gap-2"
+          >
+            {(["MASSA", "AREA", "VOLUME", "COMPRIMENTO"] as CategoriaGrandeza[]).map((cat) => (
+              <ToggleGroupItem
+                key={cat}
+                value={cat}
+                className="justify-start text-xs h-8"
+              >
+                {ROTULOS_CATEGORIA[cat]}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
         </div>
 
         {/* Formulário de Entradas e Seleção de Unidades */}
         <div className="grid grid-cols-1 sm:grid-cols-7 gap-2.5 items-end">
-          <div className="space-y-1.5 sm:col-span-3">
-            <Label htmlFor="valor-conversao">Valor</Label>
+          <div className="flex flex-col gap-1.5 sm:col-span-3">
+            <Label htmlFor="valor-conversao" className="text-xs">Valor</Label>
             <Input
               id="valor-conversao"
               type="text"
@@ -143,7 +148,7 @@ export function CalculadoraConversorGeral() {
               id="unidade-de"
               value={unidadeDe}
               onChange={(e) => setUnidadeDe(e.target.value)}
-              className="mt-1 flex h-8 w-full rounded-sm border border-border bg-background px-2.5 py-1 text-xs text-foreground shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className={cn(inputBaseClassName, "text-xs")}
             >
               {UNIDADES_POR_CATEGORIA[categoria].map((codigo) => {
                 const u = CATALOGO_UNIDADES[codigo];
@@ -162,15 +167,14 @@ export function CalculadoraConversorGeral() {
               variant="outline"
               size="icon"
               onClick={handleInverter}
-              className="h-8 w-8 rounded-sm cursor-pointer"
               title="Inverter unidades"
             >
-              <ArrowLeftRight className="w-3.5 h-3.5" />
+              <ArrowLeftRight className="size-3.5" />
             </Button>
           </div>
 
-          <div className="space-y-1.5 sm:col-span-3">
-            <Label htmlFor="unidade-para">Para</Label>
+          <div className="flex flex-col gap-1.5 sm:col-span-3">
+            <Label htmlFor="unidade-para" className="text-xs">Para</Label>
             <div className="h-8 flex items-center px-2.5 text-xs text-muted-foreground bg-muted/40 rounded-sm border border-border/60">
               {resultado !== null ? (
                 <span className="font-semibold text-foreground truncate">
@@ -184,7 +188,7 @@ export function CalculadoraConversorGeral() {
               id="unidade-para"
               value={unidadePara}
               onChange={(e) => setUnidadePara(e.target.value)}
-              className="mt-1 flex h-8 w-full rounded-sm border border-border bg-background px-2.5 py-1 text-xs text-foreground shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className={cn(inputBaseClassName, "text-xs")}
             >
               {UNIDADES_POR_CATEGORIA[categoria].map((codigo) => {
                 const u = CATALOGO_UNIDADES[codigo];
@@ -200,39 +204,43 @@ export function CalculadoraConversorGeral() {
 
         {/* Aviso de Ambiguidade Numérica */}
         {avisoAmbiguo && (
-          <div className="p-2.5 rounded-sm border border-amber-500/30 bg-amber-500/5 text-amber-900 dark:text-amber-300 text-xs flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-            <span className="leading-relaxed">{avisoAmbiguo}</span>
-          </div>
+          <Alert variant="warning">
+            <AlertTriangle className="size-4" />
+            <AlertDescription className="text-xs">{avisoAmbiguo}</AlertDescription>
+          </Alert>
         )}
 
         {/* Mensagem de Erro de Validação */}
         {erro && (
-          <div className="p-2.5 rounded-sm border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>{erro}</span>
-          </div>
+          <Alert variant="destructive">
+            <AlertCircle className="size-4" />
+            <AlertDescription className="text-xs">{erro}</AlertDescription>
+          </Alert>
         )}
 
         {/* Destaque do Resultado */}
         {resultado !== null && defDe && defPara && (
-          <div className="p-4 rounded-sm bg-muted/40 border border-border/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div>
-              <span className="text-[11px] text-muted-foreground block">Conversão Final</span>
-              <div className="text-lg sm:text-xl font-bold text-emerald-700 dark:text-emerald-400">
-                {valorTexto} {defDe.simbolo} = {formatarNumero(resultado, 6)} {defPara.simbolo}
+          <Card variant="muted" size="sm">
+            <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[11px] text-muted-foreground block">Conversão Final</span>
+                <div className="text-lg sm:text-xl font-bold text-emerald-700 dark:text-emerald-400">
+                  {valorTexto} {defDe.simbolo} = {formatarNumero(resultado, 6)} {defPara.simbolo}
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  {defDe.nome} ({defDe.simbolo}) para {defPara.nome} ({defPara.simbolo})
+                </span>
               </div>
-              <span className="text-[10px] text-muted-foreground">
-                {defDe.nome} ({defDe.simbolo}) para {defPara.nome} ({defPara.simbolo})
-              </span>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         )}
 
+        <Separator />
+
         {/* Memória de Cálculo e Ações */}
-        <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-t border-border/60">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <Info className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <Info className="size-3.5 text-muted-foreground shrink-0" />
             <span>Conversão estrita pelo Sistema Internacional (SI). Grandezas incompatíveis são bloqueadas.</span>
           </div>
           <Button
@@ -240,10 +248,10 @@ export function CalculadoraConversorGeral() {
             variant="outline"
             size="sm"
             onClick={handleLimpar}
-            className="flex items-center gap-1.5 self-end sm:self-auto cursor-pointer"
+            className="self-end sm:self-auto"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Limpar
+            <RotateCcw className="size-3.5" />
+            <span>Limpar</span>
           </Button>
         </div>
       </CardContent>

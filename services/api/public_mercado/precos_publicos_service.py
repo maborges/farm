@@ -23,9 +23,15 @@ from .precos_publicos import (
 class PrecosPublicosService:
     """Orquestrador do catálogo de preços agropecuários reais de fontes públicas abertas."""
 
-    def __init__(self, cache: PtaxCache, ttl_seconds: int = 1800) -> None:
+    def __init__(
+        self,
+        cache: PtaxCache,
+        ttl_seconds: int = 1800,
+        max_defasagem_dias: int = MAX_PRECOS_SEMANAIS_FRESCOS_DIAS,
+    ) -> None:
         self.cache = cache
         self.ttl_seconds = max(300, ttl_seconds)
+        self.max_defasagem_dias = max(1, int(max_defasagem_dias))
         self._lock = asyncio.Lock()
         self._l1_cache: PrecosPublicosResponse | None = None
         self._l1_synced_at: datetime | None = None
@@ -49,21 +55,42 @@ class PrecosPublicosService:
 
     async def sincronizar_snapshot_ativo(self, session: AsyncSession) -> None:
         """Reconcilia o snapshot ativo entre workers, no máximo uma vez por minuto."""
-        if time.monotonic() - self._db_snapshot_synced_at < 60:
+        from core.services.deral_snapshot_service import deral_snapshot_service
+
+        tem_cache_ativo = deral_snapshot_service.get_cached_active_snapshot() is not None
+        if tem_cache_ativo and time.monotonic() - self._db_snapshot_synced_at < 60:
             return
         async with self._db_snapshot_sync_lock:
-            if time.monotonic() - self._db_snapshot_synced_at < 60:
+            tem_cache_ativo = deral_snapshot_service.get_cached_active_snapshot() is not None
+            if tem_cache_ativo and time.monotonic() - self._db_snapshot_synced_at < 60:
                 return
             await self._sincronizar_snapshot_ativo(session)
 
     async def _sincronizar_snapshot_ativo(self, session: AsyncSession) -> None:
         """Atualiza caches de preços quando outro processo ativa uma nova semana."""
+        from core.schemas.agro_config_schemas import KEY_MERCADO
+        from core.services.agro_config_service import agro_config_service
         from core.services.deral_snapshot_service import deral_snapshot_service
 
         snapshot_id_anterior = deral_snapshot_service.get_cached_active_snapshot_id()
         await deral_snapshot_service.sync_active_snapshot_from_db(session)
-        if snapshot_id_anterior != deral_snapshot_service.get_cached_active_snapshot_id():
+        novo_id = deral_snapshot_service.get_cached_active_snapshot_id()
+        cache_ref = (
+            self._l1_cache.itens[0].dataReferencia
+            if self._l1_cache and self._l1_cache.itens
+            else None
+        )
+        if snapshot_id_anterior != novo_id or (novo_id and cache_ref and cache_ref != novo_id):
             self.invalidate_cache()
+        try:
+            cfg_val, _, _ = await agro_config_service.get_config(session, KEY_MERCADO, use_cache=False)
+            if isinstance(cfg_val, dict) and "max_defasagem_dias" in cfg_val:
+                novo_max = max(1, int(cfg_val["max_defasagem_dias"]))
+                if self.max_defasagem_dias != novo_max:
+                    self.max_defasagem_dias = novo_max
+                    self.invalidate_cache()
+        except Exception:
+            pass
         self._db_snapshot_synced_at = time.monotonic()
 
     async def get_precos(self, now: datetime | None = None) -> PrecosPublicosResponse:
@@ -96,7 +123,7 @@ class PrecosPublicosService:
                     "FONTE_INDISPONIVEL"
                     if not itens
                     else "DEFASADO"
-                    if any(i.defasagemDiasAproximada > MAX_PRECOS_SEMANAIS_FRESCOS_DIAS for i in itens)
+                    if any(i.defasagemDiasAproximada > self.max_defasagem_dias for i in itens)
                     else "NORMAL"
                 ),
                 avisoLegal=AVISO_LEGAL_PRECOS,
@@ -127,7 +154,7 @@ class PrecosPublicosService:
             if self._catalogo_cache and self._is_cache_valido(self._catalogo_synced_at, now):
                 return self._catalogo_cache.model_copy(update={"dataConsultaIso": now})
 
-            resposta = carregar_catalogo_mercado(now)
+            resposta = carregar_catalogo_mercado(now, max_defasagem_dias=self.max_defasagem_dias)
             self._catalogo_cache = resposta
             self._catalogo_synced_at = now
             return resposta

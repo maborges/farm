@@ -1,6 +1,8 @@
 import { Users, MapPin, MessageSquare, Handshake, ShieldCheck, Clock, CheckCircle2 } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 
 const RECURSOS_PLANEJADOS = [
   {
@@ -31,26 +33,28 @@ const RECURSOS_PLANEJADOS = [
 
 export default function ComunidadePage() {
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-5">
       {/* Cabeçalho da Seção */}
-      <div className="border-b border-border pb-4">
+      <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            <Users className="size-5 text-purple-600 dark:text-purple-400" />
             Comunidade de Produtores
           </h1>
-          <Badge variant="secondary" className="text-[10px]">Em Breve</Badge>
+          <Badge variant="priority">Em Breve</Badge>
         </div>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <p className="text-xs text-muted-foreground">
           A maior rede digital de relacionamento técnico e colaboração entre produtores rurais do Brasil.
         </p>
       </div>
+
+      <Separator />
 
       {/* Banner de Apresentação */}
       <Card className="bg-gradient-to-br from-purple-500/5 via-card to-card border-purple-500/20">
         <CardHeader>
           <div className="flex items-center gap-2 text-xs text-purple-600 dark:text-purple-400 font-semibold mb-1">
-            <Clock className="w-4 h-4" />
+            <Clock className="size-4" />
             <span>Funcionalidade em Planejamento Estruturado</span>
           </div>
           <CardTitle className="text-base sm:text-lg">
@@ -63,7 +67,7 @@ export default function ComunidadePage() {
       </Card>
 
       {/* Grid de Recursos Planejados */}
-      <div className="space-y-3">
+      <div className="flex flex-col gap-3">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Recursos em Desenvolvimento
         </h2>
@@ -74,15 +78,15 @@ export default function ComunidadePage() {
 
             return (
               <Card key={recurso.titulo} className="flex flex-col justify-between">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="p-2 rounded-sm bg-purple-500/10 text-purple-700 dark:text-purple-400">
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <Badge variant="outline" className="text-[10px]">
+                <CardHeader>
+                  <div className="p-2 rounded-sm bg-purple-500/10 text-purple-700 dark:text-purple-400 w-fit">
+                    <Icon className="size-4" />
+                  </div>
+                  <CardAction>
+                    <Badge variant="outline">
                       Planejado para {recurso.fase}
                     </Badge>
-                  </div>
+                  </CardAction>
                   <CardTitle className="text-sm font-semibold pt-2">
                     {recurso.titulo}
                   </CardTitle>
@@ -91,9 +95,10 @@ export default function ComunidadePage() {
                   </CardDescription>
                 </CardHeader>
 
-                <CardContent className="pt-0">
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground border-t border-border/50 pt-2.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                <CardContent>
+                  <Separator className="mb-2.5" />
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <CheckCircle2 className="size-3.5 text-primary shrink-0" />
                     <span>Em conformidade com a LGPD e privacidade garantida</span>
                   </div>
                 </CardContent>
@@ -104,15 +109,13 @@ export default function ComunidadePage() {
       </div>
 
       {/* Compromisso de Segurança e Privacidade */}
-      <section className="p-4 rounded-sm border border-border bg-muted/30 text-xs space-y-2">
-        <div className="flex items-center gap-2 font-semibold text-foreground">
-          <ShieldCheck className="w-4 h-4 text-primary" />
-          <span>Segurança e Privacidade do Produtor</span>
-        </div>
-        <p className="text-[11px] text-muted-foreground leading-relaxed">
+      <Alert variant="default">
+        <ShieldCheck className="size-4 text-primary" />
+        <AlertTitle className="text-xs">Segurança e Privacidade do Produtor</AlertTitle>
+        <AlertDescription className="text-xs">
           Nenhum dado patrimonial, polígono de fazenda ou faturamento comercial do DeepFarms SaaS será exposto na comunidade. A participação de produtores no diretório será estritamente voluntária e consentida, sem criação de contas corporativas ou cobranças implícitas.
-        </p>
-      </section>
+        </AlertDescription>
+      </Alert>
     </div>
   );
 }

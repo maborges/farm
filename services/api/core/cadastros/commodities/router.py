@@ -1,6 +1,6 @@
 import uuid
-from typing import Optional
-from fastapi import APIRouter, Depends, Query, HTTPException
+from typing import Literal, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import get_session, get_tenant_id
@@ -9,7 +9,9 @@ from .schemas import (
     CommodityCreate, CommodityUpdate, CommodityResponse, CommodityDetalhadaResponse,
     CommodityClassificacaoCreate, CommodityClassificacaoUpdate, CommodityClassificacaoResponse,
     CotacaoCommodityCreate, CotacaoCommodityUpdate, CotacaoCommodityResponse,
+    CotacaoRegionalItemResponse, CotacaoRegionalUpsertRequest,
 )
+from .cotacao_regional_service import CotacaoRegionalService
 from .service import CommodityService
 from .cotacao_service import CotacaoService
 
@@ -46,6 +48,59 @@ async def criar(
         return obj
     except EntityAlreadyExistsError as e:
         raise HTTPException(409, str(e))
+
+
+# ===========================================================================
+# Cotações Regionais (Fazenda > Tenant > DERAL) — ANTES de /{commodity_id}
+# ===========================================================================
+
+@router.get("/cotacoes-regionais", response_model=list[CotacaoRegionalItemResponse])
+async def listar_cotacoes_regionais(
+    unidade_produtiva_id: Optional[uuid.UUID] = Query(None),
+    session: AsyncSession = Depends(get_session),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+):
+    try:
+        return await CotacaoRegionalService(session, tenant_id).listar_referencias_consolidadas(
+            unidade_produtiva_id
+        )
+    except EntityNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.put("/cotacoes-regionais/{codigo}", response_model=CotacaoRegionalItemResponse)
+async def salvar_cotacao_regional(
+    codigo: str,
+    data: CotacaoRegionalUpsertRequest,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+):
+    try:
+        res = await CotacaoRegionalService(session, tenant_id).salvar_cotacao_regional(codigo, data)
+        await session.commit()
+        return res
+    except EntityNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.delete("/cotacoes-regionais/{codigo}", status_code=204)
+async def remover_cotacao_regional(
+    codigo: str,
+    escopo: Literal["TENANT", "FAZENDA"] = Query("TENANT"),
+    unidade_produtiva_id: Optional[uuid.UUID] = Query(None),
+    session: AsyncSession = Depends(get_session),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+):
+    try:
+        await CotacaoRegionalService(session, tenant_id).remover_cotacao_regional(
+            codigo, escopo, unidade_produtiva_id
+        )
+        await session.commit()
+        return Response(status_code=204)
+    except EntityNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
 
 
 @router.get("/{commodity_id}", response_model=CommodityDetalhadaResponse)

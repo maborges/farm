@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ChevronLeft, MapPin, Smartphone, Tablet, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useLocalidadeClima } from "@/lib/clima/localidade-store";
 import { useDeviceContext } from "@/lib/device/use-device-context";
 import { cn } from "@/lib/utils";
@@ -32,7 +33,7 @@ export function Header(): React.ReactElement {
     "inline-flex items-center gap-1 px-2 py-1 rounded-sm bg-primary/10 text-primary text-[11px] font-medium max-w-[130px] sm:max-w-[180px]";
   const locationContent = (
     <>
-      <MapPin className="w-3 h-3 shrink-0" />
+      <MapPin className="size-3 shrink-0" />
       <span className="truncate">{locationLabel}</span>
     </>
   );
@@ -50,14 +51,20 @@ export function Header(): React.ReactElement {
           {/* Bloco Esquerdo: Identidade ou App Bar Contextual no Mobile */}
           <div className="flex items-center gap-2 min-w-0">
             {isSubpage && (
-              <Link
-                href="/"
-                aria-label="Voltar para início"
-                title="Voltar para tela inicial"
-                className="md:hidden inline-flex items-center justify-center w-9 h-9 -ml-1 rounded-sm text-foreground hover:bg-muted active:scale-95 transition-all shrink-0"
+              <Button
+                asChild
+                variant="ghost"
+                size="icon-sm"
+                className="md:hidden -ml-1 shrink-0"
               >
-                <ChevronLeft className="w-5 h-5 text-primary" />
-              </Link>
+                <Link
+                  href="/"
+                  aria-label="Voltar para início"
+                  title="Voltar para tela inicial"
+                >
+                  <ChevronLeft className="size-5 text-primary" />
+                </Link>
+              </Button>
             )}
 
             <Link
@@ -68,14 +75,14 @@ export function Header(): React.ReactElement {
               )}
               title="Ir para página inicial do DeepFarms Agro"
             >
-              <div className="relative w-7 h-7 flex-shrink-0 rounded-sm bg-primary/10 p-0.5">
+              <div className="relative size-7 shrink-0 rounded-sm bg-primary/10 p-0.5">
                 <Image
                   src="/logos/deepfarms-mark.svg"
                   alt="DeepFarms Agro"
                   width={28}
                   height={28}
                   priority
-                  className="w-full h-full object-contain"
+                  className="size-full object-contain"
                 />
               </div>
               <div className="flex flex-col min-w-0">
@@ -83,9 +90,9 @@ export function Header(): React.ReactElement {
                   <span className="font-bold tracking-tight text-foreground text-sm truncate">
                     DeepFarms
                   </span>
-                  <span className="text-primary font-bold text-xs px-1.5 py-0.5 rounded-sm bg-primary/10">
+                  <Badge variant="default" className="text-[10px] px-1.5 py-0 font-bold">
                     Agro
-                  </span>
+                  </Badge>
                 </div>
                 <span className="text-[10px] text-muted-foreground hidden sm:inline truncate">
                   {executionMode === "standalone"
@@ -99,7 +106,7 @@ export function Header(): React.ReactElement {
             {isSubpage && (
               <div className="flex md:hidden items-center gap-2 min-w-0">
                 <div className="p-1.5 rounded-sm bg-primary/10 text-primary shrink-0">
-                  <ActiveIcon className="w-4 h-4" />
+                  <ActiveIcon className="size-4" />
                 </div>
                 <div className="flex flex-col min-w-0">
                   <span className="font-bold tracking-tight text-foreground text-sm leading-tight truncate">
@@ -126,19 +133,17 @@ export function Header(): React.ReactElement {
                   : pathname.startsWith(item.href);
 
               return (
-                <Link
+                <Button
                   key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-medium transition-colors",
-                    isActive
-                      ? "bg-primary text-primary-foreground font-semibold"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  )}
+                  asChild
+                  variant={isActive ? "default" : "ghost"}
+                  size="sm"
                 >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{item.label}</span>
-                </Link>
+                  <Link href={item.href}>
+                    <Icon className="size-3.5" />
+                    <span>{item.label}</span>
+                  </Link>
+                </Button>
               );
             })}
           </nav>
@@ -169,12 +174,12 @@ export function Header(): React.ReactElement {
             <Badge
               variant="outline"
               data-testid="header-device-badge"
-              className="hidden sm:inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-sm border-primary/25 text-muted-foreground"
+              className="hidden sm:inline-flex"
             >
               {deviceCategory === "mobile" ? (
-                <Smartphone className="w-3 h-3 text-primary" />
+                <Smartphone className="size-3 text-primary" />
               ) : deviceCategory === "tablet" ? (
-                <Tablet className="w-3 h-3 text-primary" />
+                <Tablet className="size-3 text-primary" />
               ) : null}
               <span>
                 {executionMode === "standalone"
@@ -188,20 +193,20 @@ export function Header(): React.ReactElement {
             </Badge>
 
             {/* Botão rápido de Minha Conta no Header (acessível em qualquer viewport) */}
-            <Link
-              href="/conta"
-              aria-label="Minha Conta"
-              title="Minha Conta Individual"
-              className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm text-xs font-medium border transition-colors min-h-[34px]",
-                pathname.startsWith("/conta")
-                  ? "border-primary bg-primary/10 text-primary font-semibold"
-                  : "border-border bg-background hover:bg-accent text-foreground"
-              )}
+            <Button
+              asChild
+              variant={pathname.startsWith("/conta") ? "default" : "outline"}
+              size="sm"
             >
-              <User className="w-3.5 h-3.5 text-primary" />
-              <span className="hidden sm:inline">Minha Conta</span>
-            </Link>
+              <Link
+                href="/conta"
+                aria-label="Minha Conta"
+                title="Minha Conta Individual"
+              >
+                <User className="size-3.5" />
+                <span className="hidden sm:inline">Minha Conta</span>
+              </Link>
+            </Button>
 
             <ThemeToggle />
           </div>

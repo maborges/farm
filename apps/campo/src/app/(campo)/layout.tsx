@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AdaptiveCampoSidebar } from "@/components/campo/adaptive-sidebar";
 import { CampoBottomNav } from "@/components/campo/bottom-nav";
 import { CampoPwaInstallBanner } from "@/components/campo/pwa-install-banner";
+import { CampoPwaUpdateBanner } from "@/components/campo/pwa-update-banner";
 import { CampoTopAppBar } from "@/components/campo/top-app-bar";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { OfflineBanner } from "@/components/offline-banner";
@@ -72,6 +73,7 @@ export default function CampoLayout({ children }: { children: React.ReactNode })
 
           <main className="flex-1 min-w-0 w-full max-w-5xl mx-auto px-3 sm:px-5 md:px-6 py-3 sm:py-5 pb-24 md:pb-8">
             <div className="flex flex-col gap-3">
+              <CampoPwaUpdateBanner />
               <OfflineBanner />
               <CampoPwaInstallBanner />
               <div className="campo-pwa-page w-full">{children}</div>

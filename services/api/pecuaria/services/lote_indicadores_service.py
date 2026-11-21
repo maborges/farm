@@ -73,7 +73,11 @@ class LoteIndicadoresService:
         zootecnico = await self._resolver_dados_zootecnicos(lote)
         custos = await self._buscar_custos_lote(lote.id)
         area_ha = await self._buscar_area_piquete_ha(lote.area_id)
-        cotacao = await cotacao_arroba_service.obter_cotacao_boi_gordo_referencia(self.session)
+        cotacao = await cotacao_arroba_service.resolver_cotacao_boi_gordo_contexto(
+            self.session,
+            tenant_id=self.tenant_id,
+            unidade_produtiva_id=lote.unidade_produtiva_id,
+        )
         return self._montar_resposta(lote, zootecnico, custos, area_ha, cotacao)
 
     async def _buscar_lote(self, lote_id: uuid.UUID) -> LoteAnimal:

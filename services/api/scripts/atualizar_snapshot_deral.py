@@ -82,6 +82,14 @@ class ItemSnapshotDeral(BaseModel):
     unidade: str
     unidadeOriginal: str
     registroOriginal: str
+    valorSemanaAnterior: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    variacaoSemanalAbsoluta: float | None = Field(default=None, allow_inf_nan=False)
+    variacaoSemanalPct: float | None = Field(default=None, allow_inf_nan=False)
+    valorMinimoRegional: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    pracaMinimoRegional: str | None = None
+    valorMaximoRegional: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    pracaMaximoRegional: str | None = None
+    pracasRegionais: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class SnapshotDeral(BaseModel):

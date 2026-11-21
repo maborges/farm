@@ -2,13 +2,16 @@
 
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, ArrowLeft } from "lucide-react";
-import { db } from "@/lib/db";
-import { useSyncStore } from "@/lib/stores/sync-store";
-import { useSessionStore } from "@/lib/stores/session-store";
-import { runSync } from "@/lib/sync/worker";
-import { logger } from "@/lib/logger";
+import { AlertTriangle, ArrowLeft, CheckCircle2, RefreshCw } from "lucide-react";
+
 import { CampoButton, CampoMetric, CampoPill, CampoSectionTitle, CampoSurface } from "@/components/campo/ui";
+
+import { db } from "@/lib/db";
+import { logger } from "@/lib/logger";
+import { usePwaUpdateStore } from "@/lib/stores/pwa-update-store";
+import { useSessionStore } from "@/lib/stores/session-store";
+import { useSyncStore } from "@/lib/stores/sync-store";
+import { runSync } from "@/lib/sync/worker";
 
 async function retryItem(id: string) {
   await db.sync_queue.update(id, { status: "PENDING", attempts: 0, last_error: undefined });
@@ -29,6 +32,15 @@ export default function SyncPage() {
   const router = useRouter();
   const { status, isOnline, pendingCount, lastSyncAt, lastError } = useSyncStore();
   const { session } = useSessionStore();
+  const {
+    hasUpdate,
+    isChecking,
+    isApplying,
+    lastCheckedAt,
+    feedbackMessage,
+    checkForUpdate,
+    applyUpdate,
+  } = usePwaUpdateStore();
 
   const failedItems = useLiveQuery(
     () => db.sync_queue.where("status").equals("FAILED").toArray(),
@@ -183,6 +195,40 @@ export default function SyncPage() {
         <InfoRow label="ID" value={session?.device_id?.slice(0, 8) + "..."} />
         <InfoRow label="Usuário" value={session?.user_name ?? "—"} />
         <InfoRow label="Módulos" value={session?.modules?.join(", ") ?? "—"} />
+        <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
+          {lastCheckedAt && (
+            <p className="text-[11px] text-muted-foreground">
+              Última verificação: {new Date(lastCheckedAt).toLocaleString("pt-BR")}
+            </p>
+          )}
+          {feedbackMessage && (
+            <p className="text-xs font-medium text-foreground">{feedbackMessage}</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <CampoButton
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={isChecking || !isOnline}
+              onClick={() => void checkForUpdate()}
+            >
+              <RefreshCw className={`size-3.5 ${isChecking ? "animate-spin" : ""}`} />
+              {isChecking ? "Verificando..." : "Verificar atualização do app"}
+            </CampoButton>
+            {hasUpdate && (
+              <CampoButton
+                type="button"
+                size="sm"
+                variant="primary"
+                disabled={isApplying}
+                onClick={() => void applyUpdate()}
+              >
+                <RefreshCw className={`size-3.5 ${isApplying ? "animate-spin" : ""}`} />
+                {isApplying ? "Atualizando..." : "Atualizar aplicativo agora"}
+              </CampoButton>
+            )}
+          </div>
+        </div>
       </CampoSurface>
 
       {/* Diagnósticos */}

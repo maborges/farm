@@ -129,7 +129,12 @@ async def lifespan(app):
         ]
         logger.info("Background jobs embutidos habilitados neste processo da API.")
     else:
-        logger.info("Background jobs embutidos desabilitados. Use o worker separado.")
+        from core.services.deral_auto_sync_service import run_deral_auto_sync_loop
+
+        tasks = [
+            asyncio.create_task(run_deral_auto_sync_loop()),
+        ]
+        logger.info("Background jobs gerais desabilitados; sync automático DERAL mantido ativo.")
 
     # Repositório legado SQLite agro_identity desacoplado da inicialização padrão (AGRO-ADMIN-01B2B)
     if settings.enable_legacy_agro_db:

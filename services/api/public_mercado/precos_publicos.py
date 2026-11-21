@@ -30,10 +30,21 @@ AVISO_LEGAL_PRECOS = (
     "Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. "
     "Não constitui cotação em tempo real nem contrato futuro."
 )
-MAX_PRECOS_SEMANAIS_FRESCOS_DIAS = 7
+MAX_PRECOS_SEMANAIS_FRESCOS_DIAS = 14
 SNAPSHOT_PATH = Path(__file__).with_name("data") / "deral-prp-2026-10-16.json"
 DERAL_PORTAL_URL = "https://www.agricultura.pr.gov.br/deral/precos"
 DERAL_SPREADSHEET_URL = "https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls"
+
+
+class PracaRegionalDeralItem(BaseModel):
+    """Cotação auditada de um Núcleo Regional na planilha DERAL/SEAB-PR."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    praca: str
+    valor: float = Field(gt=0, allow_inf_nan=False)
+    valorOriginal: float = Field(gt=0, allow_inf_nan=False)
+    registroOriginal: str
 
 
 class PrecoPublicoItem(BaseModel):
@@ -68,6 +79,14 @@ class PrecoPublicoItem(BaseModel):
     valorOriginal: float = Field(gt=0, allow_inf_nan=False)
     unidadeOriginal: str
     transformacaoAplicada: str
+    valorSemanaAnterior: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    variacaoSemanalAbsoluta: float | None = Field(default=None, allow_inf_nan=False)
+    variacaoSemanalPct: float | None = Field(default=None, allow_inf_nan=False)
+    valorMinimoRegional: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    pracaMinimoRegional: str | None = None
+    valorMaximoRegional: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    pracaMaximoRegional: str | None = None
+    pracasRegionais: list[PracaRegionalDeralItem] = Field(default_factory=list)
 
 
 class PrecosPublicosResponse(BaseModel):
@@ -109,6 +128,14 @@ class VariantePreco(BaseModel):
     estadoDisponibilidade: Literal["DISPONIVEL", "DEFASADO", "LINK_HOMOLOGADO"] = "DISPONIVEL"
     urlConsultaInstitucional: str
     urlDocumentoDownload: str | None = None
+    valorSemanaAnterior: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    variacaoSemanalAbsoluta: float | None = Field(default=None, allow_inf_nan=False)
+    variacaoSemanalPct: float | None = Field(default=None, allow_inf_nan=False)
+    valorMinimoRegional: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    pracaMinimoRegional: str | None = None
+    valorMaximoRegional: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    pracaMaximoRegional: str | None = None
+    pracasRegionais: list[PracaRegionalDeralItem] = Field(default_factory=list)
 
 
 class CommodityCatalogoItem(BaseModel):
@@ -139,6 +166,14 @@ class CommodityCatalogoItem(BaseModel):
     documentoHashSha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     registroOriginal: str | None = None
     estadoDisponibilidade: Literal["DISPONIVEL", "DEFASADO", "LINK_HOMOLOGADO"] = "DISPONIVEL"
+    valorSemanaAnterior: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    variacaoSemanalAbsoluta: float | None = Field(default=None, allow_inf_nan=False)
+    variacaoSemanalPct: float | None = Field(default=None, allow_inf_nan=False)
+    valorMinimoRegional: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    pracaMinimoRegional: str | None = None
+    valorMaximoRegional: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    pracaMaximoRegional: str | None = None
+    pracasRegionais: list[PracaRegionalDeralItem] = Field(default_factory=list)
     variantes: list[VariantePreco] = Field(default_factory=list)
 
 
@@ -443,6 +478,7 @@ def _montar_item_catalogo(
     meta: dict[str, object],
     precos_map: dict[str, PrecoPublicoItem],
     snapshot: dict[str, object],
+    max_defasagem_dias: int = MAX_PRECOS_SEMANAIS_FRESCOS_DIAS,
 ) -> CommodityCatalogoItem:
     """Monta um item do catálogo combinando metadados cadastrais e variantes reais."""
     cid = str(meta["id"])
@@ -473,11 +509,19 @@ def _montar_item_catalogo(
             registroOriginal=preco.registroOriginal,
             estadoDisponibilidade=(
                 "DISPONIVEL"
-                if preco.defasagemDiasAproximada <= MAX_PRECOS_SEMANAIS_FRESCOS_DIAS
+                if preco.defasagemDiasAproximada <= max_defasagem_dias
                 else "DEFASADO"
             ),
             urlConsultaInstitucional=DERAL_PORTAL_URL,
             urlDocumentoDownload=DERAL_SPREADSHEET_URL,
+            valorSemanaAnterior=preco.valorSemanaAnterior,
+            variacaoSemanalAbsoluta=preco.variacaoSemanalAbsoluta,
+            variacaoSemanalPct=preco.variacaoSemanalPct,
+            valorMinimoRegional=preco.valorMinimoRegional,
+            pracaMinimoRegional=preco.pracaMinimoRegional,
+            valorMaximoRegional=preco.valorMaximoRegional,
+            pracaMaximoRegional=preco.pracaMaximoRegional,
+            pracasRegionais=preco.pracasRegionais,
         )
         return CommodityCatalogoItem(
             id=cid,
@@ -503,6 +547,14 @@ def _montar_item_catalogo(
             documentoHashSha256=preco.documentoHashSha256,
             registroOriginal=preco.registroOriginal,
             estadoDisponibilidade=variante_deral.estadoDisponibilidade,
+            valorSemanaAnterior=preco.valorSemanaAnterior,
+            variacaoSemanalAbsoluta=preco.variacaoSemanalAbsoluta,
+            variacaoSemanalPct=preco.variacaoSemanalPct,
+            valorMinimoRegional=preco.valorMinimoRegional,
+            pracaMinimoRegional=preco.pracaMinimoRegional,
+            valorMaximoRegional=preco.valorMaximoRegional,
+            pracaMaximoRegional=preco.pracaMaximoRegional,
+            pracasRegionais=preco.pracasRegionais,
             variantes=[variante_deral],
         )
 
@@ -548,21 +600,34 @@ def _montar_item_catalogo(
     )
 
 
-def carregar_catalogo_mercado(now: datetime | None = None) -> CatalogoMercadoResponse:
+def carregar_catalogo_mercado(
+    now: datetime | None = None,
+    max_defasagem_dias: int = MAX_PRECOS_SEMANAIS_FRESCOS_DIAS,
+) -> CatalogoMercadoResponse:
     """Gera resposta completa do catálogo com dados cadastrais e preços homologados."""
     consulta = now or datetime.now(timezone.utc)
     precos_itens = carregar_precos_publicos(consulta)
     precos_map = {item.id: item for item in precos_itens}
     snapshot = _carregar_snapshot()
 
-    itens = [_montar_item_catalogo(meta, precos_map, snapshot) for meta in METADADOS_CATALOGO]
+    itens = [
+        _montar_item_catalogo(meta, precos_map, snapshot, max_defasagem_dias)
+        for meta in METADADOS_CATALOGO
+    ]
+    estado_catalogo = (
+        "FONTE_INDISPONIVEL"
+        if not precos_itens
+        else "DEFASADO"
+        if any(item.defasagemDiasAproximada > max_defasagem_dias for item in precos_itens)
+        else "NORMAL"
+    )
 
     return CatalogoMercadoResponse(
         sucesso=True,
         versao="1.0",
         dataConsultaIso=consulta,
         cacheAtualizadoEmIso=consulta,
-        estadoDisponibilidade="NORMAL",
+        estadoDisponibilidade=estado_catalogo,
         avisoLegal=AVISO_LEGAL_PRECOS,
         totalItens=len(itens),
         itens=itens,

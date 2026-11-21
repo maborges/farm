@@ -1,7 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
+
+import { PwaUpdateLifecycle } from "@/components/campo/pwa-update-lifecycle";
 import { ThemeProvider } from "@/components/theme-provider";
+
 import { DeviceContextProvider } from "@/lib/device/use-device-context";
+
 import "./globals.css";
 
 const outfit = Outfit({
@@ -33,7 +37,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         suppressHydrationWarning
       >
         <ThemeProvider defaultTheme="light">
-          <DeviceContextProvider>{children}</DeviceContextProvider>
+          <DeviceContextProvider>
+            <PwaUpdateLifecycle />
+            {children}
+          </DeviceContextProvider>
         </ThemeProvider>
       </body>
     </html>

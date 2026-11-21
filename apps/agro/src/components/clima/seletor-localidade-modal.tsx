@@ -2,9 +2,11 @@
 
 import * as React from "react";
 import { AlertCircle, Check, Crosshair, Loader2, MapPin, Search, X } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, inputBaseClassName } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import {
   fetchMunicipios,
   type LocalidadeClima,
@@ -47,7 +49,6 @@ export function SeletorLocalidadeModal({
   const modalRef = React.useRef<HTMLDivElement>(null);
   const activeRequestIdRef = React.useRef(0);
 
-  // Foco inicial ao abrir
   React.useEffect(() => {
     if (isOpen) {
       setSearchTerm("");
@@ -62,7 +63,6 @@ export function SeletorLocalidadeModal({
     }
   }, [isOpen]);
 
-  // Tecla Escape para fechar
   React.useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -74,7 +74,6 @@ export function SeletorLocalidadeModal({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Debounced search com identificador único de requisição
   React.useEffect(() => {
     if (!isOpen) return;
 
@@ -139,7 +138,6 @@ export function SeletorLocalidadeModal({
     };
   }, [searchTerm, selectedUf, isOpen]);
 
-  // Ação de seleção de município IBGE
   const handleSelectMunicipio = (item: MunicipioBuscaItem) => {
     const loc: LocalidadeClima = {
       codigoIbge: item.codigoIbge,
@@ -156,7 +154,6 @@ export function SeletorLocalidadeModal({
     onClose();
   };
 
-  // Ação de obtenção consentida de GPS
   const handleUseGps = () => {
     if (typeof window === "undefined" || !("geolocation" in navigator)) {
       setGpsError("Geolocalização não é suportada pelo seu navegador ou dispositivo.");
@@ -190,13 +187,13 @@ export function SeletorLocalidadeModal({
       (error) => {
         setIsGpsLoading(false);
         switch (error.code) {
-          case 1: // PERMISSION_DENIED
+          case 1:
             setGpsError("Permissão de localização negada. Pesquise pelo nome do município abaixo.");
             break;
-          case 2: // POSITION_UNAVAILABLE
+          case 2:
             setGpsError("Sinal GPS indisponível no momento. Tente novamente ou pesquise o município.");
             break;
-          case 3: // TIMEOUT
+          case 3:
             setGpsError("Tempo esgotado ao buscar localização. Tente novamente ou busque pelo nome.");
             break;
           default:
@@ -216,7 +213,7 @@ export function SeletorLocalidadeModal({
   return (
     <div
       className={cn(
-        "fixed inset-0 z-50 flex bg-background/80 backdrop-blur-xs",
+        "fixed inset-0 z-50 flex bg-black/20 backdrop-blur-xs",
         isBottomSheet
           ? "items-end justify-center p-0"
           : "items-center justify-center p-3 sm:p-4"
@@ -232,7 +229,7 @@ export function SeletorLocalidadeModal({
     >
       <div
         className={cn(
-          "relative w-full max-w-lg border border-border bg-card text-card-foreground shadow-lg flex flex-col overflow-hidden",
+          "glass-surface relative w-full max-w-lg flex flex-col overflow-hidden ring-1 ring-border/40",
           isBottomSheet
             ? "rounded-t-md border-b-0 max-h-[88dvh] safe-area-pb"
             : "rounded-sm max-h-[85vh]"
@@ -248,43 +245,42 @@ export function SeletorLocalidadeModal({
         {/* Cabeçalho do Diálogo */}
         <div className="flex items-center justify-between p-3.5 border-b border-border/80">
           <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-primary" />
+            <MapPin className="size-4 text-primary" />
             <h2 id="modal-localidade-title" className="text-sm font-semibold">
               Selecionar Localidade
             </h2>
           </div>
           <Button
             variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-sm"
+            size="icon-sm"
             onClick={onClose}
             aria-label="Fechar diálogo de seleção"
           >
-            <X className="w-4 h-4" />
+            <X className="size-4" />
           </Button>
         </div>
 
         {/* Conteúdo com Busca e Ações */}
-        <div className="p-3.5 space-y-3 flex-1 overflow-y-auto">
+        <div className="p-3.5 flex flex-col gap-3 flex-1 overflow-y-auto">
           {/* Botão de Localização GPS Consentida */}
           <div>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="w-full justify-center gap-2 min-h-[42px] sm:min-h-[36px] text-xs font-medium border-primary/30 hover:bg-primary/5 active:bg-primary/10"
+              className="w-full justify-center gap-2 min-h-[38px] sm:min-h-[34px] text-xs font-medium"
               onClick={handleUseGps}
               disabled={isGpsLoading}
               id="btn-usar-gps"
             >
               {isGpsLoading ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                  <Loader2 className="size-3.5 animate-spin text-primary" />
                   <span>Obtendo coordenadas GPS...</span>
                 </>
               ) : (
                 <>
-                  <Crosshair className="w-3.5 h-3.5 text-primary" />
+                  <Crosshair className="size-3.5 text-primary" />
                   <span>Usar minha localização atual (GPS)</span>
                 </>
               )}
@@ -296,34 +292,31 @@ export function SeletorLocalidadeModal({
 
           {/* Mensagem de Erro GPS */}
           {gpsError && (
-            <div
-              className="p-2.5 rounded-sm border border-destructive/30 bg-destructive/5 text-destructive text-xs flex items-start gap-2"
-              role="alert"
-            >
-              <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-              <span>{gpsError}</span>
-            </div>
+            <Alert variant="destructive">
+              <AlertCircle className="size-4" />
+              <AlertDescription className="text-xs">{gpsError}</AlertDescription>
+            </Alert>
           )}
 
           <div className="relative flex items-center my-1">
-            <div className="flex-grow border-t border-border/60" />
-            <span className="flex-shrink mx-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <Separator className="flex-1" />
+            <span className="shrink-0 mx-2 text-[10px] uppercase tracking-wider text-muted-foreground">
               Ou pesquise pelo município
             </span>
-            <div className="flex-grow border-t border-border/60" />
+            <Separator className="flex-1" />
           </div>
 
           {/* Filtros: Campo de Busca e Seletor de UF */}
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               <Input
                 ref={inputRef}
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Ex: Londrina, Sorriso, Ribeirão..."
-                className="pl-8 text-xs h-10 sm:h-8 rounded-sm"
+                className="pl-8 text-xs"
                 aria-label="Pesquisar município"
                 id="input-busca-municipio"
               />
@@ -332,7 +325,7 @@ export function SeletorLocalidadeModal({
             <select
               value={selectedUf}
               onChange={(e) => setSelectedUf(e.target.value)}
-              className="h-10 sm:h-8 rounded-sm border border-border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className={cn(inputBaseClassName, "w-28 text-xs px-2")}
               aria-label="Filtrar por estado (UF)"
               id="select-filtro-uf"
             >
@@ -345,13 +338,13 @@ export function SeletorLocalidadeModal({
           </div>
 
           {/* Lista de Resultados e Estados de Busca */}
-          <div className="space-y-1.5 min-h-[160px] max-h-[260px] overflow-y-auto pr-1">
+          <div className="flex flex-col gap-1.5 min-h-[160px] max-h-[260px] overflow-y-auto pr-1">
             {searchStatus === "CARREGANDO" ? (
               <div
                 className="flex flex-col items-center justify-center py-8 text-muted-foreground gap-2"
                 id="estado-carregando"
               >
-                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                <Loader2 className="size-5 animate-spin text-primary" />
                 <span className="text-xs">Consultando catálogo oficial do IBGE...</span>
               </div>
             ) : searchStatus === "SUCESSO" && itens.length > 0 ? (
@@ -366,14 +359,15 @@ export function SeletorLocalidadeModal({
                       <button
                         type="button"
                         onClick={() => handleSelectMunicipio(item)}
-                        className={`w-full flex items-center justify-between p-2.5 sm:p-2 min-h-[44px] sm:min-h-0 text-left rounded-sm text-xs hover:bg-accent hover:text-accent-foreground active:bg-accent/80 transition-colors cursor-pointer ${
-                          isSelected ? "bg-accent/60 font-medium" : ""
-                        }`}
+                        className={cn(
+                          "w-full flex items-center justify-between p-2.5 sm:p-2 min-h-[44px] sm:min-h-0 text-left rounded-sm text-xs hover:bg-accent hover:text-accent-foreground active:bg-accent/80 transition-colors cursor-pointer",
+                          isSelected && "bg-accent/60 font-medium"
+                        )}
                         role="option"
                         aria-selected={isSelected}
                       >
                         <div className="flex items-center gap-2">
-                          <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                          <MapPin className="size-3.5 text-muted-foreground shrink-0" />
                           <div>
                             <span className="font-medium text-foreground">{item.nome}</span>
                             <span className="text-[11px] text-muted-foreground ml-1.5">
@@ -388,10 +382,10 @@ export function SeletorLocalidadeModal({
                               Capital
                             </Badge>
                           )}
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">
+                          <Badge variant="secondary" className="font-mono">
                             {item.uf}
                           </Badge>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-primary" />}
+                          {isSelected && <Check className="size-3.5 text-primary" />}
                         </div>
                       </button>
                     </li>
@@ -400,10 +394,10 @@ export function SeletorLocalidadeModal({
               </ul>
             ) : searchStatus === "VAZIO" ? (
               <div
-                className="text-center py-7 px-3 text-xs text-muted-foreground space-y-1.5"
+                className="text-center py-7 px-3 text-xs text-muted-foreground flex flex-col gap-1.5"
                 id="estado-vazio"
               >
-                <Search className="w-6 h-6 mx-auto text-muted-foreground/50 mb-1" />
+                <Search className="size-6 mx-auto text-muted-foreground/50 mb-1" />
                 <p className="font-medium text-foreground">Nenhum município encontrado</p>
                 <p className="text-[11px] text-muted-foreground">
                   {statusMessage || `Nenhum resultado corresponde à busca "${searchTerm.trim()}".`}
@@ -413,50 +407,32 @@ export function SeletorLocalidadeModal({
                 </p>
               </div>
             ) : searchStatus === "ERRO_CATALOGO" ? (
-              <div
-                className="p-3 rounded-sm border border-amber-500/30 bg-amber-500/5 text-amber-950 dark:text-amber-200 text-xs space-y-1"
-                id="estado-erro-catalogo"
-                role="alert"
-              >
-                <div className="flex items-center gap-1.5 font-medium text-amber-900 dark:text-amber-100">
-                  <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                  <span>Catálogo oficial temporariamente indisponível</span>
-                </div>
-                <p className="text-[11px] text-muted-foreground dark:text-amber-300/80">
+              <Alert variant="warning" id="estado-erro-catalogo">
+                <AlertCircle className="size-4" />
+                <AlertTitle className="text-xs">Catálogo oficial temporariamente indisponível</AlertTitle>
+                <AlertDescription className="text-xs">
                   A base de dados do IBGE está indisponível no servidor no momento. Você pode utilizar a sua localização GPS consentida acima.
-                </p>
-              </div>
+                </AlertDescription>
+              </Alert>
             ) : searchStatus === "ERRO_COMUNICACAO" ? (
-              <div
-                className="p-3 rounded-sm border border-destructive/30 bg-destructive/5 text-destructive text-xs space-y-1"
-                id="estado-erro-comunicacao"
-                role="alert"
-              >
-                <div className="flex items-center gap-1.5 font-medium">
-                  <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />
-                  <span>Falha na comunicação com a API</span>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
+              <Alert variant="destructive" id="estado-erro-comunicacao">
+                <AlertCircle className="size-4" />
+                <AlertTitle className="text-xs">Falha na comunicação com a API</AlertTitle>
+                <AlertDescription className="text-xs">
                   {statusMessage || "Não foi possível conectar ao serviço de municípios. Tente novamente."}
-                </p>
-              </div>
+                </AlertDescription>
+              </Alert>
             ) : searchStatus === "ERRO_PARAMETROS" ? (
-              <div
-                className="p-3 rounded-sm border border-border bg-muted/30 text-xs space-y-1"
-                id="estado-erro-parametros"
-                role="alert"
-              >
-                <div className="flex items-center gap-1.5 font-medium text-foreground">
-                  <AlertCircle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                  <span>Critérios de busca incompletos</span>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
+              <Alert variant="default" id="estado-erro-parametros">
+                <AlertCircle className="size-4" />
+                <AlertTitle className="text-xs">Critérios de busca incompletos</AlertTitle>
+                <AlertDescription className="text-xs">
                   {statusMessage || "Informe ao menos 2 caracteres do município ou selecione uma UF."}
-                </p>
-              </div>
+                </AlertDescription>
+              </Alert>
             ) : (
               <div className="text-center py-8 text-xs text-muted-foreground" id="estado-inicial">
-                <MapPin className="w-6 h-6 mx-auto mb-1.5 text-muted-foreground/50" />
+                <MapPin className="size-6 mx-auto mb-1.5 text-muted-foreground/50" />
                 <p className="font-medium text-foreground">Pesquise o nome da sua cidade</p>
                 <p className="text-[10px] mt-0.5 text-muted-foreground/80">
                   Base territorial oficial com 5.571 municípios homologados pelo IBGE.
@@ -467,9 +443,9 @@ export function SeletorLocalidadeModal({
         </div>
 
         {/* Rodapé Informativo */}
-        <div className="p-2.5 px-3.5 border-t border-border/80 bg-muted/20 text-[10px] text-muted-foreground flex items-center justify-between">
+        <div className="p-2.5 px-3.5 border-t border-border/80 bg-muted/40 text-[10px] text-muted-foreground flex items-center justify-between">
           <span>Fonte: IBGE (Sedes Municipais / SIRGAS 2000)</span>
-          <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2.5" onClick={onClose}>
+          <Button variant="outline" size="sm" onClick={onClose}>
             Fechar
           </Button>
         </div>

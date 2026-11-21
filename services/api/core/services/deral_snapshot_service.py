@@ -1,8 +1,8 @@
 """Serviço de gerenciamento, validação e governança de snapshots DERAL/SEAB-PR.
 
 Implementa o pipeline seguro de ingestão de dados oficiais de mercado:
-1. Upload com validação de formato (.json e .xls), tamanho e integridade SHA-256 dos bytes.
-2. Parsing e decodificação nativa de planilhas oficiais BIFF8 (.xls) e envelopes JSON.
+1. Upload com validação de formato (.json, .csv e .xls), tamanho e integridade SHA-256 dos bytes.
+2. Parsing e decodificação nativa de planilhas oficiais BIFF8 (.xls), modelos CSV e envelopes JSON.
 3. Segregação explícita entre integridade de bytes, proveniência e aprovação administrativa.
 4. Armazenamento persistente e imutável dos bytes originais e dados normalizados em PostgreSQL.
 5. Verificação e recálculo de integridade criptográfica pós-persistência.
@@ -14,12 +14,14 @@ from __future__ import annotations
 
 import base64
 import copy
+import csv
 import hashlib
+import io
 import json
 import re
 import unicodedata
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Optional
@@ -61,7 +63,9 @@ COMMODITIES_HOMOLOGADAS_DERAL = {
 
 MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
 MIN_FILE_SIZE_BYTES = 100
-ALLOWED_EXTENSIONS = {".json", ".xls"}
+ALLOWED_EXTENSIONS = {".json", ".csv", ".xls"}
+CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+DEFAULT_DERAL_DOC_URL = "https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls"
 
 OLE2_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
@@ -221,7 +225,7 @@ def parse_deral_xls(dados_xls: bytes, sha256_hash: str) -> dict[str, Any]:
                 detail=f"Preço inválido ({val_raw}) para '{cid}' na linha {linha}.",
             )
 
-        dec_val = float(Decimal(str(val_raw)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        dec_val = _arredondar_2_casas(val_raw)
         itens.append({
             "id": cid,
             "commodityNome": nome,
@@ -232,12 +236,13 @@ def parse_deral_xls(dados_xls: bytes, sha256_hash: str) -> dict[str, Any]:
             "unidade": unidade,
             "unidadeOriginal": unidade_orig,
             "registroOriginal": f"Rav!X{linha}",
+            **_extrair_msa_e_extremos_deral(aba, linha, dec_val),
         })
 
     return {
         "schemaVersion": 1,
         "fonte": "DERAL/SEAB-PR",
-        "documentoOficial": "https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls",
+        "documentoOficial": DEFAULT_DERAL_DOC_URL,
         "documentoHashSha256": sha256_hash,
         "tituloDocumento": titulo,
         "semana": semana_raw,
@@ -245,6 +250,205 @@ def parse_deral_xls(dados_xls: bytes, sha256_hash: str) -> dict[str, Any]:
         "dataReferencia": data_ref,
         "dataPublicacao": None,
         "planilha": "Rav",
+        "colunaValor": "MÉDIA",
+        "transformacaoAplicada": "Arredondamento decimal HALF_UP para 2 casas",
+        "itens": itens,
+    }
+
+
+def _arredondar_2_casas(valor: float) -> float:
+    """Arredonda float com estratégia comercial ROUND_HALF_UP para 2 casas."""
+    return float(Decimal(str(valor)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
+def _extrair_pracas_linha_deral(aba: Any, linha: int) -> list[dict[str, Any]]:
+    """Extrai os preços dos 20 Núcleos Regionais (colunas D..W, índices 3..22) da linha."""
+    pracas: list[dict[str, Any]] = []
+    limite_col = min(23, int(getattr(aba, "ncols", 0)))
+    for col_idx in range(3, limite_col):
+        nome_praca = str(aba.cell_value(1, col_idx)).strip()
+        bruto = aba.cell_value(linha - 1, col_idx)
+        if nome_praca and isinstance(bruto, (int, float)) and float(bruto) > 0:
+            val_f = float(bruto)
+            pracas.append({
+                "praca": nome_praca,
+                "valor": _arredondar_2_casas(val_f),
+                "valorOriginal": val_f,
+                "registroOriginal": f"Rav!{chr(65 + col_idx)}{linha}",
+            })
+    return pracas
+
+
+def _extrair_msa_e_extremos_deral(aba: Any, linha: int, dec_val: float) -> dict[str, Any]:
+    """Extrai Núcleos Regionais, Mín/Máx regional e variação MSA/colunas Y e Z."""
+    pracas = _extrair_pracas_linha_deral(aba, linha)
+    min_item = min(pracas, key=lambda p: float(p["valor"])) if pracas else None
+    max_item = max(pracas, key=lambda p: float(p["valor"])) if pracas else None
+    ncols = int(getattr(aba, "ncols", 0))
+    msa_raw = aba.cell_value(linha - 1, 24) if ncols > 24 else None
+    pct_raw = aba.cell_value(linha - 1, 25) if ncols > 25 else None
+    val_msa, var_abs, var_pct = None, None, None
+    if isinstance(msa_raw, (int, float)) and float(msa_raw) > 0:
+        val_msa = _arredondar_2_casas(float(msa_raw))
+        var_abs = _arredondar_2_casas(dec_val - val_msa)
+        var_pct = (
+            _arredondar_2_casas(float(pct_raw))
+            if isinstance(pct_raw, (int, float))
+            else _arredondar_2_casas(((dec_val - val_msa) / val_msa) * 100.0)
+        )
+    return {
+        "valorSemanaAnterior": val_msa,
+        "variacaoSemanalAbsoluta": var_abs,
+        "variacaoSemanalPct": var_pct,
+        "valorMinimoRegional": float(min_item["valor"]) if min_item else None,
+        "pracaMinimoRegional": str(min_item["praca"]) if min_item else None,
+        "valorMaximoRegional": float(max_item["valor"]) if max_item else None,
+        "pracaMaximoRegional": str(max_item["praca"]) if max_item else None,
+        "pracasRegionais": pracas,
+    }
+
+
+def _enriquecer_variacao_snapshot(
+    itens: list[dict[str, Any]], mapa_anterior: dict[str, float]
+) -> None:
+    """Preenche variação semanal contra o snapshot anterior quando ausente (ex: upload CSV)."""
+    for item in itens:
+        if not isinstance(item, dict) or item.get("valorSemanaAnterior") is not None:
+            continue
+        cid = str(item.get("id") or "")
+        ant = mapa_anterior.get(cid)
+        val_atual = float(item.get("valor") or 0.0)
+        if ant and ant > 0 and val_atual > 0:
+            ant_round = _arredondar_2_casas(ant)
+            item["valorSemanaAnterior"] = ant_round
+            item["variacaoSemanalAbsoluta"] = _arredondar_2_casas(val_atual - ant_round)
+            item["variacaoSemanalPct"] = _arredondar_2_casas(((val_atual - ant_round) / ant_round) * 100.0)
+
+
+def _validar_celula_csv_segura(valor: object, campo: str) -> str:
+    """Rejeita prefixos de fórmula em células CSV para evitar formula injection."""
+    texto = str(valor or "").strip()
+    if texto[:1] in CSV_FORMULA_PREFIXES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Prefixo de fórmula não permitido na coluna CSV '{campo}'.",
+        )
+    return texto
+
+
+def _parse_valor_csv(raw_val: str, cid: str) -> float:
+    """Converte valor monetário CSV (ponto ou vírgula decimal) em float positivo."""
+    limpo = raw_val.replace("R$", "").replace(" ", "").strip()
+    if "," in limpo:
+        limpo = limpo.replace(".", "").replace(",", ".") if "." in limpo else limpo.replace(",", ".")
+    try:
+        dec = Decimal(limpo).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Valor numérico CSV inválido para '{cid}': '{raw_val}'",
+        ) from exc
+    if not dec.is_finite() or dec <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Preço CSV deve ser positivo para '{cid}': '{raw_val}'",
+        )
+    return float(dec)
+
+
+def _decodificar_leitor_csv(dados_csv: bytes) -> csv.DictReader[str]:
+    """Decodifica bytes UTF-8 CSV com ou sem BOM e valida cabeçalhos seguros."""
+    try:
+        texto = dados_csv.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Arquivo CSV não está codificado em UTF-8 válido: {exc}",
+        ) from exc
+    linhas = [ln for ln in texto.splitlines() if ln.strip()]
+    if len(linhas) < 2:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Arquivo CSV sem linhas de cotação.")
+    delim = ";" if ";" in linhas[0] and "," not in linhas[0] else ","
+    reader = csv.DictReader(io.StringIO("\n".join(linhas)), delimiter=delim)
+    for col in reader.fieldnames or []:
+        _validar_celula_csv_segura(col, "cabeçalho")
+    reader.fieldnames = [str(c).strip().lower() for c in (reader.fieldnames or [])]
+    return reader
+
+
+def _converter_linha_csv(
+    row: dict[str, str | None],
+    mapa_ids: dict[str, tuple[str, str, int, str, str]],
+) -> tuple[dict[str, Any], str, str]:
+    """Valida e converte uma linha do CSV DERAL para o formato canônico do snapshot."""
+    cid = _validar_celula_csv_segura(row.get("id"), "id")
+    if cid not in mapa_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Commodity CSV desconhecida: '{cid}'.")
+    nome, prod_orig, linha_base, unidade, unidade_orig = mapa_ids[cid]
+    val_raw_str = _validar_celula_csv_segura(row.get("valor"), "valor")
+    data_ref = _validar_celula_csv_segura(row.get("data_referencia"), "data_referencia")
+    doc_raw = _validar_celula_csv_segura(row.get("documento_oficial"), "documento_oficial") or DEFAULT_DERAL_DOC_URL
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", data_ref):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Data CSV inválida para '{cid}': '{data_ref}'.")
+    if not doc_raw.startswith("https://"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Coluna 'documento_oficial' deve iniciar com https://.")
+    valor = _parse_valor_csv(val_raw_str, cid)
+    item = {
+        "id": cid, "commodityNome": nome, "produtoOriginal": prod_orig,
+        "classificacao": f"{prod_orig} — preço médio recebido pelo produtor",
+        "valor": valor, "valorOriginal": valor, "unidade": unidade,
+        "unidadeOriginal": unidade_orig, "registroOriginal": f"Rav!X{linha_base}",
+    }
+    return item, data_ref, doc_raw
+
+
+def _coletar_itens_csv(reader: csv.DictReader[str]) -> tuple[list[dict[str, Any]], str, str]:
+    """Agrega as 21 linhas do CSV exigindo data de referência uniforme."""
+    mapa_ids = {cid: (nome, prod, ln, uni, uo) for cid, nome, prod, ln, uni, uo in COMMODITIES_XLS_MAP}
+    itens: list[dict[str, Any]] = []
+    vistas: set[str] = set()
+    data_ref_unica, doc_unico = "", DEFAULT_DERAL_DOC_URL
+    for row in reader:
+        item, data_ref, doc_url = _converter_linha_csv(row, mapa_ids)
+        if item["id"] in vistas:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Commodity duplicada no CSV: '{item['id']}'.")
+        if data_ref_unica and data_ref != data_ref_unica:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Todas as linhas CSV devem usar a mesma data_referencia.")
+        data_ref_unica, doc_unico = data_ref, doc_url
+        vistas.add(item["id"])
+        itens.append(item)
+    return itens, data_ref_unica, doc_unico
+
+
+def parse_deral_csv(dados_csv: bytes, sha256_hash: str) -> dict[str, Any]:
+    """Decodifica e valida modelo CSV com as 21 commodities homologadas DERAL.
+
+    Args:
+        dados_csv: Bytes UTF-8 do arquivo CSV enviado pelo operador.
+        sha256_hash: Digest SHA-256 calculado sobre os bytes originais.
+
+    Returns:
+        Dicionário envelope no formato canônico do snapshot DERAL.
+
+    Raises:
+        HTTPException: Se houver fórmula maliciosa, formatação inválida ou itens ausentes.
+    """
+    reader = _decodificar_leitor_csv(dados_csv)
+    itens, data_ref, doc_url = _coletar_itens_csv(reader)
+    faltantes = COMMODITIES_HOMOLOGADAS_DERAL - {str(item["id"]) for item in itens}
+    if faltantes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"CSV incompleto. Faltam {len(faltantes)} commodities: {', '.join(sorted(faltantes))}",
+        )
+    return {
+        "schemaVersion": 1,
+        "fonte": "DERAL/SEAB-PR",
+        "documentoOficial": doc_url,
+        "documentoHashSha256": sha256_hash,
+        "dataReferencia": data_ref,
+        "dataPublicacao": None,
+        "planilha": "CSV Modelo DERAL",
         "colunaValor": "MÉDIA",
         "transformacaoAplicada": "Arredondamento decimal HALF_UP para 2 casas",
         "itens": itens,
@@ -296,24 +500,39 @@ class DeralSnapshotService:
     ) -> dict[str, Any] | None:
         """Descobre e reconcilia o snapshot ativo a partir da persistência em ConfiguracaoSaaS."""
         try:
-            stmt = select(ConfiguracaoSaaS).where(ConfiguracaoSaaS.chave == KEY_MERCADO)
-            res = await session.execute(stmt)
-            rec = res.scalar_one_or_none()
-            if not rec or not isinstance(rec.valor, dict):
+            stmt_cfg = select(ConfiguracaoSaaS).where(ConfiguracaoSaaS.chave == KEY_MERCADO)
+            rec_cfg = (await session.execute(stmt_cfg)).scalar_one_or_none()
+            id_cfg = (
+                str(rec_cfg.valor.get("active_snapshot_id") or "")
+                if rec_cfg and isinstance(rec_cfg.valor, dict)
+                else ""
+            )
+
+            stmt_idx = select(ConfiguracaoSaaS).where(ConfiguracaoSaaS.chave == KEY_DERAI_INDEX)
+            rec_idx = (await session.execute(stmt_idx)).scalar_one_or_none()
+            id_idx = (
+                str(rec_idx.valor.get("active_snapshot_id") or "")
+                if rec_idx and isinstance(rec_idx.valor, dict)
+                else ""
+            )
+
+            candidatos = [cid for cid in (id_cfg, id_idx) if cid]
+            if not candidatos:
                 return self.get_cached_active_snapshot()
 
-            active_id = rec.valor.get("active_snapshot_id", "2026-10-16")
+            # Prioriza o ponteiro do índice de snapshots (ou o mais recente se divergirem)
+            active_id = id_idx if id_idx and id_idx >= id_cfg else (id_cfg or id_idx)
             if self._active_snapshot_id == active_id and self._active_snapshot_cache is not None:
                 return self._active_snapshot_cache
 
             snap_stmt = select(ConfiguracaoSaaS).where(
                 ConfiguracaoSaaS.chave == f"{KEY_DERAI_SNAP_PREFIX}{active_id}"
             )
-            snap_res = await session.execute(snap_stmt)
-            snap_rec = snap_res.scalar_one_or_none()
+            snap_rec = (await session.execute(snap_stmt)).scalar_one_or_none()
 
             if snap_rec and isinstance(snap_rec.valor, dict):
-                data = snap_rec.valor.get("snapshot_data", {})
+                data = snap_rec.valor.get("snapshot_data") or snap_rec.valor.get("data") or {}
+                data = self._enriquecer_snapshot_legado_se_xls(snap_rec.valor, data)
                 if data and data.get("itens"):
                     self.set_cached_active_snapshot(active_id, data)
                     return data
@@ -321,6 +540,28 @@ class DeralSnapshotService:
             logger.warning(f"Falha ao reconciliar snapshot ativo do banco: {exc}")
 
         return self.get_cached_active_snapshot()
+
+    def _enriquecer_snapshot_legado_se_xls(
+        self, rec_valor: dict[str, Any], snap_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Reprocessa bytes .xls persistidos caso o snapshot no banco não tenha núcleos regionais."""
+        itens = snap_data.get("itens")
+        if not isinstance(itens, list) or not itens:
+            return snap_data
+        primeiro = itens[0] if isinstance(itens[0], dict) else {}
+        if primeiro.get("pracasRegionais") and primeiro.get("valorSemanaAnterior") is not None:
+            return snap_data
+        b64_str = str(rec_valor.get("raw_bytes_base64") or "")
+        if not b64_str:
+            return snap_data
+        try:
+            raw_bytes = base64.b64decode(b64_str)
+            if raw_bytes.startswith(OLE2_MAGIC):
+                sha = hashlib.sha256(raw_bytes).hexdigest()
+                return parse_deral_xls(raw_bytes, sha)
+        except Exception:
+            pass
+        return snap_data
 
     async def _get_or_create_index(self, session: AsyncSession) -> dict[str, Any]:
         """Recupera ou inicializa o índice de snapshots DERAL a partir do baseline bundled."""
@@ -480,6 +721,9 @@ class DeralSnapshotService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Sintaxe JSON corrompida ou inválida: {exc}",
                 ) from exc
+        elif ext == ".csv":
+            data = parse_deral_csv(raw_bytes, sha256_hash)
+            validacoes.append("Modelo CSV DERAL decodificado e validado contra injeção de fórmulas.")
         elif ext == ".xls":
             data = parse_deral_xls(raw_bytes, sha256_hash)
             validacoes.append(f"Planilha .xls BIFF8 decodificada com sucesso via parser DERAL/SEAB.")
@@ -693,6 +937,9 @@ class DeralSnapshotService:
     ) -> DeralSnapshotUploadResponse:
         """Processa upload, valida conformidade rígida e salva snapshot com bytes imutáveis como VALIDADO."""
         data, metadata, validacoes = self.validate_snapshot_raw(raw_bytes, filename)
+        mapa_anterior = await self._carregar_precos_atuais_mapa(session)
+        if isinstance(data.get("itens"), list):
+            _enriquecer_variacao_snapshot(data["itens"], mapa_anterior)
 
         admin_uid, admin_email = await resolve_admin_identity(session, admin_claims)
         metadata.uploaded_by = admin_email
@@ -781,7 +1028,7 @@ class DeralSnapshotService:
             mensagem="Snapshot DERAL validado com sucesso e persistido imutavelmente. Aguarda aprovação formal de proveniência.",
             metadata=metadata,
             validacoes=validacoes,
-            itens_preview=data.get("itens", [])[:5],
+            itens_preview=data.get("itens", []),
         )
 
     async def approve_snapshot(
@@ -967,7 +1214,12 @@ class DeralSnapshotService:
 
         filename = str(meta_dict.get("filename") or f"deral-{snapshot_id}.json")
         ext = Path(filename).suffix.lower()
-        content_type = "application/json" if ext == ".json" else "application/vnd.ms-excel"
+        content_types = {
+            ".json": "application/json",
+            ".csv": "text/csv; charset=utf-8",
+            ".xls": "application/vnd.ms-excel",
+        }
+        content_type = content_types.get(ext, "application/octet-stream")
 
         stmt = select(ConfiguracaoSaaS).where(
             ConfiguracaoSaaS.chave == f"{KEY_DERAI_SNAP_PREFIX}{snapshot_id}"
@@ -1300,6 +1552,54 @@ class DeralSnapshotService:
 
         logger.info(f"Rollback para snapshot DERAL {target_snapshot_id} concluído por {admin_email}.")
         return await self.get_snapshot_details(session, target_snapshot_id)
+
+    async def _carregar_precos_atuais_mapa(self, session: AsyncSession) -> dict[str, float]:
+        """Obtém o mapa id -> valor do snapshot ativo no banco ou do baseline local."""
+        snap_data = await self.sync_active_snapshot_from_db(session) or {}
+        if not snap_data:
+            index = await self._get_or_create_index(session)
+            active_id = str(index.get("active_snapshot_id") or "")
+            if active_id:
+                stmt = select(ConfiguracaoSaaS).where(
+                    ConfiguracaoSaaS.chave == f"{KEY_DERAI_SNAP_PREFIX}{active_id}"
+                )
+                rec = (await session.execute(stmt)).scalar_one_or_none()
+                if rec and isinstance(rec.valor, dict):
+                    snap_data = (
+                        rec.valor.get("snapshot_data")
+                        or rec.valor.get("data")
+                        or {}
+                    )
+        if not snap_data and SNAPSHOT_PATH.exists():
+            snap_data = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+        return {
+            str(item["id"]): float(item["valor"])
+            for item in snap_data.get("itens", [])
+            if isinstance(item, dict) and item.get("id") and item.get("valor") is not None
+        }
+
+    async def gerar_template_csv(self, session: AsyncSession) -> tuple[bytes, str]:
+        """Gera arquivo CSV modelo com as 21 commodities e preços da referência ativa.
+
+        Args:
+            session: Sessão assíncrona do banco para ler cotações vigentes.
+
+        Returns:
+            Tupla (bytes_utf8_bom, nome_arquivo_csv).
+        """
+        precos_map = await self._carregar_precos_atuais_mapa(session)
+        hoje_iso = date.today().isoformat()
+        buf = io.StringIO(newline="")
+        writer = csv.writer(buf, delimiter=",", quoting=csv.QUOTE_MINIMAL)
+        writer.writerow([
+            "id", "commodity_nome", "produto_original", "unidade",
+            "unidade_original", "valor", "data_referencia", "documento_oficial",
+        ])
+        for cid, nome, prod_orig, _ln, unidade, unidade_orig in COMMODITIES_XLS_MAP:
+            valor = precos_map.get(cid, 0.0)
+            writer.writerow([cid, nome, prod_orig, unidade, unidade_orig, f"{valor:.2f}", hoje_iso, DEFAULT_DERAL_DOC_URL])
+        csv_bytes = ("\ufeff" + buf.getvalue()).encode("utf-8")
+        return csv_bytes, f"modelo-deral-prp-{hoje_iso}.csv"
 
 
 # Instância singleton global do serviço

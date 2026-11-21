@@ -5,7 +5,8 @@ const enablePwaInDev = process.env.ENABLE_PWA_DEV === "true";
 const withPWA = require("next-pwa")({
   dest: "public",
   register: true,
-  skipWaiting: true,
+  skipWaiting: false,
+  reloadOnOnline: false,
   disable: process.env.NODE_ENV === "development" && !enablePwaInDev,
   runtimeCaching: [
     // Regra específica avaliada antes da genérica abaixo: rotas de API
@@ -46,6 +47,37 @@ function getBackendOrigin() {
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   turbopack: {},
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-cache, no-store, must-revalidate",
+          },
+        ],
+      },
+      {
+        source: "/workbox-:hash",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-cache, no-store, must-revalidate",
+          },
+        ],
+      },
+      {
+        source: "/manifest.json",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-cache, must-revalidate",
+          },
+        ],
+      },
+    ];
+  },
   // As URLs de avatar/logo são retornadas pelo backend como /static/...
   // e precisam funcionar também quando o PWA está servido em outra porta.
   async rewrites() {

@@ -2,11 +2,13 @@
 
 import React, { useState, useMemo } from "react";
 import { DollarSign, RotateCcw, AlertCircle, Info, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import {
   calcularCustoEquilibrio,
   type CustoEquilibrioResultado,
@@ -27,7 +29,6 @@ export function CalculadoraCustoHectare() {
   const [produtividadeTexto, setProdutividadeTexto] = useState<string>("60");
   const [precoVendaTexto, setPrecoVendaTexto] = useState<string>("115");
 
-  // Detecção de ambiguidade numérica (ex: "1.234" vs "1,234")
   const avisoAmbiguo = useMemo(() => {
     return (
       detectarEntradaAmbiguaPtBr(areaTexto) ||
@@ -79,33 +80,33 @@ export function CalculadoraCustoHectare() {
   };
 
   return (
-    <Card className="border border-border/80 shadow-xs">
-      <CardHeader className="pb-3 border-b border-border/60">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-sm bg-emerald-600/10 text-emerald-700 dark:text-emerald-400">
-              <DollarSign className="w-5 h-5" />
-            </div>
-            <div>
-              <CardTitle className="text-base font-semibold">
-                Custo por Hectare e Ponto de Equilíbrio
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Planejamento financeiro de safra: custo/ha, custo unitário, receita bruta, margem e metas mínimas de equilíbrio (break-even).
-              </CardDescription>
-            </div>
+    <Card>
+      <CardHeader className="border-b border-border/60">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-sm bg-emerald-600/10 text-emerald-700 dark:text-emerald-400">
+            <DollarSign className="size-5" />
           </div>
-          <Badge variant="outline" className="text-[10px] hidden sm:inline-flex">
+          <div>
+            <CardTitle className="text-base font-semibold">
+              Custo por Hectare e Ponto de Equilíbrio
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Planejamento financeiro de safra: custo/ha, custo unitário, receita bruta, margem e metas mínimas de equilíbrio (break-even).
+            </CardDescription>
+          </div>
+        </div>
+        <CardAction>
+          <Badge variant="outline" className="hidden sm:inline-flex">
             Offline
           </Badge>
-        </div>
+        </CardAction>
       </CardHeader>
 
-      <CardContent className="pt-4 space-y-4">
+      <CardContent className="flex flex-col gap-4">
         {/* Formulário de Entradas */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="area-ha">Área Cultivada (ha)</Label>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="area-ha" className="text-xs">Área Cultivada (ha)</Label>
             <Input
               id="area-ha"
               type="text"
@@ -116,8 +117,8 @@ export function CalculadoraCustoHectare() {
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="custo-total">Custo Total de Produção (R$)</Label>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="custo-total" className="text-xs">Custo Total de Produção (R$)</Label>
             <Input
               id="custo-total"
               type="text"
@@ -128,8 +129,8 @@ export function CalculadoraCustoHectare() {
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="prod-esperada">Produtividade Esperada (sc/ha)</Label>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="prod-esperada" className="text-xs">Produtividade Esperada (sc/ha)</Label>
             <Input
               id="prod-esperada"
               type="text"
@@ -140,8 +141,8 @@ export function CalculadoraCustoHectare() {
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="preco-venda">Preço de Venda Estimado (R$/sc)</Label>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="preco-venda" className="text-xs">Preço de Venda Estimado (R$/sc)</Label>
             <Input
               id="preco-venda"
               type="text"
@@ -153,164 +154,180 @@ export function CalculadoraCustoHectare() {
           </div>
         </div>
 
-        {/* Aviso de Ambiguidade Numérica (ex: ponto único com 3 dígitos) */}
+        {/* Aviso de Ambiguidade Numérica */}
         {avisoAmbiguo && (
-          <div className="p-2.5 rounded-sm border border-amber-500/30 bg-amber-500/5 text-amber-900 dark:text-amber-300 text-xs flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-            <span className="leading-relaxed">{avisoAmbiguo}</span>
-          </div>
+          <Alert variant="warning">
+            <AlertTriangle className="size-4" />
+            <AlertDescription className="text-xs">{avisoAmbiguo}</AlertDescription>
+          </Alert>
         )}
 
         {/* Mensagem de Erro de Validação */}
         {erro && (
-          <div className="p-2.5 rounded-sm border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>{erro}</span>
-          </div>
+          <Alert variant="destructive">
+            <AlertCircle className="size-4" />
+            <AlertDescription className="text-xs">{erro}</AlertDescription>
+          </Alert>
         )}
 
         {/* Painel de Resultados */}
         {resultado && (
-          <div className="space-y-3">
+          <div className="flex flex-col gap-3">
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Diagnóstico Econômico da Lavoura
             </h4>
 
             {/* Linha 1: Custos e Produção */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <div className="p-3 rounded-sm bg-muted/40 border border-border/60">
-                <span className="text-[11px] text-muted-foreground block">Custo Médio por Hectare</span>
-                <span className="text-base sm:text-lg font-bold text-foreground block mt-0.5">
-                  {formatarMoeda(resultado.custoPorHectare)} / ha
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  Custo total ÷ {formatarNumero(resultado.areaHectares, 1)} ha
-                </span>
-              </div>
+              <Card variant="muted" size="sm">
+                <CardContent className="flex flex-col gap-0.5">
+                  <span className="text-[11px] text-muted-foreground">Custo Médio por Hectare</span>
+                  <span className="text-base sm:text-lg font-bold text-foreground">
+                    {formatarMoeda(resultado.custoPorHectare)} / ha
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    Custo total ÷ {formatarNumero(resultado.areaHectares, 1)} ha
+                  </span>
+                </CardContent>
+              </Card>
 
-              <div className="p-3 rounded-sm bg-muted/40 border border-border/60">
-                <span className="text-[11px] text-muted-foreground block">Produção Total Estimada</span>
-                <span className="text-base sm:text-lg font-bold text-foreground block mt-0.5">
-                  {formatarNumero(resultado.producaoTotalEsperada, 0)} sacas
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  {formatarNumero(resultado.areaHectares, 0)} ha × {produtividadeTexto} sc/ha
-                </span>
-              </div>
+              <Card variant="muted" size="sm">
+                <CardContent className="flex flex-col gap-0.5">
+                  <span className="text-[11px] text-muted-foreground">Produção Total Estimada</span>
+                  <span className="text-base sm:text-lg font-bold text-foreground">
+                    {formatarNumero(resultado.producaoTotalEsperada, 0)} sacas
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {formatarNumero(resultado.areaHectares, 0)} ha × {produtividadeTexto} sc/ha
+                  </span>
+                </CardContent>
+              </Card>
 
-              <div className="p-3 rounded-sm bg-muted/40 border border-border/60">
-                <span className="text-[11px] text-muted-foreground block">Custo de Produção por Saca</span>
-                <span className="text-base sm:text-lg font-bold text-foreground block mt-0.5">
-                  {formatarMoedaOuNaoCalculavel(resultado.custoPorUnidadeProduzida, "/ saca")}
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  {resultado.custoPorUnidadeProduzida !== null
-                    ? "Custo total ÷ total de sacas"
-                    : "Exige produção total maior que zero"}
-                </span>
-              </div>
+              <Card variant="muted" size="sm">
+                <CardContent className="flex flex-col gap-0.5">
+                  <span className="text-[11px] text-muted-foreground">Custo de Produção por Saca</span>
+                  <span className="text-base sm:text-lg font-bold text-foreground">
+                    {formatarMoedaOuNaoCalculavel(resultado.custoPorUnidadeProduzida, "/ saca")}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {resultado.custoPorUnidadeProduzida !== null
+                      ? "Custo total ÷ total de sacas"
+                      : "Exige produção total maior que zero"}
+                  </span>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Linha 2: Receita, Resultado Estimado e Margem */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <div className="p-3 rounded-sm bg-muted/40 border border-border/60">
-                <span className="text-[11px] text-muted-foreground block">Receita Bruta Estimada</span>
-                <span className="text-base sm:text-lg font-bold text-foreground block mt-0.5">
-                  {formatarMoeda(resultado.receitaBrutaEstimada)}
-                </span>
-                <span className="text-[10px] text-muted-foreground">Faturamento bruto sem deduções</span>
-              </div>
-
-              <div className="p-3 rounded-sm bg-muted/40 border border-border/60">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-muted-foreground">
-                    Resultado estimado (receita menos custos informados)
+              <Card variant="muted" size="sm">
+                <CardContent className="flex flex-col gap-0.5">
+                  <span className="text-[11px] text-muted-foreground">Receita Bruta Estimada</span>
+                  <span className="text-base sm:text-lg font-bold text-foreground">
+                    {formatarMoeda(resultado.receitaBrutaEstimada)}
                   </span>
-                  {resultado.resultadoEstimado >= 0 ? (
-                    <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                  ) : (
-                    <TrendingDown className="w-3.5 h-3.5 text-destructive" />
-                  )}
-                </div>
-                <span
-                  className={`text-base sm:text-lg font-bold block mt-0.5 ${
-                    resultado.resultadoEstimado >= 0
-                      ? "text-emerald-700 dark:text-emerald-400"
-                      : "text-destructive"
-                  }`}
-                >
-                  {formatarMoeda(resultado.resultadoEstimado)}
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  Receita estimada menos os custos manuais declarados
-                </span>
-              </div>
+                  <span className="text-[10px] text-muted-foreground">Faturamento bruto sem deduções</span>
+                </CardContent>
+              </Card>
 
-              <div className="p-3 rounded-sm bg-muted/40 border border-border/60">
-                <span className="text-[11px] text-muted-foreground block">Margem sobre Receita Bruta</span>
-                <span
-                  className={`text-base sm:text-lg font-bold block mt-0.5 ${
-                    (resultado.margemLucroPct ?? 0) >= 0
-                      ? "text-emerald-700 dark:text-emerald-400"
-                      : "text-destructive"
-                  }`}
-                >
-                  {formatarPercentualOuNaoCalculavel(resultado.margemLucroPct, 1)}
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  {resultado.margemLucroPct !== null
-                    ? "Resultado ÷ Receita Bruta estimada"
-                    : "Exige receita bruta maior que zero"}
-                </span>
-              </div>
+              <Card variant="muted" size="sm">
+                <CardContent className="flex flex-col gap-0.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-muted-foreground">
+                      Resultado estimado (receita menos custos informados)
+                    </span>
+                    {resultado.resultadoEstimado >= 0 ? (
+                      <TrendingUp className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                    ) : (
+                      <TrendingDown className="size-3.5 text-destructive" />
+                    )}
+                  </div>
+                  <span
+                    className={`text-base sm:text-lg font-bold ${
+                      resultado.resultadoEstimado >= 0
+                        ? "text-emerald-700 dark:text-emerald-400"
+                        : "text-destructive"
+                    }`}
+                  >
+                    {formatarMoeda(resultado.resultadoEstimado)}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    Receita estimada menos os custos manuais declarados
+                  </span>
+                </CardContent>
+              </Card>
+
+              <Card variant="muted" size="sm">
+                <CardContent className="flex flex-col gap-0.5">
+                  <span className="text-[11px] text-muted-foreground">Margem sobre Receita Bruta</span>
+                  <span
+                    className={`text-base sm:text-lg font-bold ${
+                      (resultado.margemLucroPct ?? 0) >= 0
+                        ? "text-emerald-700 dark:text-emerald-400"
+                        : "text-destructive"
+                    }`}
+                  >
+                    {formatarPercentualOuNaoCalculavel(resultado.margemLucroPct, 1)}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {resultado.margemLucroPct !== null
+                      ? "Resultado ÷ Receita Bruta estimada"
+                      : "Exige receita bruta maior que zero"}
+                  </span>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Linha 3: Ponto de Equilíbrio (Break-Even) */}
-            <div className="p-3.5 rounded-sm border border-emerald-600/30 bg-emerald-600/5">
-              <div className="flex items-center gap-2 mb-2">
-                <Badge variant="outline" className="border-emerald-600/40 text-emerald-700 dark:text-emerald-400 font-semibold text-[10px]">
-                  Metas de Equilíbrio Estimado (Break-Even)
-                </Badge>
-                <span className="text-[11px] text-muted-foreground">Condição para cobrir custos informados (Resultado = R$ 0)</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <span className="text-[11px] text-muted-foreground block">
-                    Preço de Equilíbrio (Preço Mínimo de Venda):
-                  </span>
-                  <span className="text-base font-bold text-foreground block">
-                    {formatarMoedaOuNaoCalculavel(resultado.precoDeEquilibrio, "/ saca")}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {resultado.precoDeEquilibrio !== null
-                      ? `Preço necessário para a produtividade de ${produtividadeTexto} sc/ha`
-                      : "Não calculável quando a produção total for zero"}
-                  </span>
+            <Card variant="success" size="sm">
+              <CardContent className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="recommendation">
+                    Metas de Equilíbrio Estimado (Break-Even)
+                  </Badge>
+                  <span className="text-[11px]">Condição para cobrir custos informados (Resultado = R$ 0)</span>
                 </div>
 
-                <div>
-                  <span className="text-[11px] text-muted-foreground block">
-                    Produtividade de Equilíbrio (Mínimo a Colher):
-                  </span>
-                  <span className="text-base font-bold text-foreground block">
-                    {formatarNumeroOuNaoCalculavel(resultado.produtividadeDeEquilibrioPorHa, 2, "sc / ha")}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {resultado.producaoTotalDeEquilibrio !== null
-                      ? `Total mínimo da fazenda: ${formatarNumero(resultado.producaoTotalDeEquilibrio, 0)} sacas ao preço de ${formatarMoeda(parseNumeroPtBr(precoVendaTexto))}`
-                      : "Não calculável quando o preço de venda for zero"}
-                  </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[11px] block">
+                      Preço de Equilíbrio (Preço Mínimo de Venda):
+                    </span>
+                    <span className="text-base font-bold text-foreground block">
+                      {formatarMoedaOuNaoCalculavel(resultado.precoDeEquilibrio, "/ saca")}
+                    </span>
+                    <span className="text-[10px] opacity-85">
+                      {resultado.precoDeEquilibrio !== null
+                        ? `Preço necessário para a produtividade de ${produtividadeTexto} sc/ha`
+                        : "Não calculável quando a produção total for zero"}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[11px] block">
+                      Produtividade de Equilíbrio (Mínimo a Colher):
+                    </span>
+                    <span className="text-base font-bold text-foreground block">
+                      {formatarNumeroOuNaoCalculavel(resultado.produtividadeDeEquilibrioPorHa, 2, "sc / ha")}
+                    </span>
+                    <span className="text-[10px] opacity-85">
+                      {resultado.producaoTotalDeEquilibrio !== null
+                        ? `Total mínimo da fazenda: ${formatarNumero(resultado.producaoTotalDeEquilibrio, 0)} sacas ao preço de ${formatarMoeda(parseNumeroPtBr(precoVendaTexto))}`
+                        : "Não calculável quando o preço de venda for zero"}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </div>
         )}
 
+        <Separator />
+
         {/* Memória de Cálculo e Ações */}
-        <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-t border-border/60">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <Info className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <Info className="size-3.5 text-muted-foreground shrink-0" />
             <span>Fórmulas: Custo/ha = Custo ÷ Área | Break-Even Preço = Custo ÷ Produção | Break-Even Prod = Custo/ha ÷ Preço</span>
           </div>
           <Button
@@ -318,10 +335,10 @@ export function CalculadoraCustoHectare() {
             variant="outline"
             size="sm"
             onClick={handleLimpar}
-            className="flex items-center gap-1.5 self-end sm:self-auto cursor-pointer"
+            className="self-end sm:self-auto"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Limpar
+            <RotateCcw className="size-3.5" />
+            <span>Limpar</span>
           </Button>
         </div>
       </CardContent>

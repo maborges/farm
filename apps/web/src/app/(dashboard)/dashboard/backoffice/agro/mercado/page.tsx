@@ -163,18 +163,26 @@ interface DeralSnapshotUploadResponse {
   itens_preview: DeralSnapshotItem[];
 }
 
+interface DeralSyncTriggerResponse {
+  sucesso: boolean;
+  atualizado: boolean;
+  mensagem: string;
+  fonte_url: string;
+  snapshot_ativo_anterior?: string | null;
+  snapshot_ativo_atual?: string | null;
+}
+
 export default function BackofficeMercadoPage() {
   const queryClient = useQueryClient();
 
-  const canView =
-    usePermission("backoffice:agro:market:view") ||
-    usePermission("backoffice:agro:config:view") ||
-    usePermission("backoffice:agro:*");
+  const hasMarketView = usePermission("backoffice:agro:market:view");
+  const hasConfigView = usePermission("backoffice:agro:config:view");
+  const hasAgroAll = usePermission("backoffice:agro:*");
+  const hasMarketUpdate = usePermission("backoffice:agro:market:update");
+  const hasConfigEdit = usePermission("backoffice:agro:config:edit");
 
-  const canUpdate =
-    usePermission("backoffice:agro:market:update") ||
-    usePermission("backoffice:agro:config:edit") ||
-    usePermission("backoffice:agro:*");
+  const canView = hasMarketView || hasConfigView || hasAgroAll;
+  const canUpdate = hasMarketUpdate || hasConfigEdit || hasAgroAll;
 
   // Estados de modais e preview
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
@@ -182,6 +190,7 @@ export default function BackofficeMercadoPage() {
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadFeedback, setUploadFeedback] = useState<DeralSnapshotUploadResponse | null>(null);
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
   const [copiedSha, setCopiedSha] = useState<string | null>(null);
 
   // Estados de formulário de configuração
@@ -297,6 +306,49 @@ export default function BackofficeMercadoPage() {
       toast.error(`Falha na validação do snapshot: ${error.message}`);
     },
   });
+
+  const syncDeralMutation = useMutation({
+    mutationFn: async () => {
+      return apiFetch<DeralSyncTriggerResponse>("/api/v1/backoffice/agro/mercado/deral/sync", {
+        method: "POST",
+      });
+    },
+    onSuccess: (res) => {
+      if (res.atualizado) {
+        toast.success(res.mensagem);
+      } else {
+        toast.info(res.mensagem);
+      }
+      queryClient.invalidateQueries({ queryKey: ["backoffice-market-status"] });
+      queryClient.invalidateQueries({ queryKey: ["backoffice-deral-snapshots"] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Falha ao sincronizar DERAL: ${error.message}`);
+    },
+  });
+
+  const handleDownloadCsvTemplate = async () => {
+    setIsDownloadingTemplate(true);
+    try {
+      const blob = await apiFetch<Blob>("/api/v1/backoffice/agro/mercado/deral/template.csv", {
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "modelo-deral-prp.csv";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Modelo CSV das 21 commodities DERAL baixado.");
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Erro inesperado ao baixar modelo.";
+      toast.error(`Falha ao baixar modelo CSV: ${msg}`);
+    } finally {
+      setIsDownloadingTemplate(false);
+    }
+  };
 
   const activateMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -450,6 +502,18 @@ export default function BackofficeMercadoPage() {
             </Button>
             {canUpdate && (
               <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-sm"
+                  onClick={() => syncDeralMutation.mutate()}
+                  disabled={syncDeralMutation.isPending}
+                >
+                  <RefreshCw
+                    className={`mr-2 h-3.5 w-3.5 ${syncDeralMutation.isPending ? "animate-spin" : ""}`}
+                  />
+                  Sincronizar DERAL Agora
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -959,15 +1023,35 @@ export default function BackofficeMercadoPage() {
               Ingestão de Snapshot DERAL/SEAB-PR
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Envie o documento estruturado oficial (.json) para validação de integridade antes da ativação em produção.
+              Envie o documento oficial (.json, .csv editável ou .xls BIFF8) para validação de integridade antes da ativação em produção.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2 text-xs">
+            <div className="flex items-center justify-between gap-2 rounded-sm border bg-muted/30 p-3">
+              <div className="space-y-0.5">
+                <p className="font-medium text-foreground">Preenchimento assistido via planilha CSV</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Baixe o modelo com as 21 commodities e a última referência vigente.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-sm shrink-0"
+                onClick={handleDownloadCsvTemplate}
+                disabled={isDownloadingTemplate}
+              >
+                <Download className="mr-2 h-3.5 w-3.5" />
+                Baixar Modelo CSV (21 commodities)
+              </Button>
+            </div>
+
             <div className="border-2 border-dashed border-border rounded-sm p-6 text-center hover:border-emerald-500/50 transition-colors">
               <Input
                 type="file"
-                accept=".json,.xlsx,.xls"
+                accept=".json,.csv,.xls"
                 className="hidden"
                 id="file-upload"
                 onChange={(e) => {
@@ -981,10 +1065,10 @@ export default function BackofficeMercadoPage() {
               >
                 <FileText className="h-8 w-8 text-muted-foreground" />
                 <span className="font-medium text-foreground">
-                  {uploadFile ? uploadFile.name : "Clique para selecionar o arquivo DERAL (.json)"}
+                  {uploadFile ? uploadFile.name : "Clique para selecionar o arquivo DERAL (.json, .csv ou .xls)"}
                 </span>
                 <span className="text-[11px] text-muted-foreground">
-                  {uploadFile ? `${(uploadFile.size / 1024).toFixed(1)} KB` : "Máximo de 5 MB. Formato JSON oficial homologado."}
+                  {uploadFile ? `${(uploadFile.size / 1024).toFixed(1)} KB` : "Máximo de 5 MB. Formatos homologados: JSON, CSV modelo ou XLS SEAB/PR."}
                 </span>
               </Label>
             </div>

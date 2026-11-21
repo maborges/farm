@@ -14,7 +14,9 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   fetchIndicadoresMacro,
   formatarDataReferencia,
@@ -54,7 +56,6 @@ export function IndicadoresMacroCard() {
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
   useEffect(() => {
-    // Carrega dado salvo inicialmente do localStorage
     const saved = readSavedMacro(window.localStorage);
     if (saved) {
       setData(saved);
@@ -135,72 +136,71 @@ export function IndicadoresMacroCard() {
     : data?.estadoDisponibilidade ?? (loading ? "CARREGANDO" : "INDISPONIVEL");
 
   return (
-    <Card className="rounded-sm border-border/70 shadow-xs">
-      <CardHeader className="pb-3 border-b border-border/50">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div>
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-sm sm:text-base font-semibold text-foreground flex items-center gap-2">
-                <Percent className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                Indicadores Econômicos e Câmbio Oficial
-              </CardTitle>
-              <Badge variant="outline" className="text-[10px] hidden sm:inline-flex">
-                BCB &amp; IBGE
-              </Badge>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              Séries oficiais do Banco Central do Brasil para balizamento de crédito, custos financeiros e inflação no agronegócio.
-            </p>
+    <Card>
+      <CardHeader className="border-b border-border/50">
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-sm sm:text-base font-semibold text-foreground flex items-center gap-2">
+              <Percent className="size-4 text-emerald-600 dark:text-emerald-400" />
+              Indicadores Econômicos e Câmbio Oficial
+            </CardTitle>
+            <Badge variant="outline" className="hidden sm:inline-flex">
+              BCB &amp; IBGE
+            </Badge>
           </div>
+          <CardDescription className="text-[11px]">
+            Séries oficiais do Banco Central do Brasil para balizamento de crédito, custos financeiros e inflação no agronegócio.
+          </CardDescription>
+        </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto">
+        <CardAction>
+          <div className="flex items-center gap-2">
             {isOffline ? (
-              <Badge variant="warning" className="text-[10px] flex items-center gap-1">
-                <WifiOff className="w-3 h-3" /> Modo offline — dado salvo
+              <Badge variant="warning">
+                <WifiOff className="size-3" /> Modo offline — dado salvo
               </Badge>
             ) : statusDisponibilidade === "NORMAL" ? (
-              <Badge variant="success" className="text-[10px] flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3" /> Séries Oficiais Homologadas
+              <Badge variant="success">
+                <ShieldCheck className="size-3" /> Séries Oficiais Homologadas
               </Badge>
             ) : statusDisponibilidade === "PARCIAL" ? (
-              <Badge variant="warning" className="text-[10px] flex items-center gap-1">
-                <Clock3 className="w-3 h-3" /> Atualização parcial
+              <Badge variant="warning">
+                <Clock3 className="size-3" /> Atualização parcial
               </Badge>
             ) : statusDisponibilidade === "FONTE_INDISPONIVEL" || statusDisponibilidade === "DEFASADO" ? (
-              <Badge variant="warning" className="text-[10px] flex items-center gap-1">
-                <Clock3 className="w-3 h-3" /> Último fechamento conhecido
+              <Badge variant="warning">
+                <Clock3 className="size-3" /> Último fechamento conhecido
               </Badge>
             ) : null}
 
             <Button
               variant="outline"
-              size="sm"
+              size="icon-sm"
               onClick={handleManualRefresh}
               disabled={refreshing || loading}
-              className="rounded-sm h-7 px-2 text-xs"
               aria-label="Atualizar indicadores macroeconômicos"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
             </Button>
           </div>
-        </div>
+        </CardAction>
       </CardHeader>
 
-      <CardContent className="pt-3.5 space-y-3.5">
+      <CardContent className="flex flex-col gap-3.5">
         {loading && !data ? (
           /* Skeletons de carregamento com alturas fixas para zero layout shift */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className="p-3 rounded-sm border border-border/50 bg-muted/20 animate-pulse space-y-2.5 h-[118px]"
+                className="p-3 rounded-sm border border-border/50 bg-muted/20 flex flex-col gap-2.5 h-[118px]"
               >
                 <div className="flex items-center justify-between">
-                  <div className="h-3 w-20 bg-muted/60 rounded-xs" />
-                  <div className="h-4 w-12 bg-muted/60 rounded-xs" />
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-4 w-12" />
                 </div>
-                <div className="h-6 w-24 bg-muted/80 rounded-xs" />
-                <div className="h-3 w-32 bg-muted/40 rounded-xs" />
+                <Skeleton className="h-6 w-24" />
+                <Skeleton className="h-3 w-32" />
               </div>
             ))}
           </div>
@@ -213,72 +213,75 @@ export function IndicadoresMacroCard() {
               const valorFormatado = formatarValorMacro(item);
 
               return (
-                <div
+                <Card
                   key={item.id}
-                  className="p-3 rounded-sm border border-border/70 bg-card hover:border-emerald-600/40 transition-colors flex flex-col justify-between space-y-2"
+                  size="sm"
+                  className="hover:border-primary/40 transition-colors justify-between"
                 >
-                  <div className="flex items-start justify-between gap-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <div className="p-1.5 rounded-sm bg-muted text-foreground flex-shrink-0">
-                        <Icon className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+                  <CardContent className="flex flex-col justify-between gap-2 h-full">
+                    <div className="flex items-start justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <div className="p-1.5 rounded-sm bg-muted text-foreground shrink-0">
+                          <Icon className="size-3.5 text-emerald-700 dark:text-emerald-400" />
+                        </div>
+                        <span className="text-xs font-semibold text-foreground truncate max-w-[130px] sm:max-w-[150px]">
+                          {item.id === "SELIC_META"
+                            ? "Meta Selic"
+                            : item.id === "IPCA_MENSAL"
+                            ? "IPCA (Mensal)"
+                            : item.id === "IPCA_12M"
+                            ? "IPCA (12 Meses)"
+                            : "Euro PTAX"}
+                        </span>
                       </div>
-                      <span className="text-xs font-semibold text-foreground truncate max-w-[130px] sm:max-w-[150px]">
-                        {item.id === "SELIC_META"
-                          ? "Meta Selic"
-                          : item.id === "IPCA_MENSAL"
-                          ? "IPCA (Mensal)"
-                          : item.id === "IPCA_12M"
-                          ? "IPCA (12 Meses)"
-                          : "Euro PTAX"}
+
+                      <div className="flex items-center gap-1">
+                        {item.estadoDisponibilidade === "FONTE_INDISPONIVEL" ? (
+                          <Badge variant="warning" className="text-[9px] px-1 py-0 h-4">
+                            <Clock3 className="size-2.5" /> Último
+                          </Badge>
+                        ) : item.estadoDisponibilidade === "DEFASADO" ? (
+                          <Badge variant="warning" className="text-[9px] px-1 py-0 h-4">
+                            Defasado
+                          </Badge>
+                        ) : null}
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
+                          {item.unidade}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Valor Principal */}
+                    <div>
+                      <div className="text-lg font-bold tracking-tight text-foreground">
+                        {valorFormatado}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground line-clamp-1">
+                        {obterSubtituloIndicador(item.id)}
+                      </p>
+                    </div>
+
+                    {/* Compra e Venda para Câmbio Euro */}
+                    {item.id === "EURO_PTAX" && item.valorCompra && item.valorVenda ? (
+                      <div className="text-[10px] text-muted-foreground border-t border-border/40 pt-1 flex justify-between">
+                        <span>C: R$ {item.valorCompra.toFixed(4).replace(".", ",")}</span>
+                        <span>V: R$ {item.valorVenda.toFixed(4).replace(".", ",")}</span>
+                      </div>
+                    ) : null}
+
+                    {/* Metadados: Data de Referência e Fonte */}
+                    <div className="text-[10px] text-muted-foreground border-t border-border/40 pt-1.5 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="size-2.5" />
+                        {dataFormatada}
+                      </span>
+                      <span className="flex items-center gap-1 truncate max-w-[100px]">
+                        <Building2 className="size-2.5" />
+                        {item.codigoSerieBcb ? `SGS ${item.codigoSerieBcb}` : "BCB"}
                       </span>
                     </div>
-
-                    <div className="flex items-center gap-1">
-                      {item.estadoDisponibilidade === "FONTE_INDISPONIVEL" ? (
-                        <Badge variant="warning" className="text-[8px] px-1 py-0 h-4 flex items-center gap-0.5">
-                          <Clock3 className="w-2.5 h-2.5" /> Último
-                        </Badge>
-                      ) : item.estadoDisponibilidade === "DEFASADO" ? (
-                        <Badge variant="warning" className="text-[8px] px-1 py-0 h-4">
-                          Defasado
-                        </Badge>
-                      ) : null}
-                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-border/60">
-                        {item.unidade}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {/* Valor Principal */}
-                  <div>
-                    <div className="text-lg font-bold tracking-tight text-foreground">
-                      {valorFormatado}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground line-clamp-1">
-                      {obterSubtituloIndicador(item.id)}
-                    </p>
-                  </div>
-
-                  {/* Compra e Venda para Câmbio Euro */}
-                  {item.id === "EURO_PTAX" && item.valorCompra && item.valorVenda ? (
-                    <div className="text-[10px] text-muted-foreground border-t border-border/40 pt-1 flex justify-between">
-                      <span>C: R$ {item.valorCompra.toFixed(4).replace(".", ",")}</span>
-                      <span>V: R$ {item.valorVenda.toFixed(4).replace(".", ",")}</span>
-                    </div>
-                  ) : null}
-
-                  {/* Metadados: Data de Referência e Fonte */}
-                  <div className="text-[10px] text-muted-foreground border-t border-border/40 pt-1.5 flex items-center justify-between">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-2.5 h-2.5" />
-                      {dataFormatada}
-                    </span>
-                    <span className="flex items-center gap-1 truncate max-w-[100px]">
-                      <Building2 className="w-2.5 h-2.5" />
-                      {item.codigoSerieBcb ? `SGS ${item.codigoSerieBcb}` : "BCB"}
-                    </span>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>
@@ -288,14 +291,16 @@ export function IndicadoresMacroCard() {
           </div>
         )}
 
+        <Separator />
+
         {/* Rodapé Informativo */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[10px] text-muted-foreground pt-1 border-t border-border/40">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[10px] text-muted-foreground">
           <p>
             Fontes primárias: <strong>Banco Central do Brasil (SGS)</strong> e <strong>IBGE</strong>. Séries 432, 433, 13522 e 21619.
           </p>
           {data?.cacheAtualizadoEmIso && (
             <p className="flex items-center gap-1">
-              <Clock3 className="w-2.5 h-2.5" />
+              <Clock3 className="size-2.5" />
               Sincronizado em: {new Date(data.cacheAtualizadoEmIso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
             </p>
           )}

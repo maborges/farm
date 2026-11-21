@@ -2,37 +2,50 @@
 
 import React, { useState } from "react";
 import { AlertTriangle, AlertCircle, Info, X, ExternalLink } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle, type AlertVariant } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useAgroConfig, AgroMensagemFinalidade } from "@/lib/config/agro-config";
 
-function getFinalidadeBadge(finalidade: AgroMensagemFinalidade) {
+function getFinalidadeMeta(finalidade: AgroMensagemFinalidade): {
+  alertVariant: AlertVariant;
+  badgeVariant: "danger" | "warning" | "attention" | "success" | "info";
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+} {
   switch (finalidade) {
     case "URGENTE":
       return {
-        bg: "bg-red-500/15 border-red-500/30 text-red-700 dark:text-red-300",
+        alertVariant: "destructive",
+        badgeVariant: "danger",
         icon: AlertCircle,
         label: "Urgente",
       };
     case "REGULATORIO":
       return {
-        bg: "bg-amber-500/15 border-amber-500/30 text-amber-800 dark:text-amber-300",
+        alertVariant: "warning",
+        badgeVariant: "warning",
         icon: AlertTriangle,
         label: "Regulatório",
       };
     case "MANUTENCAO":
       return {
-        bg: "bg-orange-500/15 border-orange-500/30 text-orange-800 dark:text-orange-300",
+        alertVariant: "warning",
+        badgeVariant: "attention",
         icon: AlertTriangle,
         label: "Manutenção",
       };
     case "NOVIDADE":
       return {
-        bg: "bg-emerald-500/15 border-emerald-500/30 text-emerald-800 dark:text-emerald-300",
+        alertVariant: "success",
+        badgeVariant: "success",
         icon: Info,
         label: "Novidade",
       };
     default:
       return {
-        bg: "bg-blue-500/15 border-blue-500/30 text-blue-800 dark:text-blue-300",
+        alertVariant: "info",
+        badgeVariant: "info",
         icon: Info,
         label: "Comunicado",
       };
@@ -58,17 +71,20 @@ export function AgroBannerAvisos() {
       {bannerUrgente && !dismissed["global-banner"] && (
         <div className="bg-red-600 text-white px-4 py-2 text-xs font-semibold flex items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-2 max-w-5xl mx-auto flex-1">
-            <AlertCircle size={15} className="flex-shrink-0 text-white" />
+            <AlertCircle className="size-4 shrink-0 text-white" />
             <span>{bannerUrgente}</span>
           </div>
-          <button
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
             onClick={() => setDismissed((prev) => ({ ...prev, "global-banner": true }))}
-            className="text-white/80 hover:text-white rounded-sm p-0.5 focus:outline-none focus:ring-1 focus:ring-white"
+            className="text-white/80 hover:text-white hover:bg-white/10"
             title="Fechar aviso de topo"
             aria-label="Fechar aviso"
           >
-            <X size={14} />
-          </button>
+            <X className="size-3.5" />
+          </Button>
         </div>
       )}
 
@@ -76,48 +92,48 @@ export function AgroBannerAvisos() {
       {mensagensVigentes.length > 0 && (
         <div className="max-w-5xl mx-auto px-4 sm:px-6 w-full pt-2 flex flex-col gap-2">
           {mensagensVigentes.map((msg) => {
-            const badge = getFinalidadeBadge(msg.finalidade);
-            const Icon = badge.icon;
+            const meta = getFinalidadeMeta(msg.finalidade);
+            const Icon = meta.icon;
 
             return (
-              <div
-                key={msg.id}
-                className={`border rounded-sm p-3 text-xs flex items-start justify-between gap-3 ${badge.bg} transition-all`}
-              >
-                <div className="flex items-start gap-2.5 flex-1">
-                  <Icon size={16} className="flex-shrink-0 mt-0.5" />
-                  <div className="flex flex-col gap-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold tracking-tight">{msg.titulo}</span>
-                      <span className="text-[10px] uppercase font-mono px-1 py-0.2 rounded-xs border border-current opacity-80">
-                        {badge.label}
-                      </span>
-                    </div>
-                    <p className="leading-relaxed opacity-90">{msg.conteudo}</p>
+              <Alert key={msg.id} variant={meta.alertVariant} className="pr-10">
+                <Icon className="size-4" />
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <AlertTitle className="mb-0 text-xs">{msg.titulo}</AlertTitle>
+                    <Badge variant={meta.badgeVariant} className="text-[10px]">
+                      {meta.label}
+                    </Badge>
+                  </div>
+                  <AlertDescription className="text-xs">
+                    <p>{msg.conteudo}</p>
                     {msg.link_externo && (
                       <a
                         href={msg.link_externo}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 font-semibold underline underline-offset-2 mt-1 hover:opacity-100"
+                        className="inline-flex items-center gap-1 font-semibold underline underline-offset-2 mt-1"
                       >
-                        Mais detalhes <ExternalLink size={11} />
+                        Mais detalhes <ExternalLink className="size-3" />
                       </a>
                     )}
-                  </div>
+                  </AlertDescription>
                 </div>
 
                 {msg.finalidade !== "URGENTE" && (
-                  <button
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
                     onClick={() => setDismissed((prev) => ({ ...prev, [msg.id]: true }))}
-                    className="opacity-60 hover:opacity-100 rounded-sm p-0.5"
+                    className="absolute right-2 top-2"
                     title="Dispensar comunicado"
                     aria-label="Dispensar comunicado"
                   >
-                    <X size={14} />
-                  </button>
+                    <X className="size-3.5" />
+                  </Button>
                 )}
-              </div>
+              </Alert>
             );
           })}
         </div>

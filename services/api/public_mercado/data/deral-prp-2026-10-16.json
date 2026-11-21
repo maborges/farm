@@ -21,7 +21,28 @@
       "valorOriginal": 107.0009,
       "unidade": "Saca de 60 kg",
       "unidadeOriginal": "60 kg",
-      "registroOriginal": "Rav!X6"
+      "registroOriginal": "Rav!X6",
+      "valorSemanaAnterior": 106.96,
+      "variacaoSemanalAbsoluta": 0.04,
+      "variacaoSemanalPct": 0.04,
+      "valorMinimoRegional": 90.0,
+      "pracaMinimoRegional": "Paranaguá",
+      "valorMaximoRegional": 108.35,
+      "pracaMaximoRegional": "Paranavaí",
+      "pracasRegionais": [
+        {
+          "praca": "Paranaguá",
+          "valor": 90.0,
+          "valorOriginal": 90.0,
+          "registroOriginal": "Rav!Q6"
+        },
+        {
+          "praca": "Paranavaí",
+          "valor": 108.35,
+          "valorOriginal": 108.35,
+          "registroOriginal": "Rav!R6"
+        }
+      ]
     },
     {
       "id": "cafe-arabica",
@@ -32,7 +53,64 @@
       "valorOriginal": 1380.5078,
       "unidade": "Saca de 60 kg",
       "unidadeOriginal": "60 kg",
-      "registroOriginal": "Rav!X7"
+      "registroOriginal": "Rav!X7",
+      "valorSemanaAnterior": 1377.32,
+      "variacaoSemanalAbsoluta": 3.19,
+      "variacaoSemanalPct": 0.23,
+      "valorMinimoRegional": 1278.81,
+      "pracaMinimoRegional": "Umuarama",
+      "valorMaximoRegional": 1400.0,
+      "pracaMaximoRegional": "Paranavaí",
+      "pracasRegionais": [
+        {
+          "praca": "Apucarana",
+          "valor": 1377.25,
+          "valorOriginal": 1377.25,
+          "registroOriginal": "Rav!D7"
+        },
+        {
+          "praca": "Cornélio Procópio",
+          "valor": 1385.0,
+          "valorOriginal": 1385.0,
+          "registroOriginal": "Rav!G7"
+        },
+        {
+          "praca": "Ivaiporã",
+          "valor": 1329.0,
+          "valorOriginal": 1329.0,
+          "registroOriginal": "Rav!L7"
+        },
+        {
+          "praca": "Jacarezinho",
+          "valor": 1396.22,
+          "valorOriginal": 1396.22,
+          "registroOriginal": "Rav!M7"
+        },
+        {
+          "praca": "Londrina",
+          "valor": 1331.34,
+          "valorOriginal": 1331.3433,
+          "registroOriginal": "Rav!O7"
+        },
+        {
+          "praca": "Maringá",
+          "valor": 1358.5,
+          "valorOriginal": 1358.5,
+          "registroOriginal": "Rav!P7"
+        },
+        {
+          "praca": "Paranavaí",
+          "valor": 1400.0,
+          "valorOriginal": 1400.0,
+          "registroOriginal": "Rav!R7"
+        },
+        {
+          "praca": "Umuarama",
+          "valor": 1278.81,
+          "valorOriginal": 1278.81,
+          "registroOriginal": "Rav!V7"
+        }
+      ]
     },
     {
       "id": "feijao",
@@ -43,7 +121,34 @@
       "valorOriginal": 302.6761,
       "unidade": "Saca de 60 kg",
       "unidadeOriginal": "60 kg",
-      "registroOriginal": "Rav!X9"
+      "registroOriginal": "Rav!X9",
+      "valorSemanaAnterior": 301.15,
+      "variacaoSemanalAbsoluta": 1.53,
+      "variacaoSemanalPct": 0.5,
+      "valorMinimoRegional": 293.94,
+      "pracaMinimoRegional": "Jacarezinho",
+      "valorMaximoRegional": 340.0,
+      "pracaMaximoRegional": "Apucarana",
+      "pracasRegionais": [
+        {
+          "praca": "Apucarana",
+          "valor": 340.0,
+          "valorOriginal": 340.0,
+          "registroOriginal": "Rav!D9"
+        },
+        {
+          "praca": "Jacarezinho",
+          "valor": 293.94,
+          "valorOriginal": 293.94,
+          "registroOriginal": "Rav!M9"
+        },
+        {
+          "praca": "Pato Branco",
+          "valor": 305.0,
+          "valorOriginal": 305.0,
+          "registroOriginal": "Rav!S9"
+        }
+      ]
     },
     {
       "id": "milho",
@@ -54,7 +159,130 @@
       "valorOriginal": 51.7745,
       "unidade": "Saca de 60 kg",
       "unidadeOriginal": "60 kg",
-      "registroOriginal": "Rav!X11"
+      "registroOriginal": "Rav!X11",
+      "valorSemanaAnterior": 52.35,
+      "variacaoSemanalAbsoluta": -0.58,
+      "variacaoSemanalPct": -1.1,
+      "valorMinimoRegional": 49.84,
+      "pracaMinimoRegional": "Cornélio Procópio",
+      "valorMaximoRegional": 56.88,
+      "pracaMaximoRegional": "Pato Branco",
+      "pracasRegionais": [
+        {
+          "praca": "Apucarana",
+          "valor": 52.5,
+          "valorOriginal": 52.5,
+          "registroOriginal": "Rav!D11"
+        },
+        {
+          "praca": "Campo Mourão",
+          "valor": 51.0,
+          "valorOriginal": 51.0,
+          "registroOriginal": "Rav!E11"
+        },
+        {
+          "praca": "Cascavel",
+          "valor": 50.24,
+          "valorOriginal": 50.24,
+          "registroOriginal": "Rav!F11"
+        },
+        {
+          "praca": "Cornélio Procópio",
+          "valor": 49.84,
+          "valorOriginal": 49.84,
+          "registroOriginal": "Rav!G11"
+        },
+        {
+          "praca": "Curitiba",
+          "valor": 55.5,
+          "valorOriginal": 55.5,
+          "registroOriginal": "Rav!H11"
+        },
+        {
+          "praca": "Francisco Beltrão",
+          "valor": 55.9,
+          "valorOriginal": 55.9,
+          "registroOriginal": "Rav!I11"
+        },
+        {
+          "praca": "Guarapuava",
+          "valor": 53.1,
+          "valorOriginal": 53.1,
+          "registroOriginal": "Rav!J11"
+        },
+        {
+          "praca": "Irati",
+          "valor": 54.09,
+          "valorOriginal": 54.09,
+          "registroOriginal": "Rav!K11"
+        },
+        {
+          "praca": "Ivaiporã",
+          "valor": 50.49,
+          "valorOriginal": 50.4875,
+          "registroOriginal": "Rav!L11"
+        },
+        {
+          "praca": "Jacarezinho",
+          "valor": 49.97,
+          "valorOriginal": 49.97,
+          "registroOriginal": "Rav!M11"
+        },
+        {
+          "praca": "Laranjeiras do Sul",
+          "valor": 55.54,
+          "valorOriginal": 55.538,
+          "registroOriginal": "Rav!N11"
+        },
+        {
+          "praca": "Londrina",
+          "valor": 50.17,
+          "valorOriginal": 50.17,
+          "registroOriginal": "Rav!O11"
+        },
+        {
+          "praca": "Maringá",
+          "valor": 51.0,
+          "valorOriginal": 51.0,
+          "registroOriginal": "Rav!P11"
+        },
+        {
+          "praca": "Paranavaí",
+          "valor": 51.0,
+          "valorOriginal": 51.0,
+          "registroOriginal": "Rav!R11"
+        },
+        {
+          "praca": "Pato Branco",
+          "valor": 56.88,
+          "valorOriginal": 56.8833,
+          "registroOriginal": "Rav!S11"
+        },
+        {
+          "praca": "Ponta Grossa",
+          "valor": 55.77,
+          "valorOriginal": 55.771,
+          "registroOriginal": "Rav!T11"
+        },
+        {
+          "praca": "Toledo",
+          "valor": 50.18,
+          "valorOriginal": 50.18,
+          "registroOriginal": "Rav!U11"
+        },
+        {
+          "praca": "Umuarama",
+          "valor": 50.16,
+          "valorOriginal": 50.16,
+          "registroOriginal": "Rav!V11"
+        },
+        {
+          "praca": "União da Vitória",
+          "valor": 54.89,
+          "valorOriginal": 54.889,
+          "registroOriginal": "Rav!W11"
+        }
+      ]
     },
     {
       "id": "soja",
@@ -65,7 +293,130 @@
       "valorOriginal": 134.9794,
       "unidade": "Saca de 60 kg",
       "unidadeOriginal": "60 kg",
-      "registroOriginal": "Rav!X12"
+      "registroOriginal": "Rav!X12",
+      "valorSemanaAnterior": 134.14,
+      "variacaoSemanalAbsoluta": 0.84,
+      "variacaoSemanalPct": 0.62,
+      "valorMinimoRegional": 131.82,
+      "pracaMinimoRegional": "Londrina",
+      "valorMaximoRegional": 141.5,
+      "pracaMaximoRegional": "Guarapuava",
+      "pracasRegionais": [
+        {
+          "praca": "Apucarana",
+          "valor": 135.63,
+          "valorOriginal": 135.63,
+          "registroOriginal": "Rav!D12"
+        },
+        {
+          "praca": "Campo Mourão",
+          "valor": 134.5,
+          "valorOriginal": 134.5,
+          "registroOriginal": "Rav!E12"
+        },
+        {
+          "praca": "Cascavel",
+          "valor": 132.98,
+          "valorOriginal": 132.98,
+          "registroOriginal": "Rav!F12"
+        },
+        {
+          "praca": "Cornélio Procópio",
+          "valor": 132.81,
+          "valorOriginal": 132.81,
+          "registroOriginal": "Rav!G12"
+        },
+        {
+          "praca": "Curitiba",
+          "valor": 135.25,
+          "valorOriginal": 135.25,
+          "registroOriginal": "Rav!H12"
+        },
+        {
+          "praca": "Francisco Beltrão",
+          "valor": 137.0,
+          "valorOriginal": 137.0,
+          "registroOriginal": "Rav!I12"
+        },
+        {
+          "praca": "Guarapuava",
+          "valor": 141.5,
+          "valorOriginal": 141.5,
+          "registroOriginal": "Rav!J12"
+        },
+        {
+          "praca": "Irati",
+          "valor": 133.1,
+          "valorOriginal": 133.0967,
+          "registroOriginal": "Rav!K12"
+        },
+        {
+          "praca": "Ivaiporã",
+          "valor": 132.82,
+          "valorOriginal": 132.82,
+          "registroOriginal": "Rav!L12"
+        },
+        {
+          "praca": "Jacarezinho",
+          "valor": 133.13,
+          "valorOriginal": 133.125,
+          "registroOriginal": "Rav!M12"
+        },
+        {
+          "praca": "Laranjeiras do Sul",
+          "valor": 133.89,
+          "valorOriginal": 133.886,
+          "registroOriginal": "Rav!N12"
+        },
+        {
+          "praca": "Londrina",
+          "valor": 131.82,
+          "valorOriginal": 131.82,
+          "registroOriginal": "Rav!O12"
+        },
+        {
+          "praca": "Maringá",
+          "valor": 136.0,
+          "valorOriginal": 136.0,
+          "registroOriginal": "Rav!P12"
+        },
+        {
+          "praca": "Paranavaí",
+          "valor": 140.0,
+          "valorOriginal": 140.0,
+          "registroOriginal": "Rav!R12"
+        },
+        {
+          "praca": "Pato Branco",
+          "valor": 137.7,
+          "valorOriginal": 137.7,
+          "registroOriginal": "Rav!S12"
+        },
+        {
+          "praca": "Ponta Grossa",
+          "valor": 138.61,
+          "valorOriginal": 138.6075,
+          "registroOriginal": "Rav!T12"
+        },
+        {
+          "praca": "Toledo",
+          "valor": 131.85,
+          "valorOriginal": 131.85,
+          "registroOriginal": "Rav!U12"
+        },
+        {
+          "praca": "Umuarama",
+          "valor": 133.09,
+          "valorOriginal": 133.0933,
+          "registroOriginal": "Rav!V12"
+        },
+        {
+          "praca": "União da Vitória",
+          "valor": 133.54,
+          "valorOriginal": 133.5375,
+          "registroOriginal": "Rav!W12"
+        }
+      ]
     },
     {
       "id": "trigo",
@@ -76,7 +427,130 @@
       "valorOriginal": 78.9314,
       "unidade": "Saca de 60 kg",
       "unidadeOriginal": "60 kg",
-      "registroOriginal": "Rav!X17"
+      "registroOriginal": "Rav!X17",
+      "valorSemanaAnterior": 79.26,
+      "variacaoSemanalAbsoluta": -0.33,
+      "variacaoSemanalPct": -0.42,
+      "valorMinimoRegional": 68.0,
+      "pracaMinimoRegional": "Curitiba",
+      "valorMaximoRegional": 83.54,
+      "pracaMaximoRegional": "Ponta Grossa",
+      "pracasRegionais": [
+        {
+          "praca": "Apucarana",
+          "valor": 78.63,
+          "valorOriginal": 78.63,
+          "registroOriginal": "Rav!D17"
+        },
+        {
+          "praca": "Campo Mourão",
+          "valor": 79.0,
+          "valorOriginal": 79.0,
+          "registroOriginal": "Rav!E17"
+        },
+        {
+          "praca": "Cascavel",
+          "valor": 79.79,
+          "valorOriginal": 79.7867,
+          "registroOriginal": "Rav!F17"
+        },
+        {
+          "praca": "Cornélio Procópio",
+          "valor": 76.51,
+          "valorOriginal": 76.5067,
+          "registroOriginal": "Rav!G17"
+        },
+        {
+          "praca": "Curitiba",
+          "valor": 68.0,
+          "valorOriginal": 68.0,
+          "registroOriginal": "Rav!H17"
+        },
+        {
+          "praca": "Francisco Beltrão",
+          "valor": 80.8,
+          "valorOriginal": 80.8,
+          "registroOriginal": "Rav!I17"
+        },
+        {
+          "praca": "Guarapuava",
+          "valor": 75.9,
+          "valorOriginal": 75.9,
+          "registroOriginal": "Rav!J17"
+        },
+        {
+          "praca": "Irati",
+          "valor": 79.66,
+          "valorOriginal": 79.66,
+          "registroOriginal": "Rav!K17"
+        },
+        {
+          "praca": "Ivaiporã",
+          "valor": 77.49,
+          "valorOriginal": 77.49,
+          "registroOriginal": "Rav!L17"
+        },
+        {
+          "praca": "Jacarezinho",
+          "valor": 76.42,
+          "valorOriginal": 76.42,
+          "registroOriginal": "Rav!M17"
+        },
+        {
+          "praca": "Laranjeiras do Sul",
+          "valor": 75.97,
+          "valorOriginal": 75.974,
+          "registroOriginal": "Rav!N17"
+        },
+        {
+          "praca": "Londrina",
+          "valor": 76.98,
+          "valorOriginal": 76.975,
+          "registroOriginal": "Rav!O17"
+        },
+        {
+          "praca": "Maringá",
+          "valor": 78.33,
+          "valorOriginal": 78.3333,
+          "registroOriginal": "Rav!P17"
+        },
+        {
+          "praca": "Paranavaí",
+          "valor": 78.0,
+          "valorOriginal": 78.0,
+          "registroOriginal": "Rav!R17"
+        },
+        {
+          "praca": "Pato Branco",
+          "valor": 80.17,
+          "valorOriginal": 80.1667,
+          "registroOriginal": "Rav!S17"
+        },
+        {
+          "praca": "Ponta Grossa",
+          "valor": 83.54,
+          "valorOriginal": 83.5417,
+          "registroOriginal": "Rav!T17"
+        },
+        {
+          "praca": "Toledo",
+          "valor": 77.73,
+          "valorOriginal": 77.73,
+          "registroOriginal": "Rav!U17"
+        },
+        {
+          "praca": "Umuarama",
+          "valor": 77.38,
+          "valorOriginal": 77.38,
+          "registroOriginal": "Rav!V17"
+        },
+        {
+          "praca": "União da Vitória",
+          "valor": 73.97,
+          "valorOriginal": 73.966,
+          "registroOriginal": "Rav!W17"
+        }
+      ]
     },
     {
       "id": "boi-gordo",
@@ -87,7 +561,124 @@
       "valorOriginal": 371.205,
       "unidade": "Arroba (@ de 15 kg)",
       "unidadeOriginal": "arroba",
-      "registroOriginal": "Rav!X46"
+      "registroOriginal": "Rav!X46",
+      "valorSemanaAnterior": 365.08,
+      "variacaoSemanalAbsoluta": 6.13,
+      "variacaoSemanalPct": 1.67,
+      "valorMinimoRegional": 339.61,
+      "pracaMinimoRegional": "Cascavel",
+      "valorMaximoRegional": 383.5,
+      "pracaMaximoRegional": "Guarapuava",
+      "pracasRegionais": [
+        {
+          "praca": "Apucarana",
+          "valor": 366.67,
+          "valorOriginal": 366.6667,
+          "registroOriginal": "Rav!D46"
+        },
+        {
+          "praca": "Campo Mourão",
+          "valor": 370.0,
+          "valorOriginal": 370.0,
+          "registroOriginal": "Rav!E46"
+        },
+        {
+          "praca": "Cascavel",
+          "valor": 339.61,
+          "valorOriginal": 339.61,
+          "registroOriginal": "Rav!F46"
+        },
+        {
+          "praca": "Cornélio Procópio",
+          "valor": 372.25,
+          "valorOriginal": 372.25,
+          "registroOriginal": "Rav!G46"
+        },
+        {
+          "praca": "Curitiba",
+          "valor": 373.0,
+          "valorOriginal": 373.0,
+          "registroOriginal": "Rav!H46"
+        },
+        {
+          "praca": "Francisco Beltrão",
+          "valor": 373.33,
+          "valorOriginal": 373.3333,
+          "registroOriginal": "Rav!I46"
+        },
+        {
+          "praca": "Guarapuava",
+          "valor": 383.5,
+          "valorOriginal": 383.5,
+          "registroOriginal": "Rav!J46"
+        },
+        {
+          "praca": "Ivaiporã",
+          "valor": 367.5,
+          "valorOriginal": 367.5,
+          "registroOriginal": "Rav!L46"
+        },
+        {
+          "praca": "Jacarezinho",
+          "valor": 377.22,
+          "valorOriginal": 377.22,
+          "registroOriginal": "Rav!M46"
+        },
+        {
+          "praca": "Laranjeiras do Sul",
+          "valor": 370.26,
+          "valorOriginal": 370.2633,
+          "registroOriginal": "Rav!N46"
+        },
+        {
+          "praca": "Londrina",
+          "valor": 373.81,
+          "valorOriginal": 373.81,
+          "registroOriginal": "Rav!O46"
+        },
+        {
+          "praca": "Maringá",
+          "valor": 370.0,
+          "valorOriginal": 370.0,
+          "registroOriginal": "Rav!P46"
+        },
+        {
+          "praca": "Paranavaí",
+          "valor": 370.0,
+          "valorOriginal": 370.0,
+          "registroOriginal": "Rav!R46"
+        },
+        {
+          "praca": "Pato Branco",
+          "valor": 382.0,
+          "valorOriginal": 382.0,
+          "registroOriginal": "Rav!S46"
+        },
+        {
+          "praca": "Ponta Grossa",
+          "valor": 367.65,
+          "valorOriginal": 367.6525,
+          "registroOriginal": "Rav!T46"
+        },
+        {
+          "praca": "Toledo",
+          "valor": 380.0,
+          "valorOriginal": 380.0,
+          "registroOriginal": "Rav!U46"
+        },
+        {
+          "praca": "Umuarama",
+          "valor": 377.5,
+          "valorOriginal": 377.5,
+          "registroOriginal": "Rav!V46"
+        },
+        {
+          "praca": "União da Vitória",
+          "valor": 355.36,
+          "valorOriginal": 355.3625,
+          "registroOriginal": "Rav!W46"
+        }
+      ]
     },
     {
       "id": "amendoim",
@@ -98,7 +689,22 @@
       "valorOriginal": 75.0,
       "unidade": "Saca de 25 kg",
       "unidadeOriginal": "25 kg",
-      "registroOriginal": "Rav!X5"
+      "registroOriginal": "Rav!X5",
+      "valorSemanaAnterior": 75.0,
+      "variacaoSemanalAbsoluta": 0.0,
+      "variacaoSemanalPct": 0.0,
+      "valorMinimoRegional": 75.0,
+      "pracaMinimoRegional": "Paranavaí",
+      "valorMaximoRegional": 75.0,
+      "pracaMaximoRegional": "Paranavaí",
+      "pracasRegionais": [
+        {
+          "praca": "Paranavaí",
+          "valor": 75.0,
+          "valorOriginal": 75.0,
+          "registroOriginal": "Rav!R5"
+        }
+      ]
     },
     {
       "id": "feijao-preto",
@@ -109,7 +715,64 @@
       "valorOriginal": 230.5922,
       "unidade": "Saca de 60 kg",
       "unidadeOriginal": "60 kg",
-      "registroOriginal": "Rav!X10"
+      "registroOriginal": "Rav!X10",
+      "valorSemanaAnterior": 218.87,
+      "variacaoSemanalAbsoluta": 11.72,
+      "variacaoSemanalPct": 5.35,
+      "valorMinimoRegional": 197.73,
+      "pracaMinimoRegional": "União da Vitória",
+      "valorMaximoRegional": 270.0,
+      "pracaMaximoRegional": "Apucarana",
+      "pracasRegionais": [
+        {
+          "praca": "Apucarana",
+          "valor": 270.0,
+          "valorOriginal": 270.0,
+          "registroOriginal": "Rav!D10"
+        },
+        {
+          "praca": "Curitiba",
+          "valor": 205.0,
+          "valorOriginal": 205.0,
+          "registroOriginal": "Rav!H10"
+        },
+        {
+          "praca": "Guarapuava",
+          "valor": 255.5,
+          "valorOriginal": 255.5,
+          "registroOriginal": "Rav!J10"
+        },
+        {
+          "praca": "Irati",
+          "valor": 213.92,
+          "valorOriginal": 213.915,
+          "registroOriginal": "Rav!K10"
+        },
+        {
+          "praca": "Laranjeiras do Sul",
+          "valor": 243.3,
+          "valorOriginal": 243.295,
+          "registroOriginal": "Rav!N10"
+        },
+        {
+          "praca": "Pato Branco",
+          "valor": 248.75,
+          "valorOriginal": 248.75,
+          "registroOriginal": "Rav!S10"
+        },
+        {
+          "praca": "Ponta Grossa",
+          "valor": 233.28,
+          "valorOriginal": 233.2771,
+          "registroOriginal": "Rav!T10"
+        },
+        {
+          "praca": "União da Vitória",
+          "valor": 197.73,
+          "valorOriginal": 197.725,
+          "registroOriginal": "Rav!W10"
+        }
+      ]
     },
     {
       "id": "aveia-branca",
@@ -120,7 +783,28 @@
       "valorOriginal": 47.2332,
       "unidade": "Saca de 60 kg",
       "unidadeOriginal": "60 kg",
-      "registroOriginal": "Rav!X14"
+      "registroOriginal": "Rav!X14",
+      "valorSemanaAnterior": 43.95,
+      "variacaoSemanalAbsoluta": 3.28,
+      "variacaoSemanalPct": 7.46,
+      "valorMinimoRegional": 45.6,
+      "pracaMinimoRegional": "Ponta Grossa",
+      "valorMaximoRegional": 52.7,
+      "pracaMaximoRegional": "Guarapuava",
+      "pracasRegionais": [
+        {
+          "praca": "Guarapuava",
+          "valor": 52.7,
+          "valorOriginal": 52.7,
+          "registroOriginal": "Rav!J14"
+        },
+        {
+          "praca": "Ponta Grossa",
+          "valor": 45.6,
+          "valorOriginal": 45.6,
+          "registroOriginal": "Rav!T14"
+        }
+      ]
     },
     {
       "id": "canola",
@@ -131,7 +815,28 @@
       "valorOriginal": 134.8,
       "unidade": "Saca de 60 kg",
       "unidadeOriginal": "60 kg",
-      "registroOriginal": "Rav!X15"
+      "registroOriginal": "Rav!X15",
+      "valorSemanaAnterior": 134.8,
+      "variacaoSemanalAbsoluta": 0.0,
+      "variacaoSemanalPct": 0.0,
+      "valorMinimoRegional": 134.8,
+      "pracaMinimoRegional": "Guarapuava",
+      "valorMaximoRegional": 134.9,
+      "pracaMaximoRegional": "Ponta Grossa",
+      "pracasRegionais": [
+        {
+          "praca": "Guarapuava",
+          "valor": 134.8,
+          "valorOriginal": 134.8,
+          "registroOriginal": "Rav!J15"
+        },
+        {
+          "praca": "Ponta Grossa",
+          "valor": 134.9,
+          "valorOriginal": 134.9,
+          "registroOriginal": "Rav!T15"
+        }
+      ]
     },
     {
       "id": "cevada",
@@ -142,7 +847,28 @@
       "valorOriginal": 92.2265,
       "unidade": "Saca de 60 kg",
       "unidadeOriginal": "60 kg",
-      "registroOriginal": "Rav!X16"
+      "registroOriginal": "Rav!X16",
+      "valorSemanaAnterior": 94.7,
+      "variacaoSemanalAbsoluta": -2.47,
+      "variacaoSemanalPct": -2.62,
+      "valorMinimoRegional": 85.12,
+      "pracaMinimoRegional": "Ponta Grossa",
+      "valorMaximoRegional": 95.2,
+      "pracaMaximoRegional": "Guarapuava",
+      "pracasRegionais": [
+        {
+          "praca": "Guarapuava",
+          "valor": 95.2,
+          "valorOriginal": 95.2,
+          "registroOriginal": "Rav!J16"
+        },
+        {
+          "praca": "Ponta Grossa",
+          "valor": 85.12,
+          "valorOriginal": 85.12,
+          "registroOriginal": "Rav!T16"
+        }
+      ]
     },
     {
       "id": "cana-de-acucar",
@@ -153,7 +879,52 @@
       "valorOriginal": 100.2096,
       "unidade": "Tonelada (1.000 kg)",
       "unidadeOriginal": "t",
-      "registroOriginal": "Rav!X41"
+      "registroOriginal": "Rav!X41",
+      "valorSemanaAnterior": 100.0,
+      "variacaoSemanalAbsoluta": 0.21,
+      "variacaoSemanalPct": 0.2,
+      "valorMinimoRegional": 96.43,
+      "pracaMinimoRegional": "Umuarama",
+      "valorMaximoRegional": 115.0,
+      "pracaMaximoRegional": "Ivaiporã",
+      "pracasRegionais": [
+        {
+          "praca": "Ivaiporã",
+          "valor": 115.0,
+          "valorOriginal": 115.0,
+          "registroOriginal": "Rav!L41"
+        },
+        {
+          "praca": "Jacarezinho",
+          "valor": 107.27,
+          "valorOriginal": 107.27,
+          "registroOriginal": "Rav!M41"
+        },
+        {
+          "praca": "Londrina",
+          "valor": 107.71,
+          "valorOriginal": 107.71,
+          "registroOriginal": "Rav!O41"
+        },
+        {
+          "praca": "Maringá",
+          "valor": 98.03,
+          "valorOriginal": 98.03,
+          "registroOriginal": "Rav!P41"
+        },
+        {
+          "praca": "Paranavaí",
+          "valor": 98.03,
+          "valorOriginal": 98.03,
+          "registroOriginal": "Rav!R41"
+        },
+        {
+          "praca": "Umuarama",
+          "valor": 96.43,
+          "valorOriginal": 96.43,
+          "registroOriginal": "Rav!V41"
+        }
+      ]
     },
     {
       "id": "erva-mate",
@@ -164,7 +935,46 @@
       "valorOriginal": 19.3524,
       "unidade": "Arroba (@ de 15 kg)",
       "unidadeOriginal": "arroba",
-      "registroOriginal": "Rav!X42"
+      "registroOriginal": "Rav!X42",
+      "valorSemanaAnterior": 19.21,
+      "variacaoSemanalAbsoluta": 0.14,
+      "variacaoSemanalPct": 0.74,
+      "valorMinimoRegional": 17.0,
+      "pracaMinimoRegional": "Cascavel",
+      "valorMaximoRegional": 20.89,
+      "pracaMaximoRegional": "Irati",
+      "pracasRegionais": [
+        {
+          "praca": "Cascavel",
+          "valor": 17.0,
+          "valorOriginal": 17.0,
+          "registroOriginal": "Rav!F42"
+        },
+        {
+          "praca": "Guarapuava",
+          "valor": 19.5,
+          "valorOriginal": 19.5,
+          "registroOriginal": "Rav!J42"
+        },
+        {
+          "praca": "Irati",
+          "valor": 20.89,
+          "valorOriginal": 20.89,
+          "registroOriginal": "Rav!K42"
+        },
+        {
+          "praca": "Pato Branco",
+          "valor": 18.0,
+          "valorOriginal": 18.0,
+          "registroOriginal": "Rav!S42"
+        },
+        {
+          "praca": "União da Vitória",
+          "valor": 19.08,
+          "valorOriginal": 19.0775,
+          "registroOriginal": "Rav!W42"
+        }
+      ]
     },
     {
       "id": "mandioca-industrial",
@@ -175,7 +985,52 @@
       "valorOriginal": 580.2565,
       "unidade": "Tonelada (1.000 kg)",
       "unidadeOriginal": "t",
-      "registroOriginal": "Rav!X44"
+      "registroOriginal": "Rav!X44",
+      "valorSemanaAnterior": 580.18,
+      "variacaoSemanalAbsoluta": 0.08,
+      "variacaoSemanalPct": 0.01,
+      "valorMinimoRegional": 560.0,
+      "pracaMinimoRegional": "Ivaiporã",
+      "valorMaximoRegional": 595.0,
+      "pracaMaximoRegional": "Toledo",
+      "pracasRegionais": [
+        {
+          "praca": "Campo Mourão",
+          "valor": 589.33,
+          "valorOriginal": 589.3333,
+          "registroOriginal": "Rav!E44"
+        },
+        {
+          "praca": "Ivaiporã",
+          "valor": 560.0,
+          "valorOriginal": 560.0,
+          "registroOriginal": "Rav!L44"
+        },
+        {
+          "praca": "Maringá",
+          "valor": 582.9,
+          "valorOriginal": 582.9,
+          "registroOriginal": "Rav!P44"
+        },
+        {
+          "praca": "Paranavaí",
+          "valor": 563.0,
+          "valorOriginal": 563.0,
+          "registroOriginal": "Rav!R44"
+        },
+        {
+          "praca": "Toledo",
+          "valor": 595.0,
+          "valorOriginal": 595.0,
+          "registroOriginal": "Rav!U44"
+        },
+        {
+          "praca": "Umuarama",
+          "valor": 588.17,
+          "valorOriginal": 588.17,
+          "registroOriginal": "Rav!V44"
+        }
+      ]
     },
     {
       "id": "boi-magro",
@@ -186,7 +1041,70 @@
       "valorOriginal": 4343.7233,
       "unidade": "Cabeça",
       "unidadeOriginal": "cabeca",
-      "registroOriginal": "Rav!X47"
+      "registroOriginal": "Rav!X47",
+      "valorSemanaAnterior": 4334.59,
+      "variacaoSemanalAbsoluta": 9.13,
+      "variacaoSemanalPct": 0.21,
+      "valorMinimoRegional": 4000.0,
+      "pracaMinimoRegional": "Ivaiporã",
+      "valorMaximoRegional": 5233.28,
+      "pracaMaximoRegional": "Londrina",
+      "pracasRegionais": [
+        {
+          "praca": "Apucarana",
+          "valor": 4500.0,
+          "valorOriginal": 4500.0,
+          "registroOriginal": "Rav!D47"
+        },
+        {
+          "praca": "Campo Mourão",
+          "valor": 4440.0,
+          "valorOriginal": 4440.0,
+          "registroOriginal": "Rav!E47"
+        },
+        {
+          "praca": "Cornélio Procópio",
+          "valor": 5033.33,
+          "valorOriginal": 5033.3333,
+          "registroOriginal": "Rav!G47"
+        },
+        {
+          "praca": "Guarapuava",
+          "valor": 4440.0,
+          "valorOriginal": 4440.0,
+          "registroOriginal": "Rav!J47"
+        },
+        {
+          "praca": "Ivaiporã",
+          "valor": 4000.0,
+          "valorOriginal": 4000.0,
+          "registroOriginal": "Rav!L47"
+        },
+        {
+          "praca": "Londrina",
+          "valor": 5233.28,
+          "valorOriginal": 5233.28,
+          "registroOriginal": "Rav!O47"
+        },
+        {
+          "praca": "Maringá",
+          "valor": 4140.0,
+          "valorOriginal": 4140.0,
+          "registroOriginal": "Rav!P47"
+        },
+        {
+          "praca": "Paranavaí",
+          "valor": 4070.0,
+          "valorOriginal": 4070.0,
+          "registroOriginal": "Rav!R47"
+        },
+        {
+          "praca": "União da Vitória",
+          "valor": 4100.0,
+          "valorOriginal": 4100.0,
+          "registroOriginal": "Rav!W47"
+        }
+      ]
     },
     {
       "id": "frango-vivo",
@@ -197,7 +1115,28 @@
       "valorOriginal": 4.9458,
       "unidade": "Quilo (kg)",
       "unidadeOriginal": "kg",
-      "registroOriginal": "Rav!X49"
+      "registroOriginal": "Rav!X49",
+      "valorSemanaAnterior": 4.81,
+      "variacaoSemanalAbsoluta": 0.14,
+      "variacaoSemanalPct": 2.73,
+      "valorMinimoRegional": 4.73,
+      "pracaMinimoRegional": "Cascavel",
+      "valorMaximoRegional": 5.58,
+      "pracaMaximoRegional": "Jacarezinho",
+      "pracasRegionais": [
+        {
+          "praca": "Cascavel",
+          "valor": 4.73,
+          "valorOriginal": 4.73,
+          "registroOriginal": "Rav!F49"
+        },
+        {
+          "praca": "Jacarezinho",
+          "valor": 5.58,
+          "valorOriginal": 5.58,
+          "registroOriginal": "Rav!M49"
+        }
+      ]
     },
     {
       "id": "leite",
@@ -208,7 +1147,124 @@
       "valorOriginal": 2.8141,
       "unidade": "Litro",
       "unidadeOriginal": "l",
-      "registroOriginal": "Rav!X50"
+      "registroOriginal": "Rav!X50",
+      "valorSemanaAnterior": 2.82,
+      "variacaoSemanalAbsoluta": -0.01,
+      "variacaoSemanalPct": -0.38,
+      "valorMinimoRegional": 2.55,
+      "pracaMinimoRegional": "Curitiba",
+      "valorMaximoRegional": 2.9,
+      "pracaMaximoRegional": "Cornélio Procópio",
+      "pracasRegionais": [
+        {
+          "praca": "Apucarana",
+          "valor": 2.65,
+          "valorOriginal": 2.65,
+          "registroOriginal": "Rav!D50"
+        },
+        {
+          "praca": "Campo Mourão",
+          "valor": 2.79,
+          "valorOriginal": 2.7867,
+          "registroOriginal": "Rav!E50"
+        },
+        {
+          "praca": "Cascavel",
+          "valor": 2.89,
+          "valorOriginal": 2.885,
+          "registroOriginal": "Rav!F50"
+        },
+        {
+          "praca": "Cornélio Procópio",
+          "valor": 2.9,
+          "valorOriginal": 2.9,
+          "registroOriginal": "Rav!G50"
+        },
+        {
+          "praca": "Curitiba",
+          "valor": 2.55,
+          "valorOriginal": 2.55,
+          "registroOriginal": "Rav!H50"
+        },
+        {
+          "praca": "Francisco Beltrão",
+          "valor": 2.8,
+          "valorOriginal": 2.8,
+          "registroOriginal": "Rav!I50"
+        },
+        {
+          "praca": "Guarapuava",
+          "valor": 2.78,
+          "valorOriginal": 2.78,
+          "registroOriginal": "Rav!J50"
+        },
+        {
+          "praca": "Irati",
+          "valor": 2.75,
+          "valorOriginal": 2.75,
+          "registroOriginal": "Rav!K50"
+        },
+        {
+          "praca": "Ivaiporã",
+          "valor": 2.68,
+          "valorOriginal": 2.6833,
+          "registroOriginal": "Rav!L50"
+        },
+        {
+          "praca": "Jacarezinho",
+          "valor": 2.7,
+          "valorOriginal": 2.7,
+          "registroOriginal": "Rav!M50"
+        },
+        {
+          "praca": "Laranjeiras do Sul",
+          "valor": 2.74,
+          "valorOriginal": 2.7375,
+          "registroOriginal": "Rav!N50"
+        },
+        {
+          "praca": "Londrina",
+          "valor": 2.65,
+          "valorOriginal": 2.645,
+          "registroOriginal": "Rav!O50"
+        },
+        {
+          "praca": "Maringá",
+          "valor": 2.9,
+          "valorOriginal": 2.9033,
+          "registroOriginal": "Rav!P50"
+        },
+        {
+          "praca": "Pato Branco",
+          "valor": 2.88,
+          "valorOriginal": 2.878,
+          "registroOriginal": "Rav!S50"
+        },
+        {
+          "praca": "Ponta Grossa",
+          "valor": 2.89,
+          "valorOriginal": 2.892,
+          "registroOriginal": "Rav!T50"
+        },
+        {
+          "praca": "Toledo",
+          "valor": 2.82,
+          "valorOriginal": 2.82,
+          "registroOriginal": "Rav!U50"
+        },
+        {
+          "praca": "Umuarama",
+          "valor": 2.9,
+          "valorOriginal": 2.9033,
+          "registroOriginal": "Rav!V50"
+        },
+        {
+          "praca": "União da Vitória",
+          "valor": 2.78,
+          "valorOriginal": 2.78,
+          "registroOriginal": "Rav!W50"
+        }
+      ]
     },
     {
       "id": "ovo-grande",
@@ -219,7 +1275,34 @@
       "valorOriginal": 145.9373,
       "unidade": "Caixa com 30 dúzias",
       "unidadeOriginal": "30 dz",
-      "registroOriginal": "Rav!X51"
+      "registroOriginal": "Rav!X51",
+      "valorSemanaAnterior": 145.94,
+      "variacaoSemanalAbsoluta": 0.0,
+      "variacaoSemanalPct": 0.0,
+      "valorMinimoRegional": 140.0,
+      "pracaMinimoRegional": "Cascavel",
+      "valorMaximoRegional": 186.9,
+      "pracaMaximoRegional": "Londrina",
+      "pracasRegionais": [
+        {
+          "praca": "Cascavel",
+          "valor": 140.0,
+          "valorOriginal": 140.0,
+          "registroOriginal": "Rav!F51"
+        },
+        {
+          "praca": "Cornélio Procópio",
+          "valor": 170.0,
+          "valorOriginal": 170.0,
+          "registroOriginal": "Rav!G51"
+        },
+        {
+          "praca": "Londrina",
+          "valor": 186.9,
+          "valorOriginal": 186.9,
+          "registroOriginal": "Rav!O51"
+        }
+      ]
     },
     {
       "id": "suino",
@@ -230,7 +1313,100 @@
       "valorOriginal": 5.5616,
       "unidade": "Quilo (kg)",
       "unidadeOriginal": "kg",
-      "registroOriginal": "Rav!X53"
+      "registroOriginal": "Rav!X53",
+      "valorSemanaAnterior": 5.5,
+      "variacaoSemanalAbsoluta": 0.06,
+      "variacaoSemanalPct": 1.15,
+      "valorMinimoRegional": 5.25,
+      "pracaMinimoRegional": "Ivaiporã",
+      "valorMaximoRegional": 6.39,
+      "pracaMaximoRegional": "Irati",
+      "pracasRegionais": [
+        {
+          "praca": "Apucarana",
+          "valor": 5.95,
+          "valorOriginal": 5.95,
+          "registroOriginal": "Rav!D53"
+        },
+        {
+          "praca": "Campo Mourão",
+          "valor": 5.5,
+          "valorOriginal": 5.5,
+          "registroOriginal": "Rav!E53"
+        },
+        {
+          "praca": "Cascavel",
+          "valor": 5.3,
+          "valorOriginal": 5.3,
+          "registroOriginal": "Rav!F53"
+        },
+        {
+          "praca": "Cornélio Procópio",
+          "valor": 5.4,
+          "valorOriginal": 5.4,
+          "registroOriginal": "Rav!G53"
+        },
+        {
+          "praca": "Guarapuava",
+          "valor": 6.2,
+          "valorOriginal": 6.2,
+          "registroOriginal": "Rav!J53"
+        },
+        {
+          "praca": "Irati",
+          "valor": 6.39,
+          "valorOriginal": 6.39,
+          "registroOriginal": "Rav!K53"
+        },
+        {
+          "praca": "Ivaiporã",
+          "valor": 5.25,
+          "valorOriginal": 5.25,
+          "registroOriginal": "Rav!L53"
+        },
+        {
+          "praca": "Laranjeiras do Sul",
+          "valor": 6.13,
+          "valorOriginal": 6.1267,
+          "registroOriginal": "Rav!N53"
+        },
+        {
+          "praca": "Maringá",
+          "valor": 6.1,
+          "valorOriginal": 6.1,
+          "registroOriginal": "Rav!P53"
+        },
+        {
+          "praca": "Pato Branco",
+          "valor": 5.4,
+          "valorOriginal": 5.4,
+          "registroOriginal": "Rav!S53"
+        },
+        {
+          "praca": "Ponta Grossa",
+          "valor": 5.9,
+          "valorOriginal": 5.9,
+          "registroOriginal": "Rav!T53"
+        },
+        {
+          "praca": "Toledo",
+          "valor": 5.5,
+          "valorOriginal": 5.5,
+          "registroOriginal": "Rav!U53"
+        },
+        {
+          "praca": "Umuarama",
+          "valor": 5.9,
+          "valorOriginal": 5.9,
+          "registroOriginal": "Rav!V53"
+        },
+        {
+          "praca": "União da Vitória",
+          "valor": 5.44,
+          "valorOriginal": 5.435,
+          "registroOriginal": "Rav!W53"
+        }
+      ]
     },
     {
       "id": "vaca-em-pe",
@@ -241,7 +1417,124 @@
       "valorOriginal": 329.7009,
       "unidade": "Arroba (@ de 15 kg)",
       "unidadeOriginal": "arroba",
-      "registroOriginal": "Rav!X54"
+      "registroOriginal": "Rav!X54",
+      "valorSemanaAnterior": 324.96,
+      "variacaoSemanalAbsoluta": 4.74,
+      "variacaoSemanalPct": 1.46,
+      "valorMinimoRegional": 302.7,
+      "pracaMinimoRegional": "Cascavel",
+      "valorMaximoRegional": 340.0,
+      "pracaMaximoRegional": "Umuarama",
+      "pracasRegionais": [
+        {
+          "praca": "Apucarana",
+          "valor": 328.33,
+          "valorOriginal": 328.3333,
+          "registroOriginal": "Rav!D54"
+        },
+        {
+          "praca": "Campo Mourão",
+          "valor": 330.0,
+          "valorOriginal": 330.0,
+          "registroOriginal": "Rav!E54"
+        },
+        {
+          "praca": "Cascavel",
+          "valor": 302.7,
+          "valorOriginal": 302.695,
+          "registroOriginal": "Rav!F54"
+        },
+        {
+          "praca": "Cornélio Procópio",
+          "valor": 332.17,
+          "valorOriginal": 332.1667,
+          "registroOriginal": "Rav!G54"
+        },
+        {
+          "praca": "Curitiba",
+          "valor": 332.0,
+          "valorOriginal": 332.0,
+          "registroOriginal": "Rav!H54"
+        },
+        {
+          "praca": "Francisco Beltrão",
+          "valor": 333.33,
+          "valorOriginal": 333.3333,
+          "registroOriginal": "Rav!I54"
+        },
+        {
+          "praca": "Guarapuava",
+          "valor": 338.9,
+          "valorOriginal": 338.9,
+          "registroOriginal": "Rav!J54"
+        },
+        {
+          "praca": "Ivaiporã",
+          "valor": 325.0,
+          "valorOriginal": 325.0,
+          "registroOriginal": "Rav!L54"
+        },
+        {
+          "praca": "Jacarezinho",
+          "valor": 338.03,
+          "valorOriginal": 338.03,
+          "registroOriginal": "Rav!M54"
+        },
+        {
+          "praca": "Laranjeiras do Sul",
+          "valor": 322.75,
+          "valorOriginal": 322.7533,
+          "registroOriginal": "Rav!N54"
+        },
+        {
+          "praca": "Londrina",
+          "valor": 334.46,
+          "valorOriginal": 334.46,
+          "registroOriginal": "Rav!O54"
+        },
+        {
+          "praca": "Maringá",
+          "valor": 330.0,
+          "valorOriginal": 330.0,
+          "registroOriginal": "Rav!P54"
+        },
+        {
+          "praca": "Paranavaí",
+          "valor": 330.0,
+          "valorOriginal": 330.0,
+          "registroOriginal": "Rav!R54"
+        },
+        {
+          "praca": "Pato Branco",
+          "valor": 333.33,
+          "valorOriginal": 333.3333,
+          "registroOriginal": "Rav!S54"
+        },
+        {
+          "praca": "Ponta Grossa",
+          "valor": 327.08,
+          "valorOriginal": 327.0775,
+          "registroOriginal": "Rav!T54"
+        },
+        {
+          "praca": "Toledo",
+          "valor": 330.0,
+          "valorOriginal": 330.0,
+          "registroOriginal": "Rav!U54"
+        },
+        {
+          "praca": "Umuarama",
+          "valor": 340.0,
+          "valorOriginal": 340.0,
+          "registroOriginal": "Rav!V54"
+        },
+        {
+          "praca": "União da Vitória",
+          "valor": 316.51,
+          "valorOriginal": 316.5075,
+          "registroOriginal": "Rav!W54"
+        }
+      ]
     }
   ]
 }

@@ -136,8 +136,8 @@ class AgroMercadoConfig(BaseModel):
     deral_active_snapshot: str = Field(
         default="deral-prp-2026-10-16.json",
         max_length=100,
-        pattern=r"^deral-prp-[0-9]{4}-[0-9]{2}-[0-9]{2}\.(?:json|xls)$",
-        description="Nome do arquivo .json ou .xls do snapshot semanal DERAL ativo"
+        pattern=r"^deral-prp-[0-9]{4}-[0-9]{2}-[0-9]{2}\.(?:json|csv|xls)$",
+        description="Nome do arquivo .json, .csv ou .xls do snapshot semanal DERAL ativo"
     )
     active_snapshot_id: str = Field(
         default="2026-10-16",
@@ -510,6 +510,18 @@ class DeralSnapshotsListResponse(BaseModel):
     active_snapshot_id: Optional[str] = None
     snapshots: list[DeralSnapshotMetadata]
     total: int
+
+
+class DeralSyncTriggerResponse(BaseModel):
+    """Resultado da sincronização sob demanda com a fonte oficial DERAL/SEAB-PR."""
+    model_config = ConfigDict(extra="forbid")
+
+    sucesso: bool
+    atualizado: bool
+    mensagem: str
+    fonte_url: str
+    snapshot_ativo_anterior: Optional[str] = None
+    snapshot_ativo_atual: Optional[str] = None
 
 
 class DeralSnapshotUploadResponse(BaseModel):

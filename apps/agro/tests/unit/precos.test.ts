@@ -138,6 +138,30 @@ describe("Preços Públicos Agropecuários - Client Library", () => {
       expect(parsePrecoItem({ ...SAMPLE_ITEM, documentoHashSha256: "curto" })).toBeNull();
       expect(parsePrecoItem({ ...SAMPLE_ITEM, registroOriginal: "A1" })).toBeNull();
     });
+
+    it("deve preservar variação semanal MSA, faixa mín/máx e núcleos regionais quando presentes", () => {
+      const enriquecido = parsePrecoItem({
+        ...SAMPLE_ITEM,
+        valorSemanaAnterior: 134.14,
+        variacaoSemanalAbsoluta: 0.84,
+        variacaoSemanalPct: 0.62,
+        valorMinimoRegional: 131.82,
+        pracaMinimoRegional: "Londrina",
+        valorMaximoRegional: 141.5,
+        pracaMaximoRegional: "Guarapuava",
+        pracasRegionais: [
+          { praca: "Cascavel", valor: 132.98, valorOriginal: 132.98, registroOriginal: "Rav!F12" },
+          { praca: "Londrina", valor: 131.82, valorOriginal: 131.82, registroOriginal: "Rav!O12" },
+        ],
+      });
+      expect(enriquecido).not.toBeNull();
+      expect(enriquecido?.valorSemanaAnterior).toBe(134.14);
+      expect(enriquecido?.variacaoSemanalPct).toBe(0.62);
+      expect(enriquecido?.pracaMinimoRegional).toBe("Londrina");
+      expect(enriquecido?.pracaMaximoRegional).toBe("Guarapuava");
+      expect(enriquecido?.pracasRegionais).toHaveLength(2);
+      expect(enriquecido?.pracasRegionais?.[0]?.praca).toBe("Cascavel");
+    });
   });
 
   describe("parsePrecosResponse - Validação Resiliente e Desacoplada", () => {

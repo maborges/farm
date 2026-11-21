@@ -13,6 +13,7 @@ Garante:
 from __future__ import annotations
 
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Adiciona services/api ao sys.path para execucao direta ou via runner
@@ -22,12 +23,13 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+import public_mercado.router as public_mercado_router_module
 from public_mercado.precos_publicos import (
     PRECOS_OFICIAIS_HOMOLOGADOS,
     carregar_catalogo_mercado,
     carregar_precos_publicos,
 )
-from public_mercado.router import router as public_mercado_router
+from public_mercado.router import get_precos_service, router as public_mercado_router
 
 
 @pytest.fixture
@@ -86,9 +88,24 @@ def test_carregar_precos_publicos_contrato():
         assert item.urlDocumentoDownload is not None
 
 
+class _FixedDatetime(datetime):
+    """Congela datetime.now para validar contrato do snapshot estático 2026-10-16."""
+
+    @classmethod
+    def now(cls, tz=None):
+        return datetime(2026, 10, 21, 10, 0, tzinfo=tz or timezone.utc)
+
+
 def test_endpoint_precos_publicos_sucesso(client: TestClient):
     """Garante que GET /api/v1/public/mercado/precos responde 200 com 21 itens."""
-    response = client.get("/api/v1/public/mercado/precos")
+    original_dt = public_mercado_router_module.datetime
+    public_mercado_router_module.datetime = _FixedDatetime
+    get_precos_service().invalidate_cache()
+    try:
+        response = client.get("/api/v1/public/mercado/precos")
+    finally:
+        public_mercado_router_module.datetime = original_dt
+        get_precos_service().invalidate_cache()
     assert response.status_code == 200
     payload = response.json()
 
@@ -134,7 +151,14 @@ def test_endpoint_precos_publicos_sucesso(client: TestClient):
 
 def test_endpoint_catalogo_dinamico_sucesso(client: TestClient):
     """Garante que GET /api/v1/public/mercado/catalogo retorna 22 commodities estruturadas."""
-    response = client.get("/api/v1/public/mercado/catalogo")
+    original_dt = public_mercado_router_module.datetime
+    public_mercado_router_module.datetime = _FixedDatetime
+    get_precos_service().invalidate_cache()
+    try:
+        response = client.get("/api/v1/public/mercado/catalogo")
+    finally:
+        public_mercado_router_module.datetime = original_dt
+        get_precos_service().invalidate_cache()
     assert response.status_code == 200
     payload = response.json()
 

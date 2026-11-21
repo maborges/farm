@@ -31,6 +31,7 @@ from .sidra_cache import SidraCache
 from .sidra_service import IbgeSidraService
 from .precos_publicos import CatalogoMercadoResponse, PrecoPublicoItem, PrecosPublicosResponse
 from .precos_publicos_service import PrecosPublicosService
+from .cotacoes_regiao_service import CotacaoMultiFonteService, CotacoesRegiaoResponse
 
 router = APIRouter(prefix="/public/mercado", tags=["Mercado público"])
 service = PtaxService(
@@ -62,6 +63,11 @@ def apply_dynamic_market_config(config_dict: dict[str, Any]) -> None:
         sidra_service.ttl_monthly_seconds = max(300, config_dict["sidra_cache_ttl_seconds"] // 4)
     if "precos_cache_ttl_seconds" in config_dict:
         precos_service.ttl_seconds = config_dict["precos_cache_ttl_seconds"]
+    if "max_defasagem_dias" in config_dict:
+        novo_max = max(1, int(config_dict["max_defasagem_dias"]))
+        if precos_service.max_defasagem_dias != novo_max:
+            precos_service.max_defasagem_dias = novo_max
+            precos_service.invalidate_cache()
 
 
 def get_ptax_service() -> PtaxService:
@@ -314,3 +320,29 @@ async def get_public_preco_commodity(
         )
     response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=600"
     return item
+
+
+@router.get("/cotacoes-regiao", response_model=CotacoesRegiaoResponse)
+async def get_public_cotacoes_regiao(
+    response: Response,
+    produto: str | None = None,
+    uf: str = "PR",
+    praca: str | None = None,
+    municipio_ibge: str | None = None,
+    fonte: str | None = None,
+    incluir_ibge: bool = True,
+    session: AsyncSession = Depends(get_session),
+    service: PrecosPublicosService = Depends(get_precos_service),
+    sidra: IbgeSidraService = Depends(get_sidra_service),
+) -> CotacoesRegiaoResponse:
+    """Retorna painel comparativo de múltiplas fontes por produto, UF, município e praça."""
+    await service.sincronizar_snapshot_ativo(session)
+    response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=600"
+    return await CotacaoMultiFonteService(sidra_service=sidra).consultar(
+        produto=produto,
+        uf=uf,
+        praca=praca,
+        municipio_ibge=municipio_ibge,
+        fonte=fonte,
+        incluir_ibge=incluir_ibge,
+    )

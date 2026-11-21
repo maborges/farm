@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Shield } from "lucide-react";
 import { PainelConta } from "@/components/auth/painel-conta";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 
 export const metadata: Metadata = {
   title: "Conta Individual Segregada | DeepFarms Agro",
@@ -10,14 +12,14 @@ export const metadata: Metadata = {
 
 export default function ContaPage() {
   return (
-    <div className="max-w-3xl mx-auto flex flex-col gap-4 sm:gap-6">
+    <div className="max-w-3xl mx-auto flex flex-col gap-4 sm:gap-5">
       {/* Cabeçalho da Página */}
-      <div className="flex flex-col gap-1 border-b border-border pb-3">
-        <div className="flex items-center gap-2 text-primary">
-          <Shield className="w-4 h-4 text-primary" />
-          <span className="text-[11px] font-semibold uppercase tracking-wider">
-            Identidade Individual Segregada
-          </span>
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-2">
+          <Badge variant="default" className="gap-1">
+            <Shield className="size-3" />
+            <span>Identidade Individual Segregada</span>
+          </Badge>
         </div>
         <h1 className="text-base sm:text-xl md:text-2xl font-bold tracking-tight text-foreground">
           Minha Conta DeepFarms Agro
@@ -26,6 +28,8 @@ export default function ContaPage() {
           Acesso opcional e individual para o produtor rural. O aplicativo continua 100% público, gratuito e anônimo para consultas e ferramentas.
         </p>
       </div>
+
+      <Separator />
 
       {/* Painel Interativo de Conta */}
       <PainelConta />

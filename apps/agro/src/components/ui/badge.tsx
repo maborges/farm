@@ -1,41 +1,67 @@
-import * as React from "react";
-import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "@/lib/utils";
+import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
+
+import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-sm border px-2 py-0.5 text-[11px] font-medium transition-colors focus:outline-none focus:ring-1 focus:ring-ring",
+  "group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-sm border px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!",
   {
     variants: {
       variant: {
-        default:
-          "border-transparent bg-primary text-primary-foreground shadow-xs",
+        default: "border-primary/20 bg-primary/10 text-primary dark:border-primary/30 dark:bg-primary/15 dark:text-primary [a]:hover:bg-primary/20",
         secondary:
-          "border-transparent bg-secondary text-secondary-foreground",
-        destructive:
-          "border-transparent bg-destructive text-destructive-foreground shadow-xs",
-        outline: "text-foreground",
+          "border-border bg-secondary text-secondary-foreground dark:border-border dark:bg-secondary dark:text-secondary-foreground [a]:hover:bg-accent",
+        metadata:
+          "border-sky-200 bg-sky-100/45 text-sky-700 [a]:hover:bg-sky-100/65 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200 dark:[a]:hover:bg-sky-500/20",
         success:
-          "border-transparent bg-emerald-600/15 text-emerald-800 dark:text-emerald-400 border-emerald-600/30",
-        warning:
-          "border-transparent bg-amber-500/15 text-amber-800 dark:text-amber-400 border-amber-500/30",
+          "border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200 [a]:hover:bg-emerald-200 dark:[a]:hover:bg-emerald-500/20",
         info:
-          "border-transparent bg-sky-500/15 text-sky-800 dark:text-sky-400 border-sky-500/30",
+          "border-border bg-muted text-muted-foreground dark:border-border dark:bg-muted dark:text-muted-foreground [a]:hover:bg-accent",
+        warning:
+          "border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-200 [a]:hover:bg-amber-200 dark:[a]:hover:bg-amber-500/20",
+        attention:
+          "border-orange-200 bg-orange-100 text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/15 dark:text-orange-200 [a]:hover:bg-orange-200 dark:[a]:hover:bg-orange-500/20",
+        danger:
+          "border-red-200 bg-red-100 text-red-700 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-200 [a]:hover:bg-red-200 dark:[a]:hover:bg-red-500/20",
+        critical:
+          "border-red-300 bg-red-200 text-red-900 dark:border-red-500/40 dark:bg-red-500/20 dark:text-red-100 [a]:hover:bg-red-300 dark:[a]:hover:bg-red-500/30",
+        priority:
+          "border-fuchsia-200 bg-fuchsia-100 text-fuchsia-700 dark:border-fuchsia-500/30 dark:bg-fuchsia-500/15 dark:text-fuchsia-200 [a]:hover:bg-fuchsia-200 dark:[a]:hover:bg-fuchsia-500/20",
+        diagnostic:
+          "border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200 [a]:hover:bg-sky-200 dark:[a]:hover:bg-sky-500/20",
+        recommendation:
+          "border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200 [a]:hover:bg-emerald-200 dark:[a]:hover:bg-emerald-500/20",
+        destructive:
+          "border-destructive/20 bg-destructive/10 text-destructive dark:border-destructive/40 dark:bg-destructive/15 dark:text-destructive-foreground focus-visible:ring-destructive/20 [a]:hover:bg-destructive/20 dark:[a]:hover:bg-destructive/25",
+        outline:
+          "border-border bg-background text-foreground dark:border-border dark:bg-background dark:text-foreground [a]:hover:bg-accent [a]:hover:text-accent-foreground",
+        ghost:
+          "border-transparent bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground dark:text-foreground dark:hover:bg-accent dark:hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
       },
     },
     defaultVariants: {
       variant: "default",
     },
   }
-);
+)
 
 export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
+  extends React.HTMLAttributes<HTMLSpanElement>,
     VariantProps<typeof badgeVariants> {}
 
-function Badge({ className, variant, ...props }: BadgeProps) {
+function Badge({
+  className,
+  variant = "default",
+  ...props
+}: BadgeProps) {
   return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
-  );
+    <span
+      data-slot="badge"
+      className={cn(badgeVariants({ variant }), className)}
+      {...props}
+    />
+  )
 }
 
-export { Badge, badgeVariants };
+export { Badge, badgeVariants }

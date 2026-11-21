@@ -34,11 +34,15 @@ class MarketSourcesGovernanceService:
         """Coleta a situação de saúde, defasagem e parâmetros de cache das 4 fontes oficiais."""
         now = now or datetime.now(timezone.utc)
 
-        # 1. Carrega configuração atual de mercado
+        # 1. Carrega configuração atual de mercado direto do banco para evitar ponteiro defasado entre workers
         config_val, config_meta, _ = await agro_config_service.get_config(
-            session, KEY_MERCADO, use_cache=True
+            session, KEY_MERCADO, use_cache=False
         )
         mercado_cfg = AgroMercadoConfig.model_validate(config_val)
+        await deral_snapshot_service.sync_active_snapshot_from_db(session)
+        reconciled_id = deral_snapshot_service.get_cached_active_snapshot_id()
+        if reconciled_id and reconciled_id > mercado_cfg.active_snapshot_id:
+            mercado_cfg.active_snapshot_id = reconciled_id
 
         sources: list[MarketSourceStatusItem] = []
 
@@ -149,7 +153,9 @@ class MarketSourcesGovernanceService:
         self, session: AsyncSession, config: AgroMercadoConfig, now: datetime
     ) -> MarketSourceStatusItem:
         """Verifica a saúde operacional e defasagem do snapshot DERAL ativo."""
-        active_id = config.active_snapshot_id
+        await deral_snapshot_service.sync_active_snapshot_from_db(session)
+        cached_id = deral_snapshot_service.get_cached_active_snapshot_id()
+        active_id = cached_id if cached_id and cached_id >= config.active_snapshot_id else config.active_snapshot_id
         active_filename = config.deral_active_snapshot
         
         # Obtém metadados do snapshot ativo no serviço

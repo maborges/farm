@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Delete, Loader2, LogOut, ShieldCheck } from "lucide-react";
+
+import { CampoPwaUpdateBanner } from "@/components/campo/pwa-update-banner";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useCachedCampoImage } from "@/lib/campo-assets";
 import { useDeviceContext } from "@/lib/device/use-device-context";
@@ -174,6 +176,7 @@ export default function PinPage() {
 
       {/* Conteúdo Central */}
       <main className="flex-1 flex flex-col items-center justify-center w-full max-w-md mx-auto px-4 py-6">
+        <CampoPwaUpdateBanner className="mb-3 w-full" />
         <div className="w-full rounded-sm border border-border bg-card p-5 shadow-2xs flex flex-col items-center">
           {/* Avatar do Operador */}
           <div className="relative mb-2 flex flex-col items-center">

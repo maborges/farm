@@ -2,11 +2,13 @@
 
 import React, { useState, useMemo } from "react";
 import { Truck, RotateCcw, AlertCircle, Info, ShieldAlert, AlertTriangle } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input, inputBaseClassName } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import {
   calcularFreteAgricola,
   type UnidadeMassaAgricola,
@@ -19,6 +21,7 @@ import {
   formatarMoeda,
   detectarEntradaAmbiguaPtBr,
 } from "@/lib/calculadoras/format";
+import { cn } from "@/lib/utils";
 
 export function CalculadoraFrete() {
   const [quantidadeTexto, setQuantidadeTexto] = useState<string>("32");
@@ -83,41 +86,42 @@ export function CalculadoraFrete() {
   };
 
   return (
-    <Card className="border border-border/80 shadow-xs">
-      <CardHeader className="pb-3 border-b border-border/60">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-sm bg-emerald-600/10 text-emerald-700 dark:text-emerald-400">
-              <Truck className="w-5 h-5" />
-            </div>
-            <div>
-              <CardTitle className="text-base font-semibold">
-                Estimativa de Frete Agrícola
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Simulação de custo total de transporte, frete por saca e frete por tonelada com despesas acessórias.
-              </CardDescription>
-            </div>
+    <Card>
+      <CardHeader className="border-b border-border/60">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-sm bg-emerald-600/10 text-emerald-700 dark:text-emerald-400">
+            <Truck className="size-5" />
           </div>
-          <Badge variant="outline" className="text-[10px] hidden sm:inline-flex">
+          <div>
+            <CardTitle className="text-base font-semibold">
+              Estimativa de Frete Agrícola
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Simulação de custo total de transporte, frete por saca e frete por tonelada com despesas acessórias.
+            </CardDescription>
+          </div>
+        </div>
+        <CardAction>
+          <Badge variant="outline" className="hidden sm:inline-flex">
             Offline
           </Badge>
-        </div>
+        </CardAction>
       </CardHeader>
 
-      <CardContent className="pt-4 space-y-4">
+      <CardContent className="flex flex-col gap-4">
         {/* Aviso de Não Vinculação */}
-        <div className="p-2.5 rounded-sm border border-amber-500/30 bg-amber-500/5 text-xs text-foreground flex items-start gap-2">
-          <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-          <div className="text-[11px] text-muted-foreground leading-relaxed">
-            <span className="font-semibold text-foreground">Aviso de Simulação:</span> Esta ferramenta realiza cálculos matemáticos baseados exclusivamente nas tarifas e valores informados pelo produtor. Não consulta tabelas de fretes ou ANTT e não constitui cotação comercial vinculante.
-          </div>
-        </div>
+        <Alert variant="warning">
+          <ShieldAlert className="size-4" />
+          <AlertTitle className="text-xs">Aviso de Simulação</AlertTitle>
+          <AlertDescription className="text-xs">
+            Esta ferramenta realiza cálculos matemáticos baseados exclusivamente nas tarifas e valores informados pelo produtor. Não consulta tabelas de fretes ou ANTT e não constitui cotação comercial vinculante.
+          </AlertDescription>
+        </Alert>
 
         {/* Formulário de Entradas */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="quantidade-frete">Carga a Transportar</Label>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="quantidade-frete" className="text-xs">Carga a Transportar</Label>
             <Input
               id="quantidade-frete"
               type="text"
@@ -128,13 +132,13 @@ export function CalculadoraFrete() {
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="unidade-carga">Unidade da Carga</Label>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="unidade-carga" className="text-xs">Unidade da Carga</Label>
             <select
               id="unidade-carga"
               value={unidadeQuantidade}
               onChange={(e) => setUnidadeQuantidade(e.target.value as UnidadeMassaAgricola)}
-              className="flex h-8 w-full rounded-sm border border-border bg-background px-2.5 py-1 text-xs text-foreground shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className={cn(inputBaseClassName, "text-xs")}
             >
               <option value="TONELADAS">Toneladas métricas (t)</option>
               <option value="SACAS">Sacas agrícolas</option>
@@ -142,8 +146,8 @@ export function CalculadoraFrete() {
             </select>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="kg-saca-frete">Peso por Saca (kg)</Label>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="kg-saca-frete" className="text-xs">Peso por Saca (kg)</Label>
             <Input
               id="kg-saca-frete"
               type="text"
@@ -156,21 +160,21 @@ export function CalculadoraFrete() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="tipo-tarifa">Base da Tarifa</Label>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="tipo-tarifa" className="text-xs">Base da Tarifa</Label>
             <select
               id="tipo-tarifa"
               value={tipoTarifa}
               onChange={(e) => setTipoTarifa(e.target.value as TipoTarifaFrete)}
-              className="flex h-8 w-full rounded-sm border border-border bg-background px-2.5 py-1 text-xs text-foreground shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className={cn(inputBaseClassName, "text-xs")}
             >
               <option value="POR_TONELADA">R$ por Tonelada (R$/t)</option>
               <option value="POR_SACA">R$ por Saca (R$/saca)</option>
             </select>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="valor-tarifa">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="valor-tarifa" className="text-xs">
               Valor da Tarifa ({tipoTarifa === "POR_TONELADA" ? "R$/t" : "R$/saca"})
             </Label>
             <Input
@@ -183,8 +187,8 @@ export function CalculadoraFrete() {
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="custos-adicionais">Custos Adicionais Opcionais (R$)</Label>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="custos-adicionais" className="text-xs">Custos Adicionais Opcionais (R$)</Label>
             <Input
               id="custos-adicionais"
               type="text"
@@ -198,74 +202,84 @@ export function CalculadoraFrete() {
 
         {/* Aviso de Ambiguidade Numérica */}
         {avisoAmbiguo && (
-          <div className="p-2.5 rounded-sm border border-amber-500/30 bg-amber-500/5 text-amber-900 dark:text-amber-300 text-xs flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-            <span className="leading-relaxed">{avisoAmbiguo}</span>
-          </div>
+          <Alert variant="warning">
+            <AlertTriangle className="size-4" />
+            <AlertDescription className="text-xs">{avisoAmbiguo}</AlertDescription>
+          </Alert>
         )}
 
         {/* Mensagem de Erro de Validação */}
         {erro && (
-          <div className="p-2.5 rounded-sm border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>{erro}</span>
-          </div>
+          <Alert variant="destructive">
+            <AlertCircle className="size-4" />
+            <AlertDescription className="text-xs">{erro}</AlertDescription>
+          </Alert>
         )}
 
         {/* Painel de Resultados */}
         {resultado && (
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Estimativa do Frete
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-              <div className="p-3 rounded-sm bg-muted/40 border border-border/60">
-                <span className="text-[11px] text-muted-foreground block">Valor Total Estimado</span>
-                <span className="text-base sm:text-lg font-bold text-emerald-700 dark:text-emerald-400 block mt-1">
-                  {formatarMoeda(resultado.totalFrete)}
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  Base: {formatarMoeda(resultado.freteBase)} + Extras: {formatarMoeda(resultado.custosAdicionais)}
-                </span>
-              </div>
+              <Card variant="muted" size="sm">
+                <CardContent className="flex flex-col gap-0.5">
+                  <span className="text-[11px] text-muted-foreground">Valor Total Estimado</span>
+                  <span className="text-base sm:text-lg font-bold text-emerald-700 dark:text-emerald-400">
+                    {formatarMoeda(resultado.totalFrete)}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    Base: {formatarMoeda(resultado.freteBase)} + Extras: {formatarMoeda(resultado.custosAdicionais)}
+                  </span>
+                </CardContent>
+              </Card>
 
-              <div className="p-3 rounded-sm bg-muted/40 border border-border/60">
-                <span className="text-[11px] text-muted-foreground block">Custo Efetivo por Tonelada</span>
-                <span className="text-base sm:text-lg font-bold text-foreground block mt-1">
-                  {formatarMoeda(resultado.custoEfetivoPorTonelada)} / t
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  Total ÷ {formatarNumero(resultado.massaToneladas, 2)} t
-                </span>
-              </div>
+              <Card variant="muted" size="sm">
+                <CardContent className="flex flex-col gap-0.5">
+                  <span className="text-[11px] text-muted-foreground">Custo Efetivo por Tonelada</span>
+                  <span className="text-base sm:text-lg font-bold text-foreground">
+                    {formatarMoeda(resultado.custoEfetivoPorTonelada)} / t
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    Total ÷ {formatarNumero(resultado.massaToneladas, 2)} t
+                  </span>
+                </CardContent>
+              </Card>
 
-              <div className="p-3 rounded-sm bg-muted/40 border border-border/60">
-                <span className="text-[11px] text-muted-foreground block">Custo Efetivo por Saca</span>
-                <span className="text-base sm:text-lg font-bold text-foreground block mt-1">
-                  {formatarMoeda(resultado.custoEfetivoPorSaca)} / saca
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  Total ÷ {formatarNumero(resultado.totalSacas, 1)} sacas
-                </span>
-              </div>
+              <Card variant="muted" size="sm">
+                <CardContent className="flex flex-col gap-0.5">
+                  <span className="text-[11px] text-muted-foreground">Custo Efetivo por Saca</span>
+                  <span className="text-base sm:text-lg font-bold text-foreground">
+                    {formatarMoeda(resultado.custoEfetivoPorSaca)} / saca
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    Total ÷ {formatarNumero(resultado.totalSacas, 1)} sacas
+                  </span>
+                </CardContent>
+              </Card>
 
-              <div className="p-3 rounded-sm bg-muted/40 border border-border/60">
-                <span className="text-[11px] text-muted-foreground block">Volume da Carga</span>
-                <span className="text-sm font-semibold text-foreground block mt-1">
-                  {formatarNumero(resultado.massaToneladas, 2)} t ({formatarNumero(resultado.totalSacas, 0)} sacas)
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  Total líquido: {formatarNumero(resultado.massaKg, 0)} kg
-                </span>
-              </div>
+              <Card variant="muted" size="sm">
+                <CardContent className="flex flex-col gap-0.5">
+                  <span className="text-[11px] text-muted-foreground">Volume da Carga</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {formatarNumero(resultado.massaToneladas, 2)} t ({formatarNumero(resultado.totalSacas, 0)} sacas)
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    Total líquido: {formatarNumero(resultado.massaKg, 0)} kg
+                  </span>
+                </CardContent>
+              </Card>
             </div>
           </div>
         )}
 
+        <Separator />
+
         {/* Memória de Cálculo e Ações */}
-        <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-t border-border/60">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <Info className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <Info className="size-3.5 text-muted-foreground shrink-0" />
             <span>Fórmula: Total = (Quantidade normalizada × Tarifa) + Custos Adicionais</span>
           </div>
           <Button
@@ -273,10 +287,10 @@ export function CalculadoraFrete() {
             variant="outline"
             size="sm"
             onClick={handleLimpar}
-            className="flex items-center gap-1.5 self-end sm:self-auto cursor-pointer"
+            className="self-end sm:self-auto"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Limpar
+            <RotateCcw className="size-3.5" />
+            <span>Limpar</span>
           </Button>
         </div>
       </CardContent>

@@ -1,7 +1,8 @@
-from pydantic import BaseModel, field_validator, model_validator
-from typing import Optional
 from datetime import datetime
+from typing import Literal, Optional
 import uuid
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .models import UNIDADES_PESO_FIXO, UNIDADES_SEM_PESO_FIXO
 
@@ -203,3 +204,100 @@ class CotacaoCommodityResponse(BaseModel):
 class CommodityDetalhadaResponse(CommodityResponse):
     classificacoes: list[CommodityClassificacaoResponse] = []
     ultima_cotacao: Optional[CotacaoCommodityResponse] = None
+
+
+# ---------------------------------------------------------------------------
+# Cotações Regionais (Hierarquia Fazenda > Tenant/Grupo > Referência DERAL)
+# ---------------------------------------------------------------------------
+
+class CotacaoRegionalUpsertRequest(BaseModel):
+    """Payload para salvar cotação regional por fazenda ou grupo/tenant."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    valor: float = Field(gt=0, allow_inf_nan=False)
+    data_referencia: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    praca: str = Field(min_length=2, max_length=120)
+    fonte: Optional[str] = Field(default=None, max_length=120)
+    escopo: Literal["TENANT", "FAZENDA"] = "TENANT"
+    unidade_produtiva_id: Optional[uuid.UUID] = None
+    observacoes: Optional[str] = Field(default=None, max_length=300)
+    modo_consolidacao: Literal["FONTE_SELECIONADA", "MEDIA_FONTES"] = "FONTE_SELECIONADA"
+
+    @model_validator(mode="after")
+    def validar_escopo_fazenda(self) -> "CotacaoRegionalUpsertRequest":
+        """Exige unidade_produtiva_id quando o escopo for FAZENDA."""
+        if self.escopo == "FAZENDA" and self.unidade_produtiva_id is None:
+            raise ValueError("unidade_produtiva_id é obrigatório para escopo FAZENDA")
+        return self
+
+
+class CotacaoRegionalHistoricoItem(BaseModel):
+    """Registro histórico de alteração de cotação regional na fazenda ou grupo."""
+
+    valor: float
+    data_referencia: str
+    praca: str
+    fonte: str
+    escopo: Literal["FAZENDA", "TENANT"]
+    registrado_em: str
+
+
+class PracaDeralResumoItem(BaseModel):
+    """Cotação de um Núcleo Regional oficial do DERAL/SEAB-PR."""
+
+    praca: str
+    valor: float
+    registro_original: str
+
+
+class FonteComparadaRegionalItem(BaseModel):
+    """Fonte individual comparada para uma commodity na região da fazenda/tenant."""
+
+    escopo: Literal["FAZENDA", "TENANT", "DERAL_NUCLEO", "DERAL_MEDIA"]
+    fonte: str
+    praca: str
+    valor: float
+    data_referencia: Optional[str] = None
+    diferenca_para_media_pct: Optional[float] = None
+
+
+class CotacaoRegionalItemResponse(BaseModel):
+    """Referência consolidada de commodity com hierarquia Fazenda > Tenant > DERAL."""
+
+    codigo: str
+    commodity_id_publico: str
+    nome: str
+    unidade: str
+    origem_efetiva: Literal["FAZENDA", "TENANT", "DERAL", "INDISPONIVEL"]
+    modo_consolidacao: Literal["FONTE_SELECIONADA", "MEDIA_FONTES"] = "FONTE_SELECIONADA"
+    valor_efetivo: Optional[float] = None
+    data_referencia_efetiva: Optional[str] = None
+    praca_efetiva: Optional[str] = None
+    fonte_efetiva: Optional[str] = None
+    valor_fazenda: Optional[float] = None
+    data_fazenda: Optional[str] = None
+    praca_fazenda: Optional[str] = None
+    fonte_fazenda: Optional[str] = None
+    valor_tenant: Optional[float] = None
+    data_tenant: Optional[str] = None
+    praca_tenant: Optional[str] = None
+    fonte_tenant: Optional[str] = None
+    valor_deral: Optional[float] = None
+    data_deral: Optional[str] = None
+    praca_deral: Optional[str] = None
+    variacao_semanal_deral_pct: Optional[float] = None
+    diferenca_deral_brl: Optional[float] = None
+    diferenca_deral_pct: Optional[float] = None
+    valor_minimo_regional_deral: Optional[float] = None
+    praca_minimo_regional_deral: Optional[str] = None
+    valor_maximo_regional_deral: Optional[float] = None
+    praca_maximo_regional_deral: Optional[str] = None
+    total_fontes_ativas: int = 0
+    valor_minimo_fontes: Optional[float] = None
+    valor_medio_fontes: Optional[float] = None
+    valor_maximo_fontes: Optional[float] = None
+    dispersao_fontes_pct: Optional[float] = None
+    fontes_comparadas: list[FonteComparadaRegionalItem] = []
+    pracas_deral_disponiveis: list[PracaDeralResumoItem] = []
+    historico_recente: list[CotacaoRegionalHistoricoItem] = []

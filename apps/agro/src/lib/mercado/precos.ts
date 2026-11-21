@@ -4,6 +4,13 @@ import { agroApiUrl } from "@/lib/api-url";
  * Módulo de parsing, armazenamento offline e formatação de preços públicos de commodities (DERAL e CONAB).
  */
 
+export interface PracaRegionalDeralItem {
+  praca: string;
+  valor: number;
+  valorOriginal: number;
+  registroOriginal: string;
+}
+
 export interface PrecoPublicoItem {
   id: string;
   commodityNome: string;
@@ -31,6 +38,14 @@ export interface PrecoPublicoItem {
   valorOriginal: number;
   unidadeOriginal: string;
   transformacaoAplicada: string;
+  valorSemanaAnterior?: number | null;
+  variacaoSemanalAbsoluta?: number | null;
+  variacaoSemanalPct?: number | null;
+  valorMinimoRegional?: number | null;
+  pracaMinimoRegional?: string | null;
+  valorMaximoRegional?: number | null;
+  pracaMaximoRegional?: string | null;
+  pracasRegionais?: PracaRegionalDeralItem[];
 }
 
 export interface PrecosPublicosResponse {
@@ -120,6 +135,61 @@ export function parsePrecoItem(value: unknown): PrecoPublicoItem | null {
   const urlConsultaInstitucional = typeof value.urlConsultaInstitucional === "string" ? value.urlConsultaInstitucional : linkOficial;
   const urlDocumentoDownload = typeof value.urlDocumentoDownload === "string" ? value.urlDocumentoDownload : documentoOficial;
 
+  const valorSemanaAnterior =
+    typeof value.valorSemanaAnterior === "number" && Number.isFinite(value.valorSemanaAnterior) && value.valorSemanaAnterior > 0
+      ? value.valorSemanaAnterior
+      : null;
+  const variacaoSemanalAbsoluta =
+    typeof value.variacaoSemanalAbsoluta === "number" && Number.isFinite(value.variacaoSemanalAbsoluta)
+      ? value.variacaoSemanalAbsoluta
+      : null;
+  const variacaoSemanalPct =
+    typeof value.variacaoSemanalPct === "number" && Number.isFinite(value.variacaoSemanalPct)
+      ? value.variacaoSemanalPct
+      : null;
+  const valorMinimoRegional =
+    typeof value.valorMinimoRegional === "number" && Number.isFinite(value.valorMinimoRegional) && value.valorMinimoRegional > 0
+      ? value.valorMinimoRegional
+      : null;
+  const pracaMinimoRegional =
+    typeof value.pracaMinimoRegional === "string" && value.pracaMinimoRegional.trim()
+      ? value.pracaMinimoRegional.trim()
+      : null;
+  const valorMaximoRegional =
+    typeof value.valorMaximoRegional === "number" && Number.isFinite(value.valorMaximoRegional) && value.valorMaximoRegional > 0
+      ? value.valorMaximoRegional
+      : null;
+  const pracaMaximoRegional =
+    typeof value.pracaMaximoRegional === "string" && value.pracaMaximoRegional.trim()
+      ? value.pracaMaximoRegional.trim()
+      : null;
+
+  const pracasRegionais: PracaRegionalDeralItem[] = [];
+  if (Array.isArray(value.pracasRegionais)) {
+    for (const p of value.pracasRegionais) {
+      if (
+        record(p) &&
+        typeof p.praca === "string" &&
+        p.praca.trim() &&
+        typeof p.valor === "number" &&
+        Number.isFinite(p.valor) &&
+        p.valor > 0 &&
+        typeof p.registroOriginal === "string" &&
+        /^Rav![A-Z]+\d+$/.test(p.registroOriginal)
+      ) {
+        pracasRegionais.push({
+          praca: p.praca.trim(),
+          valor: p.valor,
+          valorOriginal:
+            typeof p.valorOriginal === "number" && Number.isFinite(p.valorOriginal) && p.valorOriginal > 0
+              ? p.valorOriginal
+              : p.valor,
+          registroOriginal: p.registroOriginal,
+        });
+      }
+    }
+  }
+
   return {
     id,
     commodityNome,
@@ -147,6 +217,14 @@ export function parsePrecoItem(value: unknown): PrecoPublicoItem | null {
     valorOriginal,
     unidadeOriginal,
     transformacaoAplicada,
+    valorSemanaAnterior,
+    variacaoSemanalAbsoluta,
+    variacaoSemanalPct,
+    valorMinimoRegional,
+    pracaMinimoRegional,
+    valorMaximoRegional,
+    pracaMaximoRegional,
+    pracasRegionais,
   };
 }
 

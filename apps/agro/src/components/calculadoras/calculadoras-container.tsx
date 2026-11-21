@@ -2,7 +2,9 @@
 
 import React, { useState } from "react";
 import { ArrowRightLeft, DollarSign, Map, Scale, ShieldCheck, Truck } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { CalculadoraAreas } from "./calculadora-areas";
 import { CalculadoraConversorGeral } from "./calculadora-conversor-geral";
 import { CalculadoraCustoHectare } from "./calculadora-custo-hectare";
@@ -63,7 +65,7 @@ export function CalculadorasContainer() {
     <div className="flex flex-col gap-3.5 sm:gap-4">
       {/* Barra de Navegação entre Ferramentas (Deslizante no Mobile / Segmented no Tablet & Desktop) */}
       <div
-        className="flex items-center gap-1.5 p-1 rounded-sm bg-muted/40 border border-border/60 overflow-x-auto scrollbar-none snap-x snap-mandatory sm:flex-wrap"
+        className="flex items-center gap-1.5 p-1 rounded-sm bg-muted/60 border border-border/60 overflow-x-auto scrollbar-none snap-x snap-mandatory sm:flex-wrap"
         role="tablist"
         aria-label="Selecionar calculadora agrícola"
         data-testid="calculadoras-segmented-bar"
@@ -73,21 +75,19 @@ export function CalculadorasContainer() {
           const selecionada = ativa === aba.id;
 
           return (
-            <button
+            <Button
               key={aba.id}
               type="button"
+              variant={selecionada ? "default" : "ghost"}
+              size="sm"
               onClick={() => setAtiva(aba.id)}
               aria-pressed={selecionada}
-              className={`shrink-0 snap-start flex items-center gap-2 px-3 py-2 sm:py-1.5 min-h-[38px] sm:min-h-[32px] text-xs font-medium rounded-sm transition-all cursor-pointer active:scale-95 ${
-                selecionada
-                  ? "bg-background text-foreground shadow-xs border border-border/80 font-semibold"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-              }`}
+              className="shrink-0 snap-start min-h-[34px] sm:min-h-[30px]"
             >
-              <Icone className={`w-3.5 h-3.5 ${selecionada ? "text-emerald-700 dark:text-emerald-400" : ""}`} />
+              <Icone className="size-3.5" />
               <span className="hidden sm:inline">{aba.nome}</span>
               <span className="sm:hidden">{aba.rotuloCurto}</span>
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -102,17 +102,20 @@ export function CalculadorasContainer() {
       </div>
 
       {/* Selo de Segurança e Funcionamento 100% Offline */}
-      <div className="p-3 rounded-sm border border-emerald-600/20 bg-emerald-600/5 flex items-center justify-between text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-          <span>
-            <strong>Calculadoras 100% Autônomas:</strong> Nenhum dado é transmitido para a nuvem. Todas as conversões e contas são executadas diretamente no seu aparelho.
-          </span>
+      <Alert variant="success">
+        <ShieldCheck className="size-4" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <AlertTitle className="text-xs">Calculadoras 100% Autônomas</AlertTitle>
+            <AlertDescription className="text-xs">
+              Nenhum dado é transmitido para a nuvem. Todas as conversões e contas são executadas diretamente no seu aparelho.
+            </AlertDescription>
+          </div>
+          <Badge variant="recommendation" className="shrink-0 hidden md:inline-flex">
+            Privacidade &amp; Zero Dados Coletados
+          </Badge>
         </div>
-        <Badge variant="outline" className="text-[10px] border-emerald-600/30 text-emerald-700 dark:text-emerald-400 shrink-0 hidden md:inline-flex">
-          Privacidade & Zero Dados Coletados
-        </Badge>
-      </div>
+      </Alert>
     </div>
   );
 }

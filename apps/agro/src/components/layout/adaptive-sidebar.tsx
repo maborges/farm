@@ -12,8 +12,9 @@ import {
   Smartphone,
   Tablet,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { useDeviceContext } from "@/lib/device/use-device-context";
 import { cn } from "@/lib/utils";
 import { AGRO_NAV_ITEMS, type AgroNavItem } from "./nav-items";
@@ -30,7 +31,6 @@ export function AdaptiveSidebar(): React.ReactElement {
     identidade: true,
   });
 
-  // Garante que o grupo do item selecionado expanda automaticamente ao navegar
   React.useEffect(() => {
     const activeItem = AGRO_NAV_ITEMS.find((item) =>
       item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
@@ -67,13 +67,13 @@ export function AdaptiveSidebar(): React.ReactElement {
           "flex items-center rounded-sm transition-all min-h-[42px] px-2.5 py-2 text-xs font-medium group",
           sidebarCollapsed ? "justify-center flex-col gap-1 px-1.5 py-2" : "gap-2.5",
           isActive
-            ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+            ? "bg-primary text-primary-foreground font-semibold shadow-sm"
             : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
         )}
       >
         <Icon
           className={cn(
-            "w-4 h-4 shrink-0 transition-transform group-active:scale-95",
+            "size-4 shrink-0 transition-transform group-active:scale-95",
             isActive ? "text-primary-foreground" : "text-primary"
           )}
         />
@@ -115,7 +115,7 @@ export function AdaptiveSidebar(): React.ReactElement {
         sidebarCollapsed ? "w-[72px]" : "w-60"
       )}
     >
-      <div className="p-2.5 space-y-3 overflow-y-auto flex-1">
+      <div className="p-2.5 flex flex-col gap-3 overflow-y-auto flex-1">
         {/* Controle de Retração da Sidebar */}
         <div className={cn("flex items-center", sidebarCollapsed ? "justify-center" : "justify-between px-1")}>
           {!sidebarCollapsed && (
@@ -126,22 +126,21 @@ export function AdaptiveSidebar(): React.ReactElement {
           <Button
             type="button"
             variant="outline"
-            size="sm"
+            size="icon-sm"
             onClick={toggleSidebar}
             aria-label={sidebarCollapsed ? "Expandir menu lateral" : "Retrair menu lateral"}
             title={sidebarCollapsed ? "Expandir menu lateral" : "Retrair menu lateral"}
-            className="h-7 w-7 p-0 rounded-sm"
           >
             {sidebarCollapsed ? (
-              <PanelLeftOpen className="w-3.5 h-3.5" />
+              <PanelLeftOpen className="size-3.5" />
             ) : (
-              <PanelLeftClose className="w-3.5 h-3.5" />
+              <PanelLeftClose className="size-3.5" />
             )}
           </Button>
         </div>
 
         {/* Grupo 1: Ferramentas Operacionais */}
-        <div className="space-y-1">
+        <div className="flex flex-col gap-1">
           {!sidebarCollapsed && (
             <button
               type="button"
@@ -151,9 +150,9 @@ export function AdaptiveSidebar(): React.ReactElement {
             >
               <span>Ferramentas de Campo</span>
               {expandedGroups.operacional ? (
-                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                <ChevronDown className="size-3.5 text-muted-foreground" />
               ) : (
-                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+                <ChevronRight className="size-3.5 text-muted-foreground" />
               )}
             </button>
           )}
@@ -164,8 +163,10 @@ export function AdaptiveSidebar(): React.ReactElement {
           )}
         </div>
 
+        <Separator />
+
         {/* Grupo 2: Rede & Identidade */}
-        <div className="space-y-1 pt-2 border-t border-border/60">
+        <div className="flex flex-col gap-1">
           {!sidebarCollapsed && (
             <button
               type="button"
@@ -173,11 +174,11 @@ export function AdaptiveSidebar(): React.ReactElement {
               className="w-full flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-foreground/80 hover:text-foreground rounded-sm transition-colors cursor-pointer"
               aria-expanded={expandedGroups.identidade}
             >
-              <span>Comunidade & Conta</span>
+              <span>Comunidade &amp; Conta</span>
               {expandedGroups.identidade ? (
-                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                <ChevronDown className="size-3.5 text-muted-foreground" />
               ) : (
-                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+                <ChevronRight className="size-3.5 text-muted-foreground" />
               )}
             </button>
           )}
@@ -196,7 +197,7 @@ export function AdaptiveSidebar(): React.ReactElement {
             className="flex flex-col items-center gap-1 py-1 text-muted-foreground"
             title={`Ambiente: ${deviceCategory === "tablet" ? "Tablet" : "Desktop"} (${executionMode === "standalone" ? "PWA Instalado" : "Navegador"})`}
           >
-            <DeviceIcon className="w-4 h-4 text-primary" />
+            <DeviceIcon className="size-4 text-primary" />
             <span className="text-[9px] font-medium uppercase">
               {deviceCategory === "tablet" ? "Tab" : "Web"}
             </span>
@@ -205,7 +206,7 @@ export function AdaptiveSidebar(): React.ReactElement {
           <div className="flex items-center justify-between gap-2 px-1 py-0.5">
             <div className="flex items-center gap-2 min-w-0">
               <div className="p-1.5 rounded-sm bg-primary/10 text-primary">
-                <DeviceIcon className="w-3.5 h-3.5" />
+                <DeviceIcon className="size-3.5" />
               </div>
               <div className="flex flex-col min-w-0">
                 <span className="text-[11px] font-semibold text-foreground truncate">
@@ -216,7 +217,7 @@ export function AdaptiveSidebar(): React.ReactElement {
                 </span>
               </div>
             </div>
-            <Badge variant="outline" className="text-[9px] px-1.5 py-0 rounded-sm shrink-0">
+            <Badge variant="outline" className="text-[9px] px-1.5 py-0 shrink-0">
               {executionMode === "standalone" ? "App" : "Web"}
             </Badge>
           </div>
@@ -225,4 +226,3 @@ export function AdaptiveSidebar(): React.ReactElement {
     </aside>
   );
 }
-

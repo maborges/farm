@@ -69,9 +69,14 @@ class PecuariaDashboardResumoService:
         Returns:
             PecuariaDashboardResumoExecutivoResponse consolidado para o contexto.
         """
-        cotacao_pub = await cotacao_arroba_service.obter_cotacao_boi_gordo_referencia(self.session)
+        cotacao_pub = await cotacao_arroba_service.resolver_cotacao_boi_gordo_contexto(
+            self.session,
+            tenant_id=self.tenant_id,
+            unidade_produtiva_id=self.unidade_produtiva_id,
+        )
         lotes = await self._buscar_lotes_ativos()
-        rebanho = await self._agregar_rebanho_hibrido(lotes, cotacao_pub)
+        cotacoes_por_unidade = await self._resolver_cotacoes_unidades(lotes, cotacao_pub)
+        rebanho = await self._agregar_rebanho_hibrido(lotes, cotacao_pub, cotacoes_por_unidade)
         custos = await self._buscar_custos_rebanho([lote.id for lote in lotes])
         area_pastagem_ha = await self._somar_area_pastagem()
         piquetes_ativos = await self._contar_piquetes_ativos()
@@ -113,17 +118,37 @@ class PecuariaDashboardResumoService:
             for row in rows
         }
 
+    async def _resolver_cotacoes_unidades(
+        self,
+        lotes: list[LoteAnimal],
+        cotacao_padrao: tuple[float | None, str | None],
+    ) -> dict[uuid.UUID, tuple[float | None, str | None]]:
+        if self.unidade_produtiva_id is not None:
+            return {}
+        unidades = {lote.unidade_produtiva_id for lote in lotes if lote.unidade_produtiva_id is not None}
+        if not unidades:
+            return {}
+        mapa: dict[uuid.UUID, tuple[float | None, str | None]] = {}
+        for uid in unidades:
+            mapa[uid] = await cotacao_arroba_service.resolver_cotacao_boi_gordo_contexto(
+                self.session, tenant_id=self.tenant_id, unidade_produtiva_id=uid
+            )
+        return mapa
+
     async def _agregar_rebanho_hibrido(
         self,
         lotes: list[LoteAnimal],
         cotacao_pub: tuple[float | None, str | None],
+        cotacoes_por_unidade: dict[uuid.UUID, tuple[float | None, str | None]] | None = None,
     ) -> _RebanhoAgregado:
         por_lote = await self._agrupar_animais_por_lote()
         totais = {"cab": 0, "peso": 0.0, "com_peso": 0, "arrobas": 0.0, "aqui": 0.0, "mercado": 0.0, "tem_mercado": False}
         lotes_ativos_ids = {lote.id for lote in lotes}
+        mapa_unid = cotacoes_por_unidade or {}
 
         for lote in lotes:
-            self._acumular_lote(totais, lote, por_lote.get(lote.id), cotacao_pub)
+            cot_lote = mapa_unid.get(lote.unidade_produtiva_id, cotacao_pub) if lote.unidade_produtiva_id else cotacao_pub
+            self._acumular_lote(totais, lote, por_lote.get(lote.id), cot_lote)
         for lote_id, grupo in por_lote.items():
             if lote_id is None or lote_id not in lotes_ativos_ids:
                 self._acumular_avulsos(totais, grupo, cotacao_pub)

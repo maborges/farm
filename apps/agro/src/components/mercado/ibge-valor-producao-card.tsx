@@ -2,9 +2,11 @@
 
 import * as React from "react";
 import { AlertCircle, ExternalLink, RefreshCw } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { fetchIbgeEstatisticas, type EstatisticasIbgeResponse } from "@/lib/mercado/ibge";
 
 const PRODUTOS = [
@@ -29,7 +31,6 @@ function obterValorAnual(resposta: EstatisticasIbgeResponse | null): ValorAnual 
   const valorTotalMilReais = ponto ? valores.get(ponto.periodo) : null;
   if (!ponto || quantidadeToneladas === null || quantidadeToneladas === undefined || valorTotalMilReais === null || valorTotalMilReais === undefined) return null;
 
-  // Mil reais / mil kg (toneladas) resulta em reais por kg.
   return {
     valorPorKg: valorTotalMilReais / quantidadeToneladas,
     ano: ponto.periodo,
@@ -73,53 +74,60 @@ export function IbgeValorProducaoCard() {
   }, [tentativa]);
 
   return (
-    <Card className="rounded-sm border border-border bg-card shadow-sm">
-      <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-border/60 p-4 pb-3">
-        <div className="space-y-1">
+    <Card>
+      <CardHeader className="border-b border-border/60">
+        <div>
           <CardTitle className="text-sm font-semibold tracking-tight">Cacau e pimenta-do-reino</CardTitle>
-          <p className="text-xs text-muted-foreground">Referência anual ao produtor calculada com dados oficiais da PAM/IBGE.</p>
+          <CardDescription className="text-xs">Referência anual ao produtor calculada com dados oficiais da PAM/IBGE.</CardDescription>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 shrink-0 gap-1 rounded-sm px-2.5 text-xs"
-          onClick={() => setTentativa((atual) => atual + 1)}
-          disabled={carregando}
-          aria-label="Atualizar valores anuais do cacau e da pimenta-do-reino"
-        >
-          <RefreshCw className={`h-3 w-3 ${carregando ? "animate-spin" : ""}`} />
-          Atualizar
-        </Button>
+        <CardAction>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setTentativa((atual) => atual + 1)}
+            disabled={carregando}
+            aria-label="Atualizar valores anuais do cacau e da pimenta-do-reino"
+          >
+            <RefreshCw className={`size-3.5 ${carregando ? "animate-spin" : ""}`} />
+            <span>Atualizar</span>
+          </Button>
+        </CardAction>
       </CardHeader>
-      <CardContent className="space-y-3 p-4">
+      <CardContent className="flex flex-col gap-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {PRODUTOS.map((produto) => {
             const estado = estados[produto.id];
             return (
-              <div key={produto.id} className="rounded-sm border border-border/80 bg-background/50 p-3">
-                <p className="text-xs font-medium text-muted-foreground">{produto.nome}</p>
-                {carregando && !estado ? (
-                  <div className="mt-2 h-7 w-32 animate-pulse rounded-sm bg-muted" aria-label="Carregando valor" />
-                ) : estado?.valor ? (
-                  <>
-                    <p className="mt-1 text-xl font-bold tracking-tight">{moedaPorKg(estado.valor.valorPorKg)}<span className="ml-1 text-xs font-normal text-muted-foreground">/ kg</span></p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">Média anual implícita · Brasil · {estado.valor.ano}{estado.valor.fonteIndisponivel ? " · último dado salvo" : ""}</p>
-                    <a href={estado.valor.urlTabela} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:underline dark:text-emerald-400">
-                      Fonte: IBGE/SIDRA <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </>
-                ) : (
-                  <p className="mt-2 text-xs text-muted-foreground">{estado?.erro ? "Valor anual indisponível no momento." : "Sem produção e valor publicados em período comum."}</p>
-                )}
-              </div>
+              <Card key={produto.id} variant="muted" size="sm">
+                <CardContent className="flex flex-col gap-1">
+                  <p className="text-xs font-medium text-muted-foreground">{produto.nome}</p>
+                  {carregando && !estado ? (
+                    <Skeleton className="mt-1 h-7 w-32" aria-label="Carregando valor" />
+                  ) : estado?.valor ? (
+                    <>
+                      <p className="text-xl font-bold tracking-tight text-foreground">{moedaPorKg(estado.valor.valorPorKg)}<span className="ml-1 text-xs font-normal text-muted-foreground">/ kg</span></p>
+                      <p className="text-[11px] text-muted-foreground">Média anual implícita · Brasil · {estado.valor.ano}{estado.valor.fonteIndisponivel ? " · último dado salvo" : ""}</p>
+                      <a href={estado.valor.urlTabela} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:underline dark:text-emerald-400">
+                        Fonte: IBGE/SIDRA <ExternalLink className="size-3" />
+                      </a>
+                    </>
+                  ) : (
+                    <p className="mt-1 text-xs text-muted-foreground">{estado?.erro ? "Valor anual indisponível no momento." : "Sem produção e valor publicados em período comum."}</p>
+                  )}
+                </CardContent>
+              </Card>
             );
           })}
         </div>
-        <div className="flex items-start gap-2 rounded-sm border border-amber-500/25 bg-amber-500/5 p-2.5 text-[11px] text-muted-foreground">
-          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-400" />
-          <p>Estimativa derivada de valor da produção (mil R$) ÷ quantidade produzida (toneladas). É uma média anual agregada, não cotação spot, oferta de compra ou preço atualizado diariamente.</p>
+        <Alert variant="warning">
+          <AlertCircle className="size-4" />
+          <AlertDescription className="text-xs">
+            Estimativa derivada de valor da produção (mil R$) ÷ quantidade produzida (toneladas). É uma média anual agregada, não cotação spot, oferta de compra ou preço atualizado diariamente.
+          </AlertDescription>
+        </Alert>
+        <div>
+          <Badge variant="outline">Fonte pública · PAM/IBGE · valores nominais do ano de referência</Badge>
         </div>
-        <Badge variant="outline" className="text-[10px]">Fonte pública · PAM/IBGE · valores nominais do ano de referência</Badge>
       </CardContent>
     </Card>
   );

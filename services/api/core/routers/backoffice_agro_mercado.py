@@ -40,11 +40,13 @@ from core.schemas.agro_config_schemas import (
     DeralSnapshotRollbackRequest,
     DeralSnapshotsListResponse,
     DeralSnapshotUploadResponse,
+    DeralSyncTriggerResponse,
     MarketConfigUpdateRequest,
     MarketSourcesStatusResponse,
 )
 from core.services.admin_audit_service import resolve_admin_identity
 from core.services.agro_config_service import agro_config_service
+from core.services.deral_auto_sync_service import deral_auto_sync_service
 from core.services.deral_snapshot_service import deral_snapshot_service
 from core.services.market_sources_service import market_sources_service
 
@@ -170,7 +172,7 @@ async def upload_deral_snapshot(
     session: AsyncSession = Depends(get_session),
     admin_claims: dict[str, Any] = Depends(require_any_permission(*PERM_UPDATE)),
 ) -> DeralSnapshotUploadResponse:
-    """Recebe arquivo (.json), calcula SHA-256, valida 21 commodities e salva imutável como VALIDADO."""
+    """Recebe arquivo (.json, .csv ou .xls), calcula SHA-256, valida 21 commodities e salva como VALIDADO."""
     content = await file.read()
     ip_address = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
@@ -183,6 +185,36 @@ async def upload_deral_snapshot(
         ip_address=ip_address,
         user_agent=user_agent,
     )
+
+
+@router.get(
+    "/deral/template.csv",
+    summary="Baixa modelo CSV com as 21 commodities DERAL para preenchimento manual",
+)
+async def download_deral_template_csv(
+    session: AsyncSession = Depends(get_session),
+    _admin_claims: dict[str, Any] = Depends(require_any_permission(*PERM_VIEW)),
+) -> Response:
+    """Exporta planilha CSV UTF-8 BOM pré-preenchida com a última referência ativa."""
+    csv_bytes, filename = await deral_snapshot_service.gerar_template_csv(session)
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post(
+    "/deral/sync",
+    response_model=DeralSyncTriggerResponse,
+    summary="Dispara sincronização sob demanda com a planilha oficial DERAL/SEAB-PR",
+)
+async def trigger_deral_sync(
+    session: AsyncSession = Depends(get_session),
+    admin_claims: dict[str, Any] = Depends(require_any_permission(*PERM_UPDATE)),
+) -> DeralSyncTriggerResponse:
+    """Consulta a fonte oficial HTTPS DERAL e ativa automaticamente semana mais recente."""
+    return await deral_auto_sync_service.sincronizar_com_detalhes(session, admin_claims)
 
 
 @router.post(
