@@ -1,0 +1,12 @@
+{
+  "source_slug": "seapa_mg",
+  "url": "https://www.mg.gov.br/system/files/media/agricultura/documento_detalhado/2026/dados-conjunturais/precos-correntes/precos-correntes-de-produtos-selecionado-17-11-2026.pdf",
+  "captured_at_utc": "2026-11-22T03:11:02.804251+00:00",
+  "http_status": 200,
+  "content_type": "application/pdf",
+  "sha256": "32725a8e0c597b56295a50637f843004e3761b7ad5a9736a3db981ac549bba55",
+  "size_bytes": 733897,
+  "saved_fixture_path": "services/api/tests/fixtures/agro_collector/seapa_mg/precos-correntes-de-produtos-selecionado-17-11-2026.pdf",
+  "license_type": "DADO_PUBLICO_GOV",
+  "notes": "SEAPA-MG Preços Correntes"
+}

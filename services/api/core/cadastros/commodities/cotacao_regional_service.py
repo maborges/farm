@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
+from agro_collector.repository import AgroMarketRepository, MarketObservationRecord
 from core.exceptions import EntityNotFoundError
 from core.models.configuracao_fazenda import ConfiguracaoFazenda
 from core.models.tenant_config import ConfiguracaoTenant
@@ -222,16 +223,58 @@ def _extrair_fontes_escopo(
     return []
 
 
+def _selecionar_melhor_observacao_uf(
+    obs_lista: list[MarketObservationRecord] | None,
+) -> MarketObservationRecord | None:
+    """Seleciona a melhor observação coletada da UF (Oficial Estadual > Parceiro, Média antes de EDR)."""
+    if not obs_lista:
+        return None
+    ordenadas = sorted(
+        obs_lista,
+        key=lambda rec: (
+            0 if rec.tipo_licenca == "DADO_PUBLICO_GOV" else 1,
+            0 if ("Média Estadual" in rec.praca or "Estado" in rec.praca) else 1,
+            -rec.data_referencia.toordinal(),
+            rec.prioridade_exibicao,
+        ),
+    )
+    return ordenadas[0]
+
+
 def _montar_painel_fontes_comparadas(
     faz: dict[str, Any] | None,
     ten: dict[str, Any] | None,
     deral: PrecoPublicoItem | None,
+    obs_uf: list[MarketObservationRecord] | None = None,
 ) -> tuple[list[FonteComparadaRegionalItem], float | None, float | None, float | None, float | None]:
-    """Combina todas as fontes da região (Fazenda, Tenant, Núcleo DERAL e Média DERAL) e calcula faixa."""
+    """Combina todas as fontes da região (Fazenda, Tenant, UF Oficial/Parceiro, DERAL) e calcula faixa."""
     fontes: list[FonteComparadaRegionalItem] = [
         *_extrair_fontes_escopo(faz, "FAZENDA"),
         *_extrair_fontes_escopo(ten, "TENANT"),
     ]
+    if obs_uf:
+        ordenadas_uf = sorted(
+            obs_uf,
+            key=lambda rec: (
+                0 if rec.tipo_licenca == "DADO_PUBLICO_GOV" else 1,
+                0 if "Média Estadual" in rec.praca else 1,
+                -rec.data_referencia.toordinal(),
+                rec.praca,
+            ),
+        )
+        for rec in ordenadas_uf[:6]:
+            escopo_uf: Literal["OFICIAL_UF", "PARCEIRO_UF"] = (
+                "PARCEIRO_UF" if rec.tipo_licenca == "PARCEIRO_AUTORIZADO" else "OFICIAL_UF"
+            )
+            fontes.append(
+                FonteComparadaRegionalItem(
+                    escopo=escopo_uf,
+                    fonte=f"{rec.sigla_fonte} ({rec.praca})",
+                    praca=f"{rec.praca} ({rec.uf})",
+                    valor=round(float(rec.valor), 2),
+                    data_referencia=rec.data_referencia.isoformat(),
+                )
+            )
     praca_alvo = str((faz or {}).get("praca") or (ten or {}).get("praca") or "").casefold()
     if deral:
         if praca_alvo:
@@ -274,12 +317,16 @@ def _consolidar_item(
     codigo: str,
     meta: dict[str, object],
     fontes: tuple[dict[str, Any] | None, dict[str, Any] | None, PrecoPublicoItem | None],
+    obs_uf: list[MarketObservationRecord] | None = None,
 ) -> CotacaoRegionalItemResponse:
-    """Combina escopos FAZENDA > TENANT > DERAL com múltiplas fontes, spread e núcleos regionais."""
+    """Combina escopos FAZENDA > TENANT > OFICIAL_UF > PARCEIRO_UF > DERAL."""
     faz, ten, deral = fontes
     public_id = str(meta["id"])
-    unidade = str(deral.unidade if deral else meta["defaultUnidade"])
-    origem: Literal["FAZENDA", "TENANT", "DERAL", "INDISPONIVEL"] = "INDISPONIVEL"
+    melhor_uf = _selecionar_melhor_observacao_uf(obs_uf)
+    unidade = str(deral.unidade if deral else (melhor_uf.unidade if melhor_uf else meta["defaultUnidade"]))
+    origem: Literal[
+        "FAZENDA", "TENANT", "OFICIAL_UF", "PARCEIRO_UF", "DERAL", "INDISPONIVEL"
+    ] = "INDISPONIVEL"
     modo_eff: Literal["FONTE_SELECIONADA", "MEDIA_FONTES"] = "FONTE_SELECIONADA"
     val_eff, data_eff, praca_eff, fonte_eff = None, None, None, None
     if faz and faz.get("valor"):
@@ -294,6 +341,13 @@ def _consolidar_item(
         praca_eff, fonte_eff = str(ten.get("praca") or ""), str(ten.get("fonte") or "Regional")
         if ten.get("modo_consolidacao") == "MEDIA_FONTES":
             modo_eff = "MEDIA_FONTES"
+    elif melhor_uf is not None and melhor_uf.valor > 0:
+        origem = "PARCEIRO_UF" if melhor_uf.tipo_licenca == "PARCEIRO_AUTORIZADO" else "OFICIAL_UF"
+        val_eff = round(float(melhor_uf.valor), 2)
+        data_eff = melhor_uf.data_referencia.isoformat()
+        praca_eff = f"{melhor_uf.praca} ({melhor_uf.uf})"
+        fonte_eff = melhor_uf.sigla_fonte
+        unidade = melhor_uf.unidade or unidade
     elif deral:
         origem = "DERAL"
         val_eff, data_eff = float(deral.valor), deral.dataReferencia
@@ -304,7 +358,9 @@ def _consolidar_item(
         PracaDeralResumoItem(praca=p.praca, valor=p.valor, registro_original=p.registroOriginal)
         for p in (deral.pracasRegionais if deral else [])
     ]
-    fontes_comp, v_min_f, v_med_f, v_max_f, disp_f = _montar_painel_fontes_comparadas(faz, ten, deral)
+    fontes_comp, v_min_f, v_med_f, v_max_f, disp_f = _montar_painel_fontes_comparadas(
+        faz, ten, deral, obs_uf
+    )
     return CotacaoRegionalItemResponse(
         codigo=codigo, commodity_id_publico=public_id, nome=str(meta["nome"]),
         unidade=unidade, origem_efetiva=origem, modo_consolidacao=modo_eff,
@@ -472,22 +528,50 @@ class CotacaoRegionalService:
                 flag_modified(cfg_t, "valor")
         await self.session.flush()
 
+    async def _obter_uf_fazenda(self, unidade_produtiva_id: uuid.UUID | None) -> str:
+        if unidade_produtiva_id is None:
+            return "PR"
+        stmt = select(UnidadeProdutiva.uf).where(
+            UnidadeProdutiva.id == unidade_produtiva_id,
+            UnidadeProdutiva.tenant_id == self.tenant_id,
+        )
+        row = (await self.session.execute(stmt)).one_or_none()
+        if row is None:
+            raise EntityNotFoundError("Fazenda/unidade produtiva não encontrada neste tenant.")
+        return str(row[0] or "PR").strip().upper() or "PR"
+
+    async def _carregar_mapa_collector_uf(
+        self,
+        uf_sigla: str,
+    ) -> dict[str, list[MarketObservationRecord]]:
+        registros = await AgroMarketRepository(self.session).listar_ultimas_observacoes(
+            uf=uf_sigla,
+            tipo_licenca_in=["DADO_PUBLICO_GOV", "PARCEIRO_AUTORIZADO"],
+        )
+        mapa: dict[str, list[MarketObservationRecord]] = {}
+        for rec in registros:
+            if rec.source_slug == "deral_pr":
+                continue
+            mapa.setdefault(rec.commodity_id, []).append(rec)
+        return mapa
+
     async def listar_referencias_consolidadas(
         self,
         unidade_produtiva_id: uuid.UUID | None = None,
     ) -> list[CotacaoRegionalItemResponse]:
         """Lista as 22 commodities com o valor efetivo resolvido por hierarquia."""
-        if unidade_produtiva_id is not None:
-            await self._validar_unidade_produtiva(unidade_produtiva_id)
+        uf_sigla = await self._obter_uf_fazenda(unidade_produtiva_id)
         await _sincronizar_deral_do_banco(self.session)
         mapa_ten = await self._carregar_mapa_tenant()
         mapa_faz = await self._carregar_mapa_fazenda(unidade_produtiva_id)
         mapa_deral = _carregar_mapa_deral()
+        mapa_collector_uf = await self._carregar_mapa_collector_uf(uf_sigla)
         return [
             _consolidar_item(
                 codigo,
                 meta,
                 (mapa_faz.get(codigo), mapa_ten.get(codigo), mapa_deral.get(str(meta["id"]))),
+                mapa_collector_uf.get(str(meta["id"])),
             )
             for codigo, meta in _CATALOGO_POR_CODIGO.items()
         ]
@@ -507,8 +591,9 @@ class CotacaoRegionalService:
         codigo: str,
         unidade_produtiva_id: uuid.UUID | None = None,
     ) -> tuple[float | None, str | None]:
-        """Resolve (valor, rotulo_fonte) seguindo Fazenda > Tenant > DERAL."""
+        """Resolve (valor, rotulo_fonte) seguindo Fazenda > Tenant > Oficial UF > Parceiro > DERAL."""
         codigo_norm = normalizar_codigo_commodity(codigo)
+        uf_sigla = await self._obter_uf_fazenda(unidade_produtiva_id)
         mapa_faz = await self._carregar_mapa_fazenda(unidade_produtiva_id)
         entry_faz = mapa_faz.get(codigo_norm)
         if entry_faz and entry_faz.get("valor"):
@@ -519,8 +604,13 @@ class CotacaoRegionalService:
         if entry_ten and entry_ten.get("valor"):
             praca = str(entry_ten.get("praca") or "").strip()
             return round(float(entry_ten["valor"]), 2), f"Regional ({praca})" if praca else "Regional"
+        public_id = str(_CATALOGO_POR_CODIGO[codigo_norm]["id"])
+        mapa_collector_uf = await self._carregar_mapa_collector_uf(uf_sigla)
+        melhor_uf = _selecionar_melhor_observacao_uf(mapa_collector_uf.get(public_id))
+        if melhor_uf is not None and melhor_uf.valor > 0:
+            return round(float(melhor_uf.valor), 2), f"{melhor_uf.sigla_fonte} ({melhor_uf.uf})"
         await _sincronizar_deral_do_banco(self.session)
-        deral_item = _carregar_mapa_deral().get(str(_CATALOGO_POR_CODIGO[codigo_norm]["id"]))
+        deral_item = _carregar_mapa_deral().get(public_id)
         if deral_item is not None and deral_item.valor > 0:
             return round(float(deral_item.valor), 2), deral_item.siglaFonte
         return None, None

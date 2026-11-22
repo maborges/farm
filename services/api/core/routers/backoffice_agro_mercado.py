@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import get_session, require_any_permission
 from core.models.admin_audit_log import AdminAuditLog
+from core.routers.backoffice_agro_collector import router as collector_router
 from core.schemas.agro_config_schemas import (
     KEY_MERCADO,
     AgroMercadoConfig,
@@ -54,6 +55,7 @@ router = APIRouter(
     prefix="/backoffice/agro/mercado",
     tags=["Backoffice — DeepFarms Agro Mercado e Fontes Oficiais"],
 )
+router.include_router(collector_router, prefix="/collector")
 
 # Permissões canônicas
 PERM_VIEW = ["backoffice:agro:market:view", "backoffice:agro:config:view", "backoffice:agro:*"]

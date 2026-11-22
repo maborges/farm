@@ -1,0 +1,12 @@
+{
+  "source_slug": "deral_pr",
+  "url": "https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls",
+  "captured_at_utc": "2026-11-22T03:05:56.630492+00:00",
+  "http_status": 200,
+  "content_type": "application/vnd.ms-excel",
+  "sha256": "e25b3b1431df5ed4f6e3a2c77c0e13654a6a65c309af35202d2abc946ea1d8f1",
+  "size_bytes": 230912,
+  "saved_fixture_path": "services/api/tests/fixtures/agro_collector/deral_pr/prp.xls",
+  "license_type": "DADO_PUBLICO_GOV",
+  "notes": "DERAL/SEAB-PR planilha oficial BIFF8. SEMANA: 46-2026 PERÍODO: 09/11/2026 a 13/11/2026"
+}

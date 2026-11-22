@@ -254,7 +254,14 @@ class PracaDeralResumoItem(BaseModel):
 class FonteComparadaRegionalItem(BaseModel):
     """Fonte individual comparada para uma commodity na região da fazenda/tenant."""
 
-    escopo: Literal["FAZENDA", "TENANT", "DERAL_NUCLEO", "DERAL_MEDIA"]
+    escopo: Literal[
+        "FAZENDA",
+        "TENANT",
+        "OFICIAL_UF",
+        "PARCEIRO_UF",
+        "DERAL_NUCLEO",
+        "DERAL_MEDIA",
+    ]
     fonte: str
     praca: str
     valor: float
@@ -263,13 +270,20 @@ class FonteComparadaRegionalItem(BaseModel):
 
 
 class CotacaoRegionalItemResponse(BaseModel):
-    """Referência consolidada de commodity com hierarquia Fazenda > Tenant > DERAL."""
+    """Referência consolidada (Fazenda > Tenant > Oficial UF > Parceiro UF > DERAL)."""
 
     codigo: str
     commodity_id_publico: str
     nome: str
     unidade: str
-    origem_efetiva: Literal["FAZENDA", "TENANT", "DERAL", "INDISPONIVEL"]
+    origem_efetiva: Literal[
+        "FAZENDA",
+        "TENANT",
+        "OFICIAL_UF",
+        "PARCEIRO_UF",
+        "DERAL",
+        "INDISPONIVEL",
+    ]
     modo_consolidacao: Literal["FONTE_SELECIONADA", "MEDIA_FONTES"] = "FONTE_SELECIONADA"
     valor_efetivo: Optional[float] = None
     data_referencia_efetiva: Optional[str] = None

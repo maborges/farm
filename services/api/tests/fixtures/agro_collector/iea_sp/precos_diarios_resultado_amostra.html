@@ -1,0 +1,207 @@
+
+<div>
+        <table class="table margT20">
+            <tr>
+                <th>Grupo</th>
+                <th>Produto</th>
+                <th>EDR</th>
+                <th>Data</th>
+                <th class="text-right">Preço Médio (R$)</th>
+                <th>Unidade</th>
+                <th>Obs</th>
+            </tr>
+
+            <tr>
+                <td>ANIMAL</td>
+                <td>Boi gordo</td>
+                <td>Andradina</td>
+                <td>18/11/2026</td>
+                <td class="text-right">395,00</td>
+                <td>@</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>ANIMAL</td>
+                <td>Boi gordo</td>
+                <td>Ara&#xE7;atuba</td>
+                <td>18/11/2026</td>
+                <td class="text-right">395,00</td>
+                <td>@</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>ANIMAL</td>
+                <td>Boi gordo</td>
+                <td>Gal. Salgado</td>
+                <td>18/11/2026</td>
+                <td class="text-right">393,00</td>
+                <td>@</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>VEGETAL</td>
+                <td>Caf&#xE9; benef. tipo 6 duro</td>
+                <td>Franca</td>
+                <td>18/11/2026</td>
+                <td class="text-right">1.735,00</td>
+                <td>sc.60 kg</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>VEGETAL</td>
+                <td>Caf&#xE9; benef. tipo 6 duro</td>
+                <td>Mar&#xED;lia</td>
+                <td>18/11/2026</td>
+                <td class="text-right">1.750,00</td>
+                <td>sc.60 kg</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>VEGETAL</td>
+                <td>Caf&#xE9; benef. tipo 6 duro</td>
+                <td>Ourinhos</td>
+                <td>18/11/2026</td>
+                <td class="text-right">1.550,00</td>
+                <td>sc.60 kg</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>VEGETAL</td>
+                <td>Caf&#xE9; benef. tipo 6 duro</td>
+                <td>S.J.Boa Vista</td>
+                <td>18/11/2026</td>
+                <td class="text-right">1.700,00</td>
+                <td>sc.60 kg</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>VEGETAL</td>
+                <td>Milho</td>
+                <td>Assis</td>
+                <td>18/11/2026</td>
+                <td class="text-right">54,00</td>
+                <td>sc.60 kg</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>VEGETAL</td>
+                <td>Milho</td>
+                <td>Avar&#xE9;</td>
+                <td>18/11/2026</td>
+                <td class="text-right">60,00</td>
+                <td>sc.60 kg</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>VEGETAL</td>
+                <td>Milho</td>
+                <td>Barretos</td>
+                <td>18/11/2026</td>
+                <td class="text-right">55,00</td>
+                <td>sc.60 kg</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>VEGETAL</td>
+                <td>Milho</td>
+                <td>Itapeva</td>
+                <td>18/11/2026</td>
+                <td class="text-right">60,50</td>
+                <td>sc.60 kg</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>VEGETAL</td>
+                <td>Soja</td>
+                <td>Assis</td>
+                <td>18/11/2026</td>
+                <td class="text-right">137,50</td>
+                <td>sc.60 kg</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>VEGETAL</td>
+                <td>Soja</td>
+                <td>Barretos</td>
+                <td>18/11/2026</td>
+                <td class="text-right">128,00</td>
+                <td>sc.60 kg</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>VEGETAL</td>
+                <td>Soja</td>
+                <td>Itapeva</td>
+                <td>18/11/2026</td>
+                <td class="text-right">143,00</td>
+                <td>sc.60 kg</td>
+                <td></td>
+            </tr>
+        </table>
+        <div class="row">
+            <div class="col-md-9">
+                <i>Obs: A partir do dia 05 de janeiro de 2021, os pre&#xE7;os di&#xE1;rios recebidos pela agropecu&#xE1;ria paulista divulgados pelo Instituto de Economia Agr&#xED;cola (IEA) n&#xE3;o apresentam os descontos do FUNRURAL e est&#xE3;o livres de toda taxa&#xE7;&#xE3;o tribut&#xE1;ria</i>
+            </div>
+            <div class="col-md-3 text-right">
+                <i>
+                    Legenda:
+                    <span class="margL10">
+                        -- = dado não disponível
+                    </span>
+                </i>
+            </div>
+        </div>
+        <div>
+            
+<div id="app-pagination" v-cloak>
+    <div class="row">
+        <div class="col-md-8 col-md-offset-2 text-center">
+            <input type="hidden" v-model="page" name="pageNumber" />
+            <pagination v-model="page" :records="totalRecords" :per-page="perPage"
+                        v-on:paginate="submitPage"
+                        v-bind:options='{edgeNavigation: true, texts: { count: "||", first: "|<<", last: ">>|" }}'></pagination>
+        </div>
+        <div class="col-md-2 text-right margT30">
+            <i>{{totalRecords}} registros {{totalPagesText}}</i>
+        </div>
+    </div>
+</div>
+
+<script>
+        var appPagination = new Vue({
+            el: '#app-pagination',
+            components: { Pagination },
+            data: {
+                page: 1,
+                totalRecords: 14,
+                perPage: 20
+            },
+            computed: {
+                totalPages: function () { return Math.ceil(this.totalRecords / this.perPage) },
+                totalPagesText: function () {
+                    if (this.totalPages == 0)
+                        return '';
+                    if (this.totalPages == 1)
+                        return 'em 1 página';
+                    else if (this.totalPages > 1)
+                        return 'em ' + this.totalPages + ' páginas';
+                    else
+                        return this.totalPages;
+                }
+            },
+            methods: {
+                setPage: function (page) { this.page = page },
+                submitPage: function (page) {
+                    this.setPage(page);
+                    this.$nextTick(() => {
+                        jQuery('#' + this.$el.id)
+                            .parents('form')
+                            .submit();
+                    });
+                }
+            }
+        });
+</script>
+
+        </div>
+</div>

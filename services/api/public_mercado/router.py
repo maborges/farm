@@ -338,7 +338,7 @@ async def get_public_cotacoes_regiao(
     """Retorna painel comparativo de múltiplas fontes por produto, UF, município e praça."""
     await service.sincronizar_snapshot_ativo(session)
     response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=600"
-    return await CotacaoMultiFonteService(sidra_service=sidra).consultar(
+    return await CotacaoMultiFonteService(sidra_service=sidra, session=session).consultar(
         produto=produto,
         uf=uf,
         praca=praca,

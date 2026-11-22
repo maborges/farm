@@ -1,0 +1,12 @@
+{
+  "source_slug": "iea_sp",
+  "url": "https://infoiea.agricultura.sp.gov.br/BancoDeDados/PrecosDiarios/Recebidos",
+  "captured_at_utc": "2026-11-22T03:11:01.359488+00:00",
+  "http_status": 200,
+  "content_type": "text/html; charset=utf-8",
+  "sha256": "0d2d6effbef408635a6f77c4391e9094ac4c4e0ab9981bb8b07170e4e397384f",
+  "size_bytes": 7118,
+  "saved_fixture_path": "services/api/tests/fixtures/agro_collector/iea_sp/precos_diarios_resultado_amostra.html",
+  "license_type": "DADO_PUBLICO_GOV",
+  "notes": "IEA-SP tabela AJAX PrecosDiarios/Recebidos (18/11/2026) para 1905,1126,1124,1411,1053,1109."
+}

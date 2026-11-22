@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from agro_collector.repository import AgroMarketRepository, MarketObservationRecord
 
 from .precos_publicos import (
     DERAL_PORTAL_URL,
@@ -19,6 +22,8 @@ TipoFonteRegiao = Literal[
     "FISICO_REGIONAL",
     "MEDIA_ESTADUAL",
     "EXTREMO_REGIONAL",
+    "OFICIAL_ESTADUAL",
+    "PARCEIRO_AUTORIZADO",
     "ESTATISTICO_OFICIAL",
     "REFERENCIA_INSTITUCIONAL",
 ]
@@ -278,7 +283,7 @@ def _montar_fontes_institucionais(cid: str, unidade: str, uf_sigla: str) -> list
             valor=None,
             unidade=unidade,
             periodicidade="MENSAL",
-            url_consulta="https://www.gov.br/conab/pt-br/assuntos/informacoes-agropecuarias/precos-agropecuarios",
+            url_consulta="https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/precos-agropecuarios",
         )
     )
     return fontes
@@ -327,11 +332,69 @@ def _calcular_resumo_fontes(
     )
 
 
+def _converter_obs_coletor_para_fonte(
+    rec: MarketObservationRecord,
+    ref_today: date,
+) -> tuple[int, FonteCotacaoRegiaoItem]:
+    """Converte registro de ``agro_market_observations`` em ``FonteCotacaoRegiaoItem`` com rank."""
+    defasado = (ref_today - rec.data_referencia).days > rec.max_defasagem_dias
+    if rec.tipo_licenca == "PARCEIRO_AUTORIZADO":
+        tipo_fonte: TipoFonteRegiao = "PARCEIRO_AUTORIZADO"
+        rank = 4 if defasado else 2
+    else:
+        tipo_fonte = "OFICIAL_ESTADUAL"
+        is_media = "Média Estadual" in rec.praca or rec.praca == rec.uf
+        rank = 4 if defasado else (0 if is_media else 1)
+
+    item = FonteCotacaoRegiaoItem(
+        fonte_id=f"{rec.source_slug}-{rec.commodity_id}-{rec.uf.lower()}-{rec.id.hex[:6]}",
+        sigla_fonte=rec.sigla_fonte,
+        nome_fonte=f"{rec.sigla_fonte} — {rec.praca}",
+        tipo_fonte=tipo_fonte,
+        uf=rec.uf,
+        praca=rec.praca,
+        valor=round(float(rec.valor), 2),
+        unidade=rec.unidade,
+        periodicidade=rec.periodicidade,
+        data_referencia=rec.data_referencia.isoformat(),
+        variacao_pct=round(float(rec.variacao_pct), 2) if rec.variacao_pct is not None else None,
+        url_consulta=rec.url_principal,
+        registro_origem=rec.registro_origem,
+    )
+    return rank, item
+
+
+def _rank_fonte_catalogo(
+    item: FonteCotacaoRegiaoItem,
+    uf_sigla: str,
+    praca_filtro: str | None,
+) -> int:
+    """Define prioridade canônica de exibição: UF estadual > Parceiro > IBGE > Ref externa."""
+    if praca_filtro and praca_filtro.strip().casefold() in item.praca.casefold():
+        return -1
+    if item.tipo_fonte == "OFICIAL_ESTADUAL" and item.uf == uf_sigla:
+        return 0 if "Média Estadual" in item.praca else 1
+    if item.tipo_fonte == "PARCEIRO_AUTORIZADO" and item.uf == uf_sigla:
+        return 2
+    if item.uf == uf_sigla and item.tipo_fonte in {"MEDIA_ESTADUAL", "FISICO_REGIONAL"}:
+        return 0
+    if item.tipo_fonte == "ESTATISTICO_OFICIAL":
+        return 5
+    if item.tipo_fonte in {"MEDIA_ESTADUAL", "FISICO_REGIONAL", "EXTREMO_REGIONAL"}:
+        return 6
+    return 7
+
+
 class CotacaoMultiFonteService:
     """Agrega e compara múltiplas fontes de cotação por produto e região (UF/Praça/Município)."""
 
-    def __init__(self, sidra_service: Any | None = None) -> None:
+    def __init__(
+        self,
+        sidra_service: Any | None = None,
+        session: AsyncSession | None = None,
+    ) -> None:
         self.sidra_service = sidra_service
+        self.session = session
 
     async def _obter_fonte_ibge(
         self,
@@ -391,24 +454,62 @@ class CotacaoMultiFonteService:
             m for m in METADADOS_CATALOGO
             if not prod_norm or str(m["id"]) == prod_norm
         ]
+        obs_por_cid: dict[str, list[tuple[int, FonteCotacaoRegiaoItem]]] = {}
+        if self.session is not None:
+            collected = await AgroMarketRepository(self.session).listar_ultimas_observacoes(
+                uf=uf_sigla,
+                commodity_ids=[str(m["id"]) for m in metas] if prod_norm else None,
+                tipo_licenca_in=["DADO_PUBLICO_GOV", "PARCEIRO_AUTORIZADO"],
+            )
+            ref_today = now.date()
+            for rec in collected:
+                if rec.source_slug == "deral_pr" and rec.commodity_id in precos_map:
+                    continue
+                obs_por_cid.setdefault(rec.commodity_id, []).append(
+                    _converter_obs_coletor_para_fonte(rec, ref_today)
+                )
+
         itens_resp: list[CotacaoRegiaoCommodityItem] = []
         for idx, meta in enumerate(metas):
             cid = str(meta["id"])
             preco = precos_map.get(cid)
             unidade = str(preco.unidade if preco else meta["defaultUnidade"])
             fontes = _montar_fontes_deral(preco, praca)
+            collected_cid = sorted(
+                obs_por_cid.get(cid, []),
+                key=lambda pair: (pair[0], pair[1].praca),
+            )
+            fontes_frescas = [f for rank, f in collected_cid if rank < 4]
+            fontes_defasadas = [f for rank, f in collected_cid if rank >= 4]
             # Consulta IBGE PAM quando filtrado por produto ou para os itens principais
+            f_ibge: FonteCotacaoRegiaoItem | None = None
             if incluir_ibge and (prod_norm or idx < 8):
                 f_ibge = await self._obter_fonte_ibge(
                     cid, unidade, (uf_sigla, uf_cod, uf_nome, municipio_ibge)
                 )
+
+            if uf_sigla == "PR":
+                combinadas = [*fontes_frescas, *fontes, *fontes_defasadas]
                 if f_ibge:
-                    fontes.insert(0 if uf_sigla != "PR" else len(fontes), f_ibge)
-            fontes.extend(_montar_fontes_institucionais(cid, unidade, uf_sigla))
+                    combinadas.append(f_ibge)
+            else:
+                combinadas = [*fontes_frescas, *fontes_defasadas]
+                if f_ibge:
+                    combinadas.append(f_ibge)
+                combinadas.extend(fontes)
+
+            combinadas.extend(_montar_fontes_institucionais(cid, unidade, uf_sigla))
             if fonte and fonte.upper() != "TODAS":
                 f_up = fonte.upper()
-                fontes = [f for f in fontes if f_up in f.sigla_fonte.upper() or f_up in f.fonte_id.upper()]
-            resumo = _calcular_resumo_fontes(fontes, uf_sigla, praca)
+                combinadas = [
+                    f
+                    for f in combinadas
+                    if f_up in f.sigla_fonte.upper() or f_up in f.fonte_id.upper()
+                ]
+            else:
+                combinadas.sort(key=lambda item: _rank_fonte_catalogo(item, uf_sigla, praca))
+
+            resumo = _calcular_resumo_fontes(combinadas, uf_sigla, praca)
             itens_resp.append(
                 CotacaoRegiaoCommodityItem(
                     id=cid,
@@ -417,7 +518,7 @@ class CotacaoMultiFonteService:
                     unidade=unidade,
                     uf_consulta=uf_sigla,
                     praca_consulta=praca,
-                    fontes=fontes,
+                    fontes=combinadas,
                     resumo=resumo,
                 )
             )

@@ -1,8 +1,28 @@
 import { formatarDataPreco, type PrecoPublicoItem, type PracaRegionalDeralItem } from "./precos";
 import { isUrlInstitucionalSegura, type FonteReferencia, type ProdutoCatalogo } from "./catalogo";
 
-export type FonteFiltroMercado = "TODAS" | "DERAL" | "IBGE" | "CEPEA" | "CONAB" | "B3";
-export type FamiliaFonteMercado = "DERAL" | "IBGE" | "CEPEA" | "CONAB" | "B3" | "FIXTURE" | "OUTRA";
+export type FonteFiltroMercado =
+  | "TODAS"
+  | "DERAL"
+  | "IEA"
+  | "EMATER"
+  | "PARCEIRO"
+  | "IBGE"
+  | "CEPEA"
+  | "CONAB"
+  | "B3"
+  | (string & {});
+export type FamiliaFonteMercado =
+  | "DERAL"
+  | "IEA"
+  | "EMATER"
+  | "PARCEIRO"
+  | "IBGE"
+  | "CEPEA"
+  | "CONAB"
+  | "B3"
+  | "FIXTURE"
+  | "OUTRA";
 
 export interface UfBrasilItem {
   sigla: string;
@@ -133,7 +153,7 @@ export const UFS_MERCADO_BRASIL: readonly UfBrasilItem[] = [
 const UF_POR_SIGLA = new Map(UFS_MERCADO_BRASIL.map((u) => [u.sigla, u]));
 const URL_DERAL_PADRAO = "https://www.agricultura.pr.gov.br/deral/precos";
 const URL_SIDRA_PADRAO = "https://sidra.ibge.gov.br/tabela/5457";
-const URL_CONAB_PADRAO = "https://www.gov.br/conab/pt-br/assuntos/informacoes-agropecuarias/precos-agropecuarios";
+const URL_CONAB_PADRAO = "https://www.gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/precos-agropecuarios";
 const URL_B3_PADRAO = "https://www.b3.com.br/pt_br/market-data-e-indices/servicos-de-dados/market-data/cotacoes/agro/";
 
 /**
@@ -182,6 +202,9 @@ export function identificarFamiliaFonte(siglaOuId: string): FamiliaFonteMercado 
   const texto = siglaOuId.toUpperCase();
   if (texto.includes("FIXTURE")) return "FIXTURE";
   if (texto.includes("DERAL")) return "DERAL";
+  if (texto.includes("IEA")) return "IEA";
+  if (texto.includes("EMATER")) return "EMATER";
+  if (texto.includes("PARCEIRO") || texto.includes("COOP")) return "PARCEIRO";
   if (texto.includes("IBGE") || texto.includes("SIDRA")) return "IBGE";
   if (texto.includes("CEPEA")) return "CEPEA";
   if (texto.includes("CONAB")) return "CONAB";
@@ -191,7 +214,16 @@ export function identificarFamiliaFonte(siglaOuId: string): FamiliaFonteMercado 
 
 function normalizarFonteFiltro(fonte: string): FonteFiltroMercado {
   const up = fonte.trim().toUpperCase();
-  if (up === "DERAL" || up === "IBGE" || up === "CEPEA" || up === "CONAB" || up === "B3") {
+  if (
+    up === "DERAL" ||
+    up === "IEA" ||
+    up === "EMATER" ||
+    up === "PARCEIRO" ||
+    up === "IBGE" ||
+    up === "CEPEA" ||
+    up === "CONAB" ||
+    up === "B3"
+  ) {
     return up;
   }
   return "TODAS";
@@ -205,7 +237,14 @@ export function filtrarProdutosPorFonte(
   fonteAtiva: string
 ): ProdutoCatalogo[] {
   const filtro = normalizarFonteFiltro(fonteAtiva);
-  if (filtro === "TODAS" || filtro === "DERAL" || filtro === "IBGE") {
+  if (
+    filtro === "TODAS" ||
+    filtro === "DERAL" ||
+    filtro === "IBGE" ||
+    filtro === "IEA" ||
+    filtro === "EMATER" ||
+    filtro === "PARCEIRO"
+  ) {
     return produtos;
   }
   const termo = filtro.toLowerCase();
@@ -254,6 +293,76 @@ function construirDestaqueDeral(
   };
 }
 
+function construirDestaqueFonteUf(
+  fonteUf: FonteRegiaoApiItem,
+  unidadeFallback: string
+): DestaqueCotacaoCard {
+  const familia =
+    fonteUf.tipo_fonte === "PARCEIRO_AUTORIZADO"
+      ? "PARCEIRO"
+      : identificarFamiliaFonte(fonteUf.sigla_fonte);
+  const periodo =
+    fonteUf.periodicidade === "DIARIA"
+      ? "Diário"
+      : fonteUf.periodicidade === "SEMANAL"
+        ? "Semanal"
+        : "Mensal";
+  const dtRef = fonteUf.data_referencia ?? "";
+  return {
+    familia,
+    sigla: fonteUf.sigla_fonte,
+    valor: Number(fonteUf.valor),
+    moeda: "BRL",
+    unidade: fonteUf.unidade || unidadeFallback,
+    indicacaoTemporal: `${periodo} · ${fonteUf.praca}`,
+    dataLabel: dtRef ? `Ref.: ${formatarDataPreco(dtRef)}` : "Referência oficial",
+    dataReferencia: dtRef,
+    origem: fonteUf.registro_origem ?? fonteUf.sigla_fonte,
+    documentoHashSha256: null,
+    variacaoSemanalPct: typeof fonteUf.variacao_pct === "number" ? fonteUf.variacao_pct : undefined,
+    urlConsulta: sanitizarUrlExternaSegura(fonteUf.url_consulta, URL_CONAB_PADRAO, familia === "FIXTURE"),
+    ehHistoricoAnual: false,
+  };
+}
+
+function selecionarFonteEstadualUf(
+  entrada: EntradaResolucaoCard,
+  ufAtiva: string,
+  filtro: FonteFiltroMercado
+): FonteRegiaoApiItem | null {
+  const candidatas = (entrada.regiaoMultiItem?.fontes ?? []).filter((f) => {
+    if (typeof f.valor !== "number" || f.valor <= 0) return false;
+    const fam = identificarFamiliaFonte(f.sigla_fonte);
+    const ehUfColetada =
+      (f.uf === ufAtiva || f.uf === "BR") &&
+      (f.tipo_fonte === "OFICIAL_ESTADUAL" ||
+        f.tipo_fonte === "PARCEIRO_AUTORIZADO" ||
+        fam === "IEA" ||
+        fam === "EMATER" ||
+        fam === "PARCEIRO");
+    if (!ehUfColetada) return false;
+    if (filtro === "IEA") return fam === "IEA";
+    if (filtro === "EMATER") return fam === "EMATER";
+    if (filtro === "PARCEIRO") return f.tipo_fonte === "PARCEIRO_AUTORIZADO" || fam === "PARCEIRO";
+    return true;
+  });
+  if (candidatas.length === 0) return null;
+
+  const ordenadas = [...candidatas].sort((a, b) => {
+    const score = (item: FonteRegiaoApiItem): number => {
+      if (entrada.pracaAtiva && entrada.pracaAtiva !== "MEDIA_ESTADUAL") {
+        if (item.praca.toLowerCase().includes(entrada.pracaAtiva.toLowerCase())) return -2;
+      }
+      if (item.tipo_fonte === "OFICIAL_ESTADUAL" && item.praca.includes("Média Estadual")) return 0;
+      if (item.tipo_fonte === "OFICIAL_ESTADUAL") return 1;
+      if (item.tipo_fonte === "PARCEIRO_AUTORIZADO") return 2;
+      return 3;
+    };
+    return score(a) - score(b);
+  });
+  return ordenadas[0] ?? null;
+}
+
 function construirDestaqueIbge(
   fonteIbge: FonteRegiaoApiItem,
   ufAtiva: string,
@@ -292,10 +401,30 @@ function mapearFonteCatalogo(fonteRef: FonteReferencia): FonteComparativaCard {
 function coletarOutrasFontes(
   entrada: EntradaResolucaoCard,
   fonteIbge: FonteRegiaoApiItem | null,
+  fonteUf: FonteRegiaoApiItem | null,
   familiaExcluida: FamiliaFonteMercado | null
 ): FonteComparativaCard[] {
   const lista: FonteComparativaCard[] = [];
   const familiasPresentes = new Set<FamiliaFonteMercado>();
+
+  if (fonteUf && typeof fonteUf.valor === "number") {
+    const famUf =
+      fonteUf.tipo_fonte === "PARCEIRO_AUTORIZADO"
+        ? "PARCEIRO"
+        : identificarFamiliaFonte(fonteUf.sigla_fonte);
+    if (famUf !== familiaExcluida) {
+      familiasPresentes.add(famUf);
+      lista.push({
+        chave: `uf-${fonteUf.fonte_id}`,
+        familia: famUf,
+        sigla: fonteUf.sigla_fonte,
+        detalhe: `${fonteUf.praca} (${fonteUf.uf})`,
+        valor: fonteUf.valor,
+        moeda: "BRL",
+        urlConsulta: sanitizarUrlExternaSegura(fonteUf.url_consulta, URL_CONAB_PADRAO),
+      });
+    }
+  }
 
   if (entrada.precoDeral && familiaExcluida !== "DERAL" && familiaExcluida !== "FIXTURE") {
     familiasPresentes.add("DERAL");
@@ -388,9 +517,17 @@ function resolverRegiaoLabel(
   entrada: EntradaResolucaoCard,
   destaque: DestaqueCotacaoCard | null,
   pracaSelecionada: PracaRegionalDeralItem | null,
-  fonteIbge: FonteRegiaoApiItem | null
+  fonteIbge: FonteRegiaoApiItem | null,
+  fonteUf: FonteRegiaoApiItem | null
 ): string {
   const nomeUf = obterNomeUf(entrada.ufAtiva);
+  if (
+    destaque &&
+    (destaque.familia === "IEA" || destaque.familia === "EMATER" || destaque.familia === "PARCEIRO") &&
+    fonteUf
+  ) {
+    return `${fonteUf.praca} (${entrada.ufAtiva})`;
+  }
   if (destaque?.familia === "IBGE" && fonteIbge) {
     return fonteIbge.praca;
   }
@@ -418,6 +555,7 @@ export function resolverExibicaoCardMercado(entrada: EntradaResolucaoCard): Exib
     entrada.regiaoMultiItem?.fontes.find(
       (f) => identificarFamiliaFonte(f.sigla_fonte) === "IBGE" && typeof f.valor === "number" && f.valor > 0
     ) ?? null;
+  const fonteUf = selecionarFonteEstadualUf(entrada, ufAtiva, filtro);
 
   if (filtro === "CEPEA" || filtro === "CONAB" || filtro === "B3") {
     const fonteMatch = entrada.produto.fontesReferencia.find(
@@ -436,7 +574,10 @@ export function resolverExibicaoCardMercado(entrada: EntradaResolucaoCard): Exib
       avisoPracaIndisponivel: false,
       regiaoLabel: `${nomeUf} (${ufAtiva})`,
       motivoIndisponivel: `Consulta oficial direta no ${nomeFonte}`,
-      subtituloIndisponivel: `Acesse o portal primário para cotação em ${nomeUf} (${ufAtiva}).`,
+      subtituloIndisponivel:
+        filtro === "CEPEA"
+          ? `Por política de licenciamento da fonte (CC BY-NC 4.0), acesse o portal oficial do CEPEA/ESALQ para consulta em ${nomeUf} (${ufAtiva}).`
+          : `Acesse o portal primário para cotação em ${nomeUf} (${ufAtiva}).`,
       outrasFontes: [],
       ctaPrincipal: {
         rotulo: `Consultar no ${nomeFonte}`,
@@ -457,14 +598,34 @@ export function resolverExibicaoCardMercado(entrada: EntradaResolucaoCard): Exib
       destaque = construirDestaqueIbge(fonteIbge, ufAtiva, entrada.produto.unidade);
       badgeCabecalho = { texto: "Histórico Anual IBGE", variant: "warning" };
     }
+  } else if (filtro === "IEA" || filtro === "EMATER" || filtro === "PARCEIRO") {
+    if (fonteUf) {
+      destaque = construirDestaqueFonteUf(fonteUf, entrada.produto.unidade);
+      badgeCabecalho = {
+        texto: fonteUf.tipo_fonte === "PARCEIRO_AUTORIZADO" ? "Parceiro Autorizado" : "Fonte Oficial Estadual",
+        variant: "success",
+      };
+    }
   } else if (filtro === "DERAL" || (filtro === "TODAS" && ufAtiva === "PR")) {
     if (entrada.precoDeral) {
       destaque = construirDestaqueDeral(entrada.produto, entrada.precoDeral, pracaSel);
       badgeCabecalho = { texto: "Preço Público Real", variant: "success" };
+    } else if (filtro === "TODAS" && fonteUf) {
+      destaque = construirDestaqueFonteUf(fonteUf, entrada.produto.unidade);
+      badgeCabecalho = {
+        texto: fonteUf.tipo_fonte === "PARCEIRO_AUTORIZADO" ? "Parceiro Autorizado" : "Fonte Oficial Estadual",
+        variant: "success",
+      };
     } else if (filtro === "TODAS" && fonteIbge) {
       destaque = construirDestaqueIbge(fonteIbge, ufAtiva, entrada.produto.unidade);
       badgeCabecalho = { texto: "Histórico Anual IBGE", variant: "warning" };
     }
+  } else if (fonteUf) {
+    destaque = construirDestaqueFonteUf(fonteUf, entrada.produto.unidade);
+    badgeCabecalho = {
+      texto: fonteUf.tipo_fonte === "PARCEIRO_AUTORIZADO" ? "Parceiro Autorizado" : "Fonte Oficial Estadual",
+      variant: "success",
+    };
   } else if (fonteIbge) {
     destaque = construirDestaqueIbge(fonteIbge, ufAtiva, entrada.produto.unidade);
     badgeCabecalho = { texto: "Histórico Anual IBGE", variant: "warning" };
@@ -474,9 +635,9 @@ export function resolverExibicaoCardMercado(entrada: EntradaResolucaoCard): Exib
 
   const familiaExcluida = destaque ? destaque.familia : null;
   const outrasFontes =
-    filtro === "DERAL" || filtro === "IBGE"
+    filtro === "DERAL" || filtro === "IBGE" || filtro === "IEA" || filtro === "EMATER" || filtro === "PARCEIRO"
       ? []
-      : coletarOutrasFontes(entrada, fonteIbge, familiaExcluida);
+      : coletarOutrasFontes(entrada, fonteIbge, fonteUf, familiaExcluida);
 
   const ehDeralOuFixture = Boolean(destaque && (destaque.familia === "DERAL" || destaque.familia === "FIXTURE"));
   const mostrarFaixaPr = Boolean(
@@ -515,14 +676,18 @@ export function resolverExibicaoCardMercado(entrada: EntradaResolucaoCard): Exib
     mostrarFaixaPr,
     pracaRegionalSelecionada: ehDeralOuFixture ? pracaSel : null,
     avisoPracaIndisponivel: ehDeralOuFixture && avisoPraca,
-    regiaoLabel: resolverRegiaoLabel(entrada, destaque, pracaSel, fonteIbge),
+    regiaoLabel: resolverRegiaoLabel(entrada, destaque, pracaSel, fonteIbge, fonteUf),
     motivoIndisponivel,
     subtituloIndisponivel,
     outrasFontes,
     ctaPrincipal,
     urlDownloadXls: ehDeralOuFixture && entrada.precoDeral ? obterUrlDownloadDeral(entrada.precoDeral, entrada.produto) : null,
-    naturezaPreco: ehDeralOuFixture
-      ? "Preço Médio Produtor (Oficial)"
+    naturezaPreco:
+      ehDeralOuFixture ||
+      destaque?.familia === "IEA" ||
+      destaque?.familia === "EMATER" ||
+      destaque?.familia === "PARCEIRO"
+        ? "Preço Médio Produtor (Oficial)"
       : destaque?.familia === "IBGE"
         ? "Média Anual Ponderada (PAM/IBGE)"
         : entrada.produto.tipoIndicador === "FISICO_SPOT"

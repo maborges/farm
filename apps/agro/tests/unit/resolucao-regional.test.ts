@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { PRODUTOS_CATALOGO, obterProdutoPorId } from "../../src/lib/mercado/catalogo";
+import {
+  PRODUTOS_CATALOGO,
+  isUrlInstitucionalSegura,
+  obterProdutoPorId,
+} from "../../src/lib/mercado/catalogo";
 import type { PrecoPublicoItem } from "../../src/lib/mercado/precos";
 import {
   UFS_MERCADO_BRASIL,
@@ -278,6 +282,7 @@ describe("Resolução Regional e Multi-Fonte de Mercado (apps/agro)", () => {
     expect(exibicaoCepea.mostrarFaixaPr).toBe(false);
     expect(exibicaoCepea.urlDownloadXls).toBeNull();
     expect(exibicaoCepea.outrasFontes).toHaveLength(0);
+    expect(exibicaoCepea.subtituloIndisponivel).toContain("CC BY-NC 4.0");
     expect(exibicaoCepea.ctaPrincipal.rotulo).toContain("CEPEA");
     expect(exibicaoCepea.ctaPrincipal.href).toContain("cepea.org.br");
   });
@@ -351,5 +356,105 @@ describe("Resolução Regional e Multi-Fonte de Mercado (apps/agro)", () => {
 
     const comConab = filtrarProdutosPorFonte(PRODUTOS_CATALOGO, "CONAB");
     expect(comConab.length).toBe(PRODUTOS_CATALOGO.length);
+  });
+
+  it("prioriza IEA/SAA-SP (OFICIAL_ESTADUAL) sobre IBGE/PAM para SP e permite filtrar EDR e fonte IEA", () => {
+    const boi = obterProdutoPorId("boi-gordo")!;
+    const regiaoSp: CotacaoRegiaoApiItem = {
+      id: "boi-gordo",
+      nome: "Boi Gordo",
+      unidade: "Arroba (15 kg)",
+      uf_consulta: "SP",
+      fontes: [
+        {
+          fonte_id: "iea_sp-boi-gordo-sp-media",
+          sigla_fonte: "IEA/SAA-SP",
+          nome_fonte: "IEA/SAA-SP — São Paulo — Média Estadual (EDRs)",
+          tipo_fonte: "OFICIAL_ESTADUAL",
+          uf: "SP",
+          praca: "São Paulo — Média Estadual (EDRs)",
+          valor: 394.33,
+          unidade: "Arroba (15 kg)",
+          periodicidade: "DIARIA",
+          data_referencia: "2026-11-18",
+          url_consulta: "https://infoiea.agricultura.sp.gov.br/BancoDeDados/PrecosDiarios/Recebidos",
+          registro_origem: "MEDIA_3_EDRS_SP",
+        },
+        {
+          fonte_id: "iea_sp-boi-gordo-sp-andradina",
+          sigla_fonte: "IEA/SAA-SP",
+          nome_fonte: "IEA/SAA-SP — EDR Andradina",
+          tipo_fonte: "OFICIAL_ESTADUAL",
+          uf: "SP",
+          praca: "EDR Andradina",
+          valor: 395.0,
+          unidade: "Arroba (15 kg)",
+          periodicidade: "DIARIA",
+          data_referencia: "2026-11-18",
+          url_consulta: "https://infoiea.agricultura.sp.gov.br/BancoDeDados/PrecosDiarios/Recebidos",
+          registro_origem: "IEA-SP | Boi gordo | Andradina",
+        },
+        {
+          fonte_id: "ibge-pam-sp-uf",
+          sigla_fonte: "IBGE/SIDRA (PAM)",
+          nome_fonte: "IBGE/SIDRA — São Paulo (SP)",
+          tipo_fonte: "ESTATISTICO_OFICIAL",
+          uf: "SP",
+          praca: "São Paulo (Média Regional PAM/IBGE)",
+          valor: 295.0,
+          unidade: "Arroba (15 kg)",
+          periodicidade: "ANUAL",
+          data_referencia: "2024",
+          url_consulta: "https://sidra.ibge.gov.br/tabela/5457",
+        },
+      ],
+      resumo: {
+        total_fontes_catalogo: 3,
+        fontes_com_preco_ativo: 3,
+        valor_minimo: 295.0,
+        fonte_minima: "IBGE",
+        valor_medio: 361.44,
+        valor_maximo: 395.0,
+        fonte_maxima: "IEA/SAA-SP",
+        dispersao_pct: 27.67,
+        valor_recomendado_regiao: 394.33,
+        fonte_recomendada_regiao: "IEA/SAA-SP — São Paulo — Média Estadual (EDRs)",
+      },
+    };
+
+    const exibicaoSp = resolverExibicaoCardMercado({
+      produto: boi,
+      precoDeral: criarPrecoDeralMock({ id: "boi-gordo", valor: 310.0 }),
+      regiaoMultiItem: regiaoSp,
+      ufAtiva: "SP",
+      pracaAtiva: "MEDIA_ESTADUAL",
+      fonteAtiva: "TODAS",
+    });
+
+    expect(exibicaoSp.destaque?.familia).toBe("IEA");
+    expect(exibicaoSp.destaque?.valor).toBe(394.33);
+    expect(exibicaoSp.destaque?.ehHistoricoAnual).toBe(false);
+    expect(exibicaoSp.badgeCabecalho.texto).toBe("Fonte Oficial Estadual");
+    expect(exibicaoSp.outrasFontes.some((f) => f.familia === "IBGE")).toBe(true);
+    expect(exibicaoSp.outrasFontes.some((f) => f.familia === "DERAL")).toBe(true);
+
+    const exibicaoAndradina = resolverExibicaoCardMercado({
+      produto: boi,
+      precoDeral: undefined,
+      regiaoMultiItem: regiaoSp,
+      ufAtiva: "SP",
+      pracaAtiva: "EDR Andradina",
+      fonteAtiva: "IEA",
+    });
+    expect(exibicaoAndradina.destaque?.valor).toBe(395.0);
+    expect(exibicaoAndradina.regiaoLabel).toContain("EDR Andradina");
+
+    expect(
+      isUrlInstitucionalSegura("https://infoiea.agricultura.sp.gov.br/BancoDeDados/PrecosDiarios/Recebidos")
+    ).toBe(true);
+    expect(isUrlInstitucionalSegura("https://www.emater.tche.br/site/area-tecnica/precos-semanais.php")).toBe(
+      true
+    );
+    expect(isUrlInstitucionalSegura("https://agricultura.sp.gov.br.evil.com/fake")).toBe(false);
   });
 });

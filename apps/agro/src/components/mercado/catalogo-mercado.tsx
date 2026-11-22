@@ -581,7 +581,31 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
       ? localidade.uf.trim().toUpperCase()
       : null;
   const ufAtiva = ufSelecionadaManual ?? ufLocalidadeValida ?? "PR";
-  const pracaAtivaEfetiva = ufAtiva === "PR" ? pracaAtiva : "MEDIA_ESTADUAL";
+  const pracasDisponiveis = React.useMemo(() => {
+    const conjunto = new Set<string>();
+    if (ufAtiva === "PR") {
+      for (const item of Object.values(precosMap)) {
+        for (const p of item.pracasRegionais ?? []) {
+          if (p.praca) conjunto.add(p.praca);
+        }
+      }
+    } else {
+      for (const item of Object.values(regiaoMultiMap)) {
+        for (const fonte of item.fontes ?? []) {
+          if (
+            fonte.uf === ufAtiva &&
+            (fonte.tipo_fonte === "OFICIAL_ESTADUAL" || fonte.tipo_fonte === "PARCEIRO_AUTORIZADO") &&
+            fonte.praca &&
+            !fonte.praca.includes("Média Estadual")
+          ) {
+            conjunto.add(fonte.praca);
+          }
+        }
+      }
+    }
+    return Array.from(conjunto).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [ufAtiva, precosMap, regiaoMultiMap]);
+  const pracaAtivaEfetiva = pracasDisponiveis.length > 0 ? pracaAtiva : "MEDIA_ESTADUAL";
 
   React.useEffect(() => {
     if (!mostrarPrecosDeral || typeof window === "undefined") {
@@ -644,7 +668,7 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
     }
     const controller = new AbortController();
     const params = new URLSearchParams({ uf: ufAtiva, incluir_ibge: "true" });
-    if (ufAtiva === "PR" && pracaAtivaEfetiva !== "MEDIA_ESTADUAL") {
+    if (pracaAtivaEfetiva !== "MEDIA_ESTADUAL") {
       params.set("praca", pracaAtivaEfetiva);
     }
     fetch(agroApiUrl(`/api/v1/public/mercado/cotacoes-regiao?${params.toString()}`), {
@@ -683,15 +707,25 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
     return ordenarProdutosComFavoritos(filtradosFav, favoritos);
   }, [initialProdutos, busca, categoriaAtiva, fonteAtiva, apenasFavoritos, favoritos]);
 
-  const pracasDisponiveis = React.useMemo(() => {
-    const conjunto = new Set<string>();
-    for (const item of Object.values(precosMap)) {
-      for (const p of item.pracasRegionais ?? []) {
-        if (p.praca) conjunto.add(p.praca);
+  const fontesUfDinamicas = React.useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const item of Object.values(regiaoMultiMap)) {
+      for (const fonte of item.fontes ?? []) {
+        if (
+          fonte.uf === ufAtiva &&
+          (fonte.tipo_fonte === "OFICIAL_ESTADUAL" || fonte.tipo_fonte === "PARCEIRO_AUTORIZADO")
+        ) {
+          const upper = fonte.sigla_fonte.toUpperCase();
+          if (upper.includes("IEA")) mapa.set("IEA", `${fonte.sigla_fonte} (Diário SP)`);
+          else if (upper.includes("EMATER")) mapa.set("EMATER", `${fonte.sigla_fonte} (Semanal RS)`);
+          else if (fonte.tipo_fonte === "PARCEIRO_AUTORIZADO") {
+            mapa.set("PARCEIRO", "Parceiros Autorizados da UF");
+          }
+        }
       }
     }
-    return Array.from(conjunto).sort((a, b) => a.localeCompare(b, "pt-BR"));
-  }, [precosMap]);
+    return Array.from(mapa.entries());
+  }, [regiaoMultiMap, ufAtiva]);
 
   const totalGeral = initialProdutos.length;
   const dataReferenciaPrecos = Object.values(precosMap)[0]?.dataReferencia;
@@ -769,7 +803,7 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
               onChange={(e) => {
                 const nextUf = e.target.value;
                 setUfSelecionadaManual(nextUf);
-                if (nextUf !== "PR") setPracaAtiva("MEDIA_ESTADUAL");
+                setPracaAtiva("MEDIA_ESTADUAL");
               }}
               aria-label="Selecionar estado ou região (UF)"
               data-testid="seletor-uf-mercado"
@@ -778,34 +812,38 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
               {UFS_MERCADO_BRASIL.map((uf) => (
                 <option key={uf.sigla} value={uf.sigla}>
                   {uf.nome} ({uf.sigla})
-                  {uf.sigla === "PR" ? " — 20 Núcleos DERAL + IBGE" : ""}
+                  {uf.sigla === "PR"
+                    ? " — 20 Núcleos DERAL + IBGE"
+                    : uf.sigla === "SP"
+                      ? " — EDRs IEA-SP + IBGE"
+                      : ""}
                 </option>
               ))}
             </select>
           </div>
 
-          {ufAtiva === "PR" && pracasDisponiveis.length > 0 && (
+          {pracasDisponiveis.length > 0 && (
             <div className="flex flex-col gap-1 min-w-0">
               <Label
                 htmlFor="select-praca-deral"
                 className="text-[11px] font-medium text-muted-foreground"
               >
-                Núcleo Regional DERAL-PR
+                {ufAtiva === "PR" ? "Núcleo Regional DERAL-PR" : `Praça / Região (${ufAtiva})`}
               </Label>
               <select
                 id="select-praca-deral"
                 value={pracaAtivaEfetiva}
                 onChange={(e) => setPracaAtiva(e.target.value)}
-                aria-label="Selecionar praça ou núcleo regional DERAL-PR"
+                aria-label={`Selecionar praça ou núcleo regional (${ufAtiva})`}
                 data-testid="seletor-praca-deral"
                 className={cn(inputBaseClassName, "w-full min-w-0 text-xs px-2.5")}
               >
                 <option value="MEDIA_ESTADUAL">
-                  Paraná — Média Estadual ({pracasDisponiveis.length} núcleos)
+                  {ufAtiva} — Média Estadual ({pracasDisponiveis.length} praças)
                 </option>
                 {pracasDisponiveis.map((praca) => (
                   <option key={praca} value={praca}>
-                    Núcleo Regional: {praca}
+                    {ufAtiva === "PR" ? `Núcleo Regional: ${praca}` : praca}
                   </option>
                 ))}
               </select>
@@ -815,7 +853,7 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
           <div
             className={cn(
               "flex flex-col gap-1 min-w-0",
-              ufAtiva === "PR" && pracasDisponiveis.length > 0 ? "" : "sm:col-span-1 lg:col-span-2"
+              pracasDisponiveis.length > 0 ? "" : "sm:col-span-1 lg:col-span-2"
             )}
           >
             <Label
@@ -835,6 +873,14 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
             >
               <option value="TODAS">Todas (Comparativo Multi-Fonte)</option>
               <option value="DERAL">DERAL/SEAB-PR (Físico Semanal PR)</option>
+              <option value="IEA">IEA/SAA-SP (Diário SP / EDRs)</option>
+              {fontesUfDinamicas
+                .filter(([val]) => val !== "IEA")
+                .map(([val, label]) => (
+                  <option key={val} value={val}>
+                    {label}
+                  </option>
+                ))}
               <option value="IBGE">IBGE/SIDRA (Média Histórica Anual PAM)</option>
               <option value="CEPEA">CEPEA/ESALQ (Indicador Spot)</option>
               <option value="CONAB">CONAB/MAPA (Referência Federal)</option>

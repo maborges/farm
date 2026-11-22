@@ -77,7 +77,12 @@ describe("Catálogo Extensível de Mercado Agropecuário — Modelo e Regras", (
       expect(milho?.classificacaoAgronomica).toContain("Poácea");
 
       const cafe = obterProdutoPorId("cafe-arabica");
-      expect(cafe?.classificacaoAgronomica).toContain("classificação comercial DERAL");
+      expect(cafe?.classificacaoAgronomica).toContain("Rubiaceae");
+
+      for (const produto of PRODUTOS_CATALOGO) {
+        expect(produto.classificacaoAgronomica).not.toContain("DERAL");
+        expect(produto.descricao).not.toContain("DERAL");
+      }
 
       const boi = obterProdutoPorId("boi-gordo");
       expect(boi?.classificacaoAgronomica).toContain("Bovinocultura de Corte");

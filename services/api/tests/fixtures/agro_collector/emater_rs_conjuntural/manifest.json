@@ -1,0 +1,12 @@
+{
+  "source_slug": "emater_rs_conjuntural",
+  "url": "https://www.emater.tche.br/site/arquivos_pdf/conjuntural/conj_19112026.pdf",
+  "captured_at_utc": "2026-11-22T03:09:32.747452+00:00",
+  "http_status": 200,
+  "content_type": "application/pdf",
+  "sha256": "2862a61a7d703b20b959b8102e75ce1f3a660b5db14d968ab10358bbe88afed0",
+  "size_bytes": 3416477,
+  "saved_fixture_path": null,
+  "license_type": "DADO_PUBLICO_GOV",
+  "notes": "EMATER-RS Informativo Conjuntural Semanal (19/11/2026)"
+}

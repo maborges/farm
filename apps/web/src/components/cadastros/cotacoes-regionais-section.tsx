@@ -32,7 +32,7 @@ import { apiFetch } from "@/lib/api";
 import { useAppStore } from "@/lib/stores/app-store";
 import { cn } from "@/lib/utils";
 
-type OrigemCotacao = "FAZENDA" | "TENANT" | "DERAL" | "INDISPONIVEL";
+type OrigemCotacao = "FAZENDA" | "TENANT" | "OFICIAL_UF" | "PARCEIRO_UF" | "DERAL" | "INDISPONIVEL";
 type EscopoRegional = "FAZENDA" | "TENANT";
 type ModoConsolidacao = "FONTE_SELECIONADA" | "MEDIA_FONTES";
 
@@ -42,8 +42,16 @@ interface PracaDeralResumoItem {
   registro_original: string;
 }
 
+type EscopoComparativoFonte =
+  | "FAZENDA"
+  | "TENANT"
+  | "OFICIAL_UF"
+  | "PARCEIRO_UF"
+  | "DERAL_NUCLEO"
+  | "DERAL_MEDIA";
+
 interface FonteComparadaRegionalItem {
-  escopo: "FAZENDA" | "TENANT" | "DERAL_NUCLEO" | "DERAL_MEDIA";
+  escopo: EscopoComparativoFonte;
   fonte: string;
   praca: string;
   valor: number;
@@ -116,6 +124,10 @@ const ORIGEM_STYLES: Record<OrigemCotacao, string> = {
     "bg-emerald-500/10 text-emerald-700 border-emerald-500/25 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-400/30",
   TENANT:
     "bg-amber-500/10 text-amber-700 border-amber-500/25 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-400/30",
+  OFICIAL_UF:
+    "bg-sky-500/10 text-sky-700 border-sky-500/25 dark:bg-sky-500/20 dark:text-sky-300 dark:border-sky-400/30",
+  PARCEIRO_UF:
+    "bg-teal-500/10 text-teal-700 border-teal-500/25 dark:bg-teal-500/20 dark:text-teal-300 dark:border-teal-400/30",
   DERAL: "bg-muted text-muted-foreground border-border dark:bg-zinc-800/80 dark:text-zinc-300 dark:border-zinc-700",
   INDISPONIVEL:
     "bg-destructive/10 text-destructive border-destructive/25 dark:bg-red-500/20 dark:text-red-300 dark:border-red-400/30",
@@ -124,6 +136,8 @@ const ORIGEM_STYLES: Record<OrigemCotacao, string> = {
 const ORIGEM_LABELS: Record<OrigemCotacao, string> = {
   FAZENDA: "Fazenda Ativa",
   TENANT: "Grupo/Tenant",
+  OFICIAL_UF: "Órgão Estadual UF",
+  PARCEIRO_UF: "Parceiro Autorizado",
   DERAL: "DERAL/SEAB-PR",
   INDISPONIVEL: "Indisponível",
 };
@@ -552,6 +566,8 @@ export function CotacoesRegionaisSection() {
               <SelectContent className="rounded-sm">
                 <SelectItem value="TODAS">Todas as origens e fontes</SelectItem>
                 <SelectItem value="REGIONAL_LOCAL">Com cotação regional (Fazenda/Grupo)</SelectItem>
+                <SelectItem value="OFICIAL_UF">Órgão Estadual da UF</SelectItem>
+                <SelectItem value="PARCEIRO_UF">Parceiro Autorizado da UF</SelectItem>
                 <SelectItem value="MULTI_FONTE">Múltiplas fontes comparadas (2+)</SelectItem>
                 <SelectItem value="DERAL">Herdando referência DERAL/SEAB-PR</SelectItem>
               </SelectContent>

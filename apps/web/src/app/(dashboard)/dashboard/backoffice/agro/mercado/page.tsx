@@ -43,7 +43,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { CollectorRunsTab } from "@/components/backoffice/agro-collector/collector-runs-tab";
+import { CollectorSourcesTab } from "@/components/backoffice/agro-collector/collector-sources-tab";
+import { CollectorStagingTab } from "@/components/backoffice/agro-collector/collector-staging-tab";
+import type {
+  CollectorRunsListResponse,
+  CollectorSourcesListResponse,
+  CollectorStagingListResponse,
+} from "@/components/backoffice/agro-collector/types";
 import {
   Dialog,
   DialogContent,
@@ -246,6 +255,36 @@ export default function BackofficeMercadoPage() {
     queryFn: () =>
       apiFetch(`/api/v1/backoffice/agro/mercado/deral/snapshots/${selectedSnapshotId}`),
     enabled: !!selectedSnapshotId,
+  });
+
+  const {
+    data: collectorSourcesData,
+    isLoading: isLoadingCollectorSources,
+    refetch: refetchCollectorSources,
+  } = useQuery<CollectorSourcesListResponse>({
+    queryKey: ["backoffice-collector-sources"],
+    queryFn: () => apiFetch("/api/v1/backoffice/agro/mercado/collector/sources"),
+    enabled: canView,
+  });
+
+  const {
+    data: collectorRunsData,
+    isLoading: isLoadingCollectorRuns,
+    refetch: refetchCollectorRuns,
+  } = useQuery<CollectorRunsListResponse>({
+    queryKey: ["backoffice-collector-runs"],
+    queryFn: () => apiFetch("/api/v1/backoffice/agro/mercado/collector/runs"),
+    enabled: canView,
+  });
+
+  const {
+    data: collectorStagingData,
+    isLoading: isLoadingCollectorStaging,
+    refetch: refetchCollectorStaging,
+  } = useQuery<CollectorStagingListResponse>({
+    queryKey: ["backoffice-collector-staging"],
+    queryFn: () => apiFetch("/api/v1/backoffice/agro/mercado/collector/staging"),
+    enabled: canView,
   });
 
   // Preenche formulário quando statusData carrega
@@ -491,6 +530,9 @@ export default function BackofficeMercadoPage() {
               onClick={() => {
                 refetchStatus();
                 refetchSnapshots();
+                refetchCollectorSources();
+                refetchCollectorRuns();
+                refetchCollectorStaging();
                 toast.info("Status das fontes atualizado.");
               }}
               disabled={isRefetchingStatus}
@@ -556,8 +598,30 @@ export default function BackofficeMercadoPage() {
         </AlertDescription>
       </Alert>
 
-      {/* Grid de Situação das Fontes Oficiais */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Navegação por Abas: Saúde, Fontes & Parceiros, Execuções & Sentinela e Quarentena */}
+      <Tabs defaultValue="saude" className="w-full space-y-4">
+        <TabsList className="w-full justify-start overflow-x-auto">
+          <TabsTrigger value="saude">Visão Geral &amp; Saúde</TabsTrigger>
+          <TabsTrigger value="fontes">
+            Fontes &amp; Parceiros ({collectorSourcesData?.total ?? 0})
+          </TabsTrigger>
+          <TabsTrigger value="execucoes">Execuções &amp; Sentinela</TabsTrigger>
+          <TabsTrigger value="revisao">
+            Fila de Revisão
+            {(collectorSourcesData?.pendentes_quarentena_total ?? 0) > 0 && (
+              <Badge
+                variant="outline"
+                className="ml-1.5 rounded-sm border-amber-500/50 bg-amber-50 text-[10px] text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+              >
+                {collectorSourcesData?.pendentes_quarentena_total}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="saude" className="space-y-6">
+          {/* Grid de Situação das Fontes Oficiais */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {isLoadingStatus ? (
           Array.from({ length: 4 }).map((_, i) => (
             <Card key={i} className="rounded-sm">
@@ -860,6 +924,32 @@ export default function BackofficeMercadoPage() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="fontes">
+          <CollectorSourcesTab
+            sources={collectorSourcesData?.sources ?? []}
+            isLoading={isLoadingCollectorSources}
+            canUpdate={canUpdate}
+          />
+        </TabsContent>
+
+        <TabsContent value="execucoes">
+          <CollectorRunsTab
+            runs={collectorRunsData?.runs ?? []}
+            isLoading={isLoadingCollectorRuns}
+            canUpdate={canUpdate}
+          />
+        </TabsContent>
+
+        <TabsContent value="revisao">
+          <CollectorStagingTab
+            items={collectorStagingData?.items ?? []}
+            isLoading={isLoadingCollectorStaging}
+            canUpdate={canUpdate}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Modal de Pré-Visualização do Snapshot */}
       <Dialog

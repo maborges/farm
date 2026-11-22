@@ -1,0 +1,12 @@
+{
+  "source_slug": "emater_rs",
+  "url": "https://www.emater.tche.br/site/arquivos_pdf/precos/preco_19112026.pdf",
+  "captured_at_utc": "2026-11-22T03:09:32.031938+00:00",
+  "http_status": 200,
+  "content_type": "application/pdf",
+  "sha256": "7b5c13995ea558f9b73f596d9f90856e8cb8c1c60e7eedefcf9bd97e09f86d4d",
+  "size_bytes": 1081633,
+  "saved_fixture_path": "services/api/tests/fixtures/agro_collector/emater_rs/preco_19112026.pdf",
+  "license_type": "DADO_PUBLICO_GOV",
+  "notes": "EMATER-RS Boletim Semanal Cotações Agropecuárias nº 2467 (19/11/2026)"
+}

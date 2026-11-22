@@ -138,6 +138,10 @@ async def run_recommendation_scheduler_loop() -> None:
 
 
 async def run_background_jobs() -> None:
+    from agro_collector.orchestrator import (
+        run_agro_collector_loop,
+        run_artifact_retention_loop,
+    )
     from core.services.deral_auto_sync_service import run_deral_auto_sync_loop
 
     tasks = [
@@ -148,6 +152,8 @@ async def run_background_jobs() -> None:
         asyncio.create_task(run_marcar_vencidos_loop()),
         asyncio.create_task(run_lancar_depreciacao_loop()),
         asyncio.create_task(run_deral_auto_sync_loop()),
+        asyncio.create_task(run_agro_collector_loop()),
+        asyncio.create_task(run_artifact_retention_loop()),
     ]
     try:
         await asyncio.gather(*tasks)
