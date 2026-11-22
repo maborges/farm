@@ -196,7 +196,7 @@ docker compose -p farm -f docker-compose.hostinger.yml config --quiet
 Em seguida, teste a resolução do comando com `--dry-run` (não baixa imagens e não edita o Compose):
 
 ```bash
-deploy_hostinger <NOVO_SHA> backend web --dry-run
+<deploy_hostinger> <NOVO_SHA> backend web --dry-run
 ```
 
 *(Ajuste a lista de componentes para aqueles efetivamente publicados na Etapa 2, ou omita os componentes para detecção automática.)*
