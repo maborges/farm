@@ -3,16 +3,17 @@
 import * as React from "react";
 import {
   AlertTriangle,
+  BarChart3,
   Beef,
   BookOpen,
   Building2,
+  ChevronDown,
   Clock,
   Coffee,
   Download,
   ExternalLink,
   Factory,
   FileSpreadsheet,
-  Info,
   Layers,
   Leaf,
   MapPin,
@@ -21,6 +22,7 @@ import {
   Search,
   ShieldCheck,
   Sprout,
+  Star,
   TrendingDown,
   TrendingUp,
   Wheat,
@@ -28,10 +30,10 @@ import {
   X,
 } from "lucide-react";
 import { HorizontalScrollRail } from "@/components/layout/horizontal-scroll-rail";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input, inputBaseClassName } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { agroApiUrl } from "@/lib/api-url";
@@ -44,6 +46,10 @@ import {
   type CategoriaMercado,
   type ProdutoCatalogo,
 } from "@/lib/mercado/catalogo";
+import {
+  ordenarProdutosComFavoritos,
+  useFavoritosMercado,
+} from "@/lib/mercado/favoritos-store";
 import { useMoedaMercado } from "@/lib/mercado/moeda-store";
 import {
   converterBrlParaMoeda,
@@ -145,17 +151,37 @@ function BlocoCotacaoDestaque({
           : ""
       : "";
 
+  const ehHistorico = destaque.ehHistoricoAnual;
+
   return (
-    <div className="p-2.5 rounded-sm bg-emerald-500/5 dark:bg-emerald-950/20 border border-emerald-500/20 flex flex-col gap-1.5 min-h-[92px] justify-between">
+    <div
+      className={cn(
+        "p-2.5 rounded-sm border flex flex-col gap-1.5 min-h-[92px] justify-between",
+        ehHistorico
+          ? "bg-amber-500/5 dark:bg-amber-950/20 border-amber-500/30"
+          : "bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/20"
+      )}
+    >
       <div className="flex flex-wrap items-center justify-between gap-1.5">
-        <span className="text-[10px] font-medium text-emerald-800 dark:text-emerald-300 flex items-center gap-1 min-w-0">
-          <Clock className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+        <span
+          className={cn(
+            "text-[10px] font-medium flex items-center gap-1 min-w-0",
+            ehHistorico
+              ? "text-amber-900 dark:text-amber-300"
+              : "text-emerald-800 dark:text-emerald-300"
+          )}
+        >
+          {ehHistorico ? (
+            <BarChart3 className="size-3 text-amber-700 dark:text-amber-300 shrink-0" />
+          ) : (
+            <Clock className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          )}
           <span className="truncate">
             {destaque.indicacaoTemporal}
             {sufixoEstado}
           </span>
         </span>
-        <Badge variant="recommendation" className="shrink-0 text-[10px]">
+        <Badge variant={ehHistorico ? "warning" : "recommendation"} className="shrink-0 text-[10px]">
           {destaque.sigla}
         </Badge>
       </div>
@@ -163,7 +189,7 @@ function BlocoCotacaoDestaque({
       {/* Preço Oficial em Reais + Variação Semanal */}
       <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 pt-0.5">
         <div className="min-w-0">
-          <span className="text-lg font-bold tracking-tight text-foreground tabular-nums">
+          <span className="text-xl font-bold tracking-tight text-foreground tabular-nums">
             {formatarPrecoPublico(destaque.valor, destaque.moeda)}
           </span>
           <span className="text-[11px] text-muted-foreground ml-1.5">
@@ -208,6 +234,12 @@ function BlocoCotacaoDestaque({
         </div>
       </div>
 
+      {ehHistorico && (
+        <p className="text-[10px] font-medium text-amber-900 dark:text-amber-200 pt-1 border-t border-amber-500/20">
+          Referência estatística anual (safra consolidada) — não é cotação do dia.
+        </p>
+      )}
+
       {/* Faixa Regional PR ou Destaque do Núcleo (somente quando DERAL PR está ativo) */}
       {exibicao.mostrarFaixaPr && precoDeral && (
         <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] text-muted-foreground pt-1 border-t border-emerald-500/10">
@@ -244,7 +276,10 @@ function BlocoCotacaoDestaque({
 
       {/* Equivalente Cambial Reativo */}
       <div
-        className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-emerald-500/10 text-xs"
+        className={cn(
+          "flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t text-xs",
+          ehHistorico ? "border-amber-500/20" : "border-emerald-500/10"
+        )}
         data-testid="conversao-cambial-card"
       >
         {precoConvertidoFormatado ? (
@@ -276,21 +311,6 @@ function BlocoCotacaoDestaque({
           </span>
         )}
       </div>
-
-      {/* Proveniência Auditada */}
-      <div className="flex items-center justify-between gap-2 text-[9.5px] text-muted-foreground pt-1 border-t border-emerald-500/10">
-        <span className="truncate" title={`Origem: ${destaque.origem}`}>
-          Origem: <strong className="font-mono text-foreground/80">{destaque.origem}</strong>
-        </span>
-        {destaque.documentoHashSha256 && (
-          <span
-            className="font-mono text-[9px] text-muted-foreground/80 shrink-0"
-            title={`SHA-256: ${destaque.documentoHashSha256}`}
-          >
-            SHA: {destaque.documentoHashSha256.slice(0, 8)}…
-          </span>
-        )}
-      </div>
     </div>
   );
 }
@@ -304,6 +324,8 @@ interface CardCommodityProps {
   currency: string;
   quote: PtaxPublicaV1 | null;
   loadingMoeda: boolean;
+  ehFavorito: boolean;
+  onToggleFavorito: (_id: string) => void;
 }
 
 function CardCommodity({
@@ -315,11 +337,16 @@ function CardCommodity({
   currency,
   quote,
   loadingMoeda,
+  ehFavorito,
+  onToggleFavorito,
 }: CardCommodityProps) {
   return (
     <Card
       data-commodity-id={produto.id}
-      className="justify-between hover:border-primary/40 transition-colors"
+      className={cn(
+        "justify-between hover:border-primary/40 transition-colors",
+        ehFavorito && "border-amber-500/40 ring-1 ring-amber-500/20"
+      )}
     >
       <CardHeader className="flex items-start justify-between gap-2 border-b border-border/50">
         <div className="flex items-start gap-2.5 min-w-0 flex-1">
@@ -335,21 +362,41 @@ function CardCommodity({
               {produto.nome}
             </CardTitle>
             <CardDescription className="text-[11px] mt-0.5">
-              Padrão: {precoDeral ? precoDeral.unidade : produto.unidade}
+              {precoDeral ? precoDeral.unidade : produto.unidade}
             </CardDescription>
           </div>
         </div>
 
-        <Badge
-          variant={exibicao.badgeCabecalho.variant}
-          className="shrink-0 max-w-[140px] whitespace-normal h-auto py-0.5 leading-tight text-center text-[10px]"
-        >
-          {exibicao.badgeCabecalho.texto}
-        </Badge>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => onToggleFavorito(produto.id)}
+            data-testid={`btn-favorito-${produto.id}`}
+            aria-pressed={ehFavorito}
+            aria-label={ehFavorito ? `Remover ${produto.nome} dos favoritos` : `Fixar ${produto.nome} nos favoritos`}
+            title={ehFavorito ? "Desafixar dos favoritos" : "Fixar no topo como favorito"}
+          >
+            <Star
+              className={cn(
+                "size-3.5 transition-colors",
+                ehFavorito ? "fill-amber-400 text-amber-500" : "text-muted-foreground"
+              )}
+            />
+          </Button>
+
+          <Badge
+            variant={exibicao.badgeCabecalho.variant}
+            className="max-w-[125px] whitespace-normal h-auto py-0.5 leading-tight text-center text-[10px]"
+          >
+            {exibicao.badgeCabecalho.texto}
+          </Badge>
+        </div>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-3 flex-1 justify-between">
-        {/* Bloco Principal Unificado conforme Região e Fonte Ativas */}
+      <CardContent className="flex flex-col gap-2.5 flex-1 justify-between">
+        {/* Bloco Principal de Preço ou Indisponibilidade */}
         {exibicao.destaque ? (
           <BlocoCotacaoDestaque
             destaque={exibicao.destaque}
@@ -386,32 +433,12 @@ function CardCommodity({
           </div>
         )}
 
-        {/* Descrição e Classificação Agronômica */}
-        <div className="flex flex-col gap-1.5">
-          <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
-            {produto.descricao}
-          </p>
-
-          <div className="p-2 rounded-sm bg-muted/40 border border-border/40 text-[10px] flex flex-col gap-1.5">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-muted-foreground">Classificação Agronômica:</span>
-              <span className="font-medium text-foreground leading-snug">
-                {produto.classificacaoAgronomica}
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-1 text-muted-foreground border-t border-border/30 pt-1">
-              <span>Natureza do Preço:</span>
-              <span className="font-medium text-foreground">{exibicao.naturezaPreco}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Região Ativa e Fontes Comparativas (sem duplicar a fonte já destacada acima) */}
-        <div className="flex flex-col gap-1.5 text-[11px] pt-1 border-t border-border/40">
+        {/* Praça / Região e Outras Fontes Comparativas */}
+        <div className="flex flex-col gap-1.5 text-[11px]">
           <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-muted-foreground">
             <span className="flex items-center gap-1 shrink-0">
               <MapPin className="size-3 text-muted-foreground shrink-0" />
-              Região / Praça:
+              Praça / Região:
             </span>
             <span className="font-medium text-foreground text-right">
               {exibicao.regiaoLabel}
@@ -456,13 +483,46 @@ function CardCommodity({
           )}
         </div>
 
-        {/* Rodapé de Ações */}
-        <div className="pt-2 border-t border-border/40 flex flex-col gap-1.5">
+        {/* Detalhes Agronômicos e Auditoria Criptográfica Recolhíveis */}
+        <Collapsible className="group rounded-sm border border-border/50 bg-muted/20">
+          <CollapsibleTrigger className="flex w-full cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+            <span>Detalhes e auditoria</span>
+            <ChevronDown className="size-3.5 shrink-0 transition-transform group-open:rotate-180" />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="border-t border-border/40 px-2.5 py-2 flex flex-col gap-1.5 text-[10px] text-muted-foreground">
+            <p className="leading-relaxed">{produto.descricao}</p>
+            <div className="flex flex-col gap-0.5 pt-1 border-t border-border/30">
+              <span>Classificação Agronômica:</span>
+              <span className="font-medium text-foreground leading-snug">
+                {produto.classificacaoAgronomica}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-1 pt-1 border-t border-border/30">
+              <span>Natureza do Preço:</span>
+              <span className="font-medium text-foreground">{exibicao.naturezaPreco}</span>
+            </div>
+            {exibicao.destaque && (
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/30">
+                <span title={`Origem: ${exibicao.destaque.origem}`}>
+                  Origem: <strong className="font-mono text-foreground">{exibicao.destaque.origem}</strong>
+                </span>
+                {exibicao.destaque.documentoHashSha256 && (
+                  <span className="font-mono text-[9px]" title={`SHA-256: ${exibicao.destaque.documentoHashSha256}`}>
+                    SHA: {exibicao.destaque.documentoHashSha256.slice(0, 8)}…
+                  </span>
+                )}
+              </div>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
+
+        {/* Rodapé Compacto de Ações */}
+        <div className="pt-2 border-t border-border/40 flex items-center gap-1.5">
           <a
             href={exibicao.ctaPrincipal.href}
             target="_blank"
             rel="noopener noreferrer"
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full justify-between")}
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "flex-1 min-w-0 justify-between")}
             aria-label={exibicao.ctaPrincipal.ariaLabel}
           >
             <span className="flex items-center gap-1.5 min-w-0 truncate">
@@ -479,21 +539,17 @@ function CardCommodity({
               rel="noopener noreferrer"
               download
               className={cn(
-                buttonVariants({ variant: "ghost", size: "xs" }),
-                "w-full text-[10px] text-muted-foreground hover:text-primary border border-border/50"
+                buttonVariants({ variant: "outline", size: "sm" }),
+                "shrink-0 px-2 text-xs text-muted-foreground hover:text-primary"
               )}
               title="Baixar planilha oficial semanal auditada (.xls)"
               aria-label={`Baixar planilha oficial semanal com cotação de ${produto.nome}`}
             >
-              <FileSpreadsheet className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>Baixar planilha oficial (.xls)</span>
-              <Download className="size-2.5 opacity-70" />
+              <FileSpreadsheet className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>.xls</span>
+              <Download className="size-3 opacity-70" />
             </a>
           )}
-
-          <p className="text-[9px] text-muted-foreground text-center">
-            Abre a fonte oficial governamental em nova aba
-          </p>
         </div>
       </CardContent>
     </Card>
@@ -501,12 +557,14 @@ function CardCommodity({
 }
 
 /**
- * Catálogo público interativo com seleção por Região (UF), Núcleo DERAL-PR e Fonte de Dados.
+ * Catálogo público com favoritos persistentes, seleção por Região (UF), Núcleo DERAL-PR e Fonte.
  */
 export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }: CatalogoMercadoProps) {
   const { localidade, isLoaded: localidadeLoaded } = useLocalidadeClima();
+  const { favoritos, isLoaded: favoritosLoaded, toggleFavorito } = useFavoritosMercado();
   const [busca, setBusca] = React.useState("");
   const [categoriaAtiva, setCategoriaAtiva] = React.useState<CategoriaMercado | "TODAS">("TODAS");
+  const [apenasFavoritos, setApenasFavoritos] = React.useState(false);
   const [ufSelecionadaManual, setUfSelecionadaManual] = React.useState<string | null>(null);
   const [pracaAtiva, setPracaAtiva] = React.useState<string>("MEDIA_ESTADUAL");
   const [fonteAtiva, setFonteAtiva] = React.useState<string>("TODAS");
@@ -614,12 +672,16 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
   }, [initialProdutos]);
 
   const produtosFiltrados = React.useMemo(() => {
-    const base = filtrarProdutos(initialProdutos, {
+    const porTextoECategoria = filtrarProdutos(initialProdutos, {
       busca,
       categoria: categoriaAtiva,
     });
-    return filtrarProdutosPorFonte(base, fonteAtiva);
-  }, [initialProdutos, busca, categoriaAtiva, fonteAtiva]);
+    const porFonte = filtrarProdutosPorFonte(porTextoECategoria, fonteAtiva);
+    const filtradosFav = apenasFavoritos
+      ? porFonte.filter((p) => favoritos.includes(p.id))
+      : porFonte;
+    return ordenarProdutosComFavoritos(filtradosFav, favoritos);
+  }, [initialProdutos, busca, categoriaAtiva, fonteAtiva, apenasFavoritos, favoritos]);
 
   const pracasDisponiveis = React.useMemo(() => {
     const conjunto = new Set<string>();
@@ -636,7 +698,7 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Painel de Filtros Regionais, Fonte e Busca */}
+      {/* Painel de Filtros Regionais, Favoritos e Busca */}
       <div className="rounded-sm border border-border/60 bg-muted/20 p-3 flex flex-col gap-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="relative flex-1 sm:max-w-md min-w-0">
@@ -660,11 +722,35 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
             )}
           </div>
 
-          <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 self-start sm:self-auto shrink-0">
-            <BookOpen className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span>
-              Exibindo <strong>{produtosFiltrados.length}</strong> de {totalGeral} produtos
-            </span>
+          <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 shrink-0">
+            <Button
+              type="button"
+              variant={apenasFavoritos ? "default" : "outline"}
+              size="sm"
+              data-testid="filtro-apenas-favoritos"
+              aria-pressed={apenasFavoritos}
+              onClick={() => setApenasFavoritos((prev) => !prev)}
+              className="shrink-0"
+            >
+              <Star
+                className={cn(
+                  "size-3.5",
+                  apenasFavoritos
+                    ? "fill-current"
+                    : favoritosLoaded && favoritos.length > 0
+                      ? "fill-amber-400 text-amber-500"
+                      : ""
+                )}
+              />
+              <span>Favoritos ({favoritosLoaded ? favoritos.length : 0})</span>
+            </Button>
+
+            <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+              <BookOpen className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>
+                Exibindo <strong>{produtosFiltrados.length}</strong> de {totalGeral}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -749,7 +835,7 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
             >
               <option value="TODAS">Todas (Comparativo Multi-Fonte)</option>
               <option value="DERAL">DERAL/SEAB-PR (Físico Semanal PR)</option>
-              <option value="IBGE">IBGE/SIDRA (Média Regional PAM)</option>
+              <option value="IBGE">IBGE/SIDRA (Média Histórica Anual PAM)</option>
               <option value="CEPEA">CEPEA/ESALQ (Indicador Spot)</option>
               <option value="CONAB">CONAB/MAPA (Referência Federal)</option>
               <option value="B3">B3 / Futuros</option>
@@ -835,23 +921,26 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
         </div>
       )}
 
-      {/* Alerta Metodológico Compacto */}
-      <Alert variant="default">
-        <Info className="size-4 shrink-0" />
-        <AlertTitle className="text-xs">Preços Públicos Oficiais Verificáveis</AlertTitle>
-        <AlertDescription className="text-xs">
-          As cotações regionais combinam o levantamento semanal do DERAL/SEAB-PR (para o Paraná e seus 20 núcleos) com a referência regional da PAM/IBGE por UF e canais oficiais CEPEA/CONAB/B3. Caracterizam preço médio estatístico e não cotação em tempo real.
-        </AlertDescription>
-      </Alert>
-
       {/* Grid Responsivo ou Estado Vazio */}
       {produtosFiltrados.length === 0 ? (
         <Card variant="muted" size="sm" className="text-center py-6">
           <CardContent className="flex flex-col items-center gap-2">
-            <Layers className="size-6 text-muted-foreground" />
-            <p className="text-xs font-semibold text-foreground">Nenhum produto encontrado</p>
+            {apenasFavoritos && favoritos.length === 0 ? (
+              <Star className="size-6 text-amber-500" />
+            ) : (
+              <Layers className="size-6 text-muted-foreground" />
+            )}
+            <p className="text-xs font-semibold text-foreground">
+              {apenasFavoritos && favoritos.length === 0
+                ? "Nenhum produto fixado nos favoritos"
+                : "Nenhum produto encontrado"}
+            </p>
             <p className="text-[11px] text-muted-foreground max-w-sm">
-              Não encontramos resultados para &quot;{busca}&quot; nos filtros selecionados.
+              {apenasFavoritos && favoritos.length === 0
+                ? "Toque na estrela de qualquer produto para fixá-lo no topo da sua lista."
+                : busca
+                  ? `Não encontramos resultados para "${busca}" nos filtros selecionados.`
+                  : "Nenhum item corresponde à combinação atual de categoria, fonte e favoritos."}
             </p>
             <Button
               variant="outline"
@@ -860,6 +949,7 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
                 setBusca("");
                 setCategoriaAtiva("TODAS");
                 setFonteAtiva("TODAS");
+                setApenasFavoritos(false);
               }}
               className="mt-1"
             >
@@ -890,6 +980,8 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
                 currency={currency}
                 quote={quote}
                 loadingMoeda={loadingMoeda}
+                ehFavorito={favoritos.includes(produto.id)}
+                onToggleFavorito={toggleFavorito}
               />
             );
           })}

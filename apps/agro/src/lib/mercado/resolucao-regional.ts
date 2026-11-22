@@ -62,6 +62,7 @@ export interface DestaqueCotacaoCard {
   variacaoSemanalPct?: number;
   valorSemanaAnterior?: number;
   urlConsulta: string;
+  ehHistoricoAnual: boolean;
 }
 
 export interface FonteComparativaCard {
@@ -76,7 +77,7 @@ export interface FonteComparativaCard {
 
 export interface ExibicaoCardMercado {
   destaque: DestaqueCotacaoCard | null;
-  badgeCabecalho: { texto: string; variant: "success" | "info" | "outline" };
+  badgeCabecalho: { texto: string; variant: "success" | "warning" | "info" | "outline" };
   mostrarFaixaPr: boolean;
   pracaRegionalSelecionada: PracaRegionalDeralItem | null;
   avisoPracaIndisponivel: boolean;
@@ -249,6 +250,7 @@ function construirDestaqueDeral(
     variacaoSemanalPct: typeof precoDeral.variacaoSemanalPct === "number" ? precoDeral.variacaoSemanalPct : undefined,
     valorSemanaAnterior: typeof precoDeral.valorSemanaAnterior === "number" ? precoDeral.valorSemanaAnterior : undefined,
     urlConsulta,
+    ehHistoricoAnual: false,
   };
 }
 
@@ -257,19 +259,20 @@ function construirDestaqueIbge(
   ufAtiva: string,
   unidadeFallback: string
 ): DestaqueCotacaoCard {
-  const anoTexto = fonteIbge.data_referencia ? `Safra ${fonteIbge.data_referencia}` : "Última safra PAM";
+  const anoTexto = fonteIbge.data_referencia ? `Safra ${fonteIbge.data_referencia} (anual)` : "Última safra PAM";
   return {
     familia: "IBGE",
     sigla: "IBGE/SIDRA (PAM)",
     valor: Number(fonteIbge.valor),
     moeda: "BRL",
     unidade: fonteIbge.unidade || unidadeFallback,
-    indicacaoTemporal: `Anual — Média Regional PAM (${ufAtiva})`,
+    indicacaoTemporal: `Média Histórica Anual · IBGE/PAM (${ufAtiva})`,
     dataLabel: anoTexto,
     dataReferencia: fonteIbge.data_referencia ?? "",
     origem: fonteIbge.registro_origem ?? "SIDRA!T5457(V215/V214)",
     documentoHashSha256: null,
     urlConsulta: sanitizarUrlExternaSegura(fonteIbge.url_consulta, URL_SIDRA_PADRAO),
+    ehHistoricoAnual: true,
   };
 }
 
@@ -313,7 +316,7 @@ function coletarOutrasFontes(
       chave: `ibge-${entrada.ufAtiva}`,
       familia: "IBGE",
       sigla: `IBGE/PAM (${entrada.ufAtiva})`,
-      detalhe: `Média regional (${fonteIbge.data_referencia ?? "PAM"})`,
+      detalhe: `Histórico anual · Safra ${fonteIbge.data_referencia ?? "PAM"}`,
       valor: fonteIbge.valor,
       moeda: "BRL",
       urlConsulta: sanitizarUrlExternaSegura(fonteIbge.url_consulta, URL_SIDRA_PADRAO),
@@ -452,7 +455,7 @@ export function resolverExibicaoCardMercado(entrada: EntradaResolucaoCard): Exib
   if (filtro === "IBGE") {
     if (fonteIbge) {
       destaque = construirDestaqueIbge(fonteIbge, ufAtiva, entrada.produto.unidade);
-      badgeCabecalho = { texto: "Média Regional IBGE", variant: "success" };
+      badgeCabecalho = { texto: "Histórico Anual IBGE", variant: "warning" };
     }
   } else if (filtro === "DERAL" || (filtro === "TODAS" && ufAtiva === "PR")) {
     if (entrada.precoDeral) {
@@ -460,11 +463,11 @@ export function resolverExibicaoCardMercado(entrada: EntradaResolucaoCard): Exib
       badgeCabecalho = { texto: "Preço Público Real", variant: "success" };
     } else if (filtro === "TODAS" && fonteIbge) {
       destaque = construirDestaqueIbge(fonteIbge, ufAtiva, entrada.produto.unidade);
-      badgeCabecalho = { texto: "Média Regional IBGE", variant: "success" };
+      badgeCabecalho = { texto: "Histórico Anual IBGE", variant: "warning" };
     }
   } else if (fonteIbge) {
     destaque = construirDestaqueIbge(fonteIbge, ufAtiva, entrada.produto.unidade);
-    badgeCabecalho = { texto: "Média Regional IBGE", variant: "success" };
+    badgeCabecalho = { texto: "Histórico Anual IBGE", variant: "warning" };
   } else if (entrada.precoDeral) {
     badgeCabecalho = { texto: "Referência externa (PR)", variant: "info" };
   }
@@ -490,7 +493,7 @@ export function resolverExibicaoCardMercado(entrada: EntradaResolucaoCard): Exib
       : filtro === "DERAL"
         ? "Cotação semanal DERAL-PR indisponível para este item."
         : ufAtiva !== "PR"
-          ? `Sem cotação numérica oficial para ${nomeUf} (${ufAtiva}).`
+          ? `Sem cotação corrente oficial para ${nomeUf} (${ufAtiva}).`
           : "Preço oficial verificável indisponível";
 
   const subtituloIndisponivel =

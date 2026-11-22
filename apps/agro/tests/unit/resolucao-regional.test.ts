@@ -120,6 +120,7 @@ describe("Resolução Regional e Multi-Fonte de Mercado (apps/agro)", () => {
 
     expect(exibicao.destaque).not.toBeNull();
     expect(exibicao.destaque?.familia).toBe("DERAL");
+    expect(exibicao.destaque?.ehHistoricoAnual).toBe(false);
     expect(exibicao.destaque?.valor).toBe(134.98);
     expect(exibicao.mostrarFaixaPr).toBe(true);
     expect(exibicao.urlDownloadXls).toContain("prp.xls");
@@ -177,6 +178,11 @@ describe("Resolução Regional e Multi-Fonte de Mercado (apps/agro)", () => {
     });
 
     expect(exibicao.destaque?.familia).toBe("IBGE");
+    expect(exibicao.destaque?.ehHistoricoAnual).toBe(true);
+    expect(exibicao.badgeCabecalho).toEqual({
+      texto: "Histórico Anual IBGE",
+      variant: "warning",
+    });
     expect(exibicao.destaque?.valor).toBe(118.45);
     expect(exibicao.destaque?.origem).toBe("SIDRA!T5457(V215/V214)");
     expect(exibicao.destaque?.dataLabel).toContain("2024");
@@ -230,6 +236,8 @@ describe("Resolução Regional e Multi-Fonte de Mercado (apps/agro)", () => {
     });
 
     expect(exibicao.destaque?.familia).toBe("IBGE");
+    expect(exibicao.destaque?.ehHistoricoAnual).toBe(true);
+    expect(exibicao.badgeCabecalho.texto).toBe("Histórico Anual IBGE");
     expect(exibicao.destaque?.valor).toBe(122.4);
     expect(exibicao.mostrarFaixaPr).toBe(false);
     expect(exibicao.urlDownloadXls).toBeNull();
@@ -311,6 +319,7 @@ describe("Resolução Regional e Multi-Fonte de Mercado (apps/agro)", () => {
     });
 
     expect(exibicao.destaque?.sigla).toBe("FIXTURE");
+    expect(exibicao.destaque?.ehHistoricoAnual).toBe(false);
     expect(exibicao.badgeCabecalho.texto).toBe("Preço Público Real");
     expect(exibicao.ctaPrincipal.rotulo).toContain("FIXTURE");
     expect(exibicao.ctaPrincipal.href).toBe("https://example.invalid/fixture");
