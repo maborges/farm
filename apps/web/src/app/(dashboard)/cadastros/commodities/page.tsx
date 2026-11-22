@@ -196,6 +196,7 @@ export default function CommoditiesPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  const isSaving = createMutation.isPending || updateMutation.isPending;
 
   // ── Handlers ──
   const openCreate = () => {
@@ -316,6 +317,8 @@ export default function CommoditiesPage() {
             variant="ghost"
             className="size-7 text-primary hover:text-primary"
             onClick={() => openDetail(row)}
+            aria-label={`Ver detalhes de ${row.nome}`}
+            title="Ver detalhes"
           >
             <Eye className="size-3.5" />
           </Button>
@@ -326,6 +329,8 @@ export default function CommoditiesPage() {
                 variant="ghost"
                 className="size-7 text-primary hover:text-primary"
                 onClick={() => openEdit(row)}
+                aria-label={`Editar ${row.nome}`}
+                title="Editar"
               >
                 <Pencil className="size-3.5" />
               </Button>
@@ -334,6 +339,8 @@ export default function CommoditiesPage() {
                 variant="ghost"
                 className="size-7 text-destructive hover:text-destructive"
                 onClick={() => handleDelete(row)}
+                aria-label={`Desativar ${row.nome}`}
+                title="Desativar"
               >
                 <Trash2 className="size-3.5" />
               </Button>
@@ -384,7 +391,7 @@ export default function CommoditiesPage() {
       <CotacoesRegionaisSection />
 
       {/* ── Create/Edit Dialog ── */}
-      <Dialog open={dialog.open} onOpenChange={(o) => { if (!o) setDialog({ open: false, editing: null }); }}>
+      <Dialog open={dialog.open} onOpenChange={(o) => { if (!o && !isSaving) setDialog({ open: false, editing: null }); }}>
         <DialogContent className="max-w-xl p-0">
           <DialogHeader>
             <div className="flex items-center gap-2.5">
@@ -400,7 +407,7 @@ export default function CommoditiesPage() {
               <DialogBody className="space-y-4">
 
                 {/* Nome + Código + Tipo + Unidade */}
-                <div className="grid grid-cols-[1fr_120px] gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
                   <FormField
                     control={rhForm.control}
                     name="nome"
@@ -434,7 +441,7 @@ export default function CommoditiesPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <FormField
                     control={rhForm.control}
                     name="tipo"
@@ -495,7 +502,7 @@ export default function CommoditiesPage() {
 
                 {/* Peso & Qualidade */}
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Peso & Qualidade</p>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <FormField
                     control={rhForm.control}
                     name="peso_unidade"
@@ -571,7 +578,7 @@ export default function CommoditiesPage() {
                   )}
                 />
                 {possuiCotacao && (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
                     <FormField
                       control={rhForm.control}
                       name="bolsa_referencia"
@@ -614,11 +621,11 @@ export default function CommoditiesPage() {
                     </div>
                   )}
                 />
-                <Button variant="outline" type="button" onClick={() => setDialog({ open: false, editing: null })}>
+                <Button variant="outline" type="button" disabled={isSaving} onClick={() => setDialog({ open: false, editing: null })}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-                  {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="mr-2 size-4 animate-spin" />}
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving && <Loader2 className="mr-2 size-4 animate-spin" />}
                   {dialog.editing ? "Salvar alterações" : "Criar Commodity"}
                 </Button>
               </DialogFooter>
@@ -742,7 +749,7 @@ export default function CommoditiesPage() {
       <ConfirmDialog
         open={deleteDialog.open}
         title="Desativar Commodity"
-        description={`Deseja desativar "${deleteDialog.item?.nome}"? Esta ação não pode ser desfeita.`}
+        description={`Deseja desativar "${deleteDialog.item?.nome}"? A commodity deixará de aparecer como ativa.`}
         confirmText="Desativar"
         cancelText="Cancelar"
         destructive
