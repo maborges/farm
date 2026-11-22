@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   formatarDirecaoVento,
   formatarHorario,
@@ -50,8 +50,8 @@ export function CondicoesAtuaisCard({
 
   return (
     <Card id="card-condicoes-atuais">
-      <CardHeader className="border-b border-border/60">
-        <div className="flex flex-col gap-1">
+      <CardHeader className="flex flex-col gap-2.5 border-b border-border/60 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-1 min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <CardTitle className="text-base sm:text-lg font-bold tracking-tight text-foreground flex items-center gap-1.5">
               {tipoOrigem === "GPS" ? (
@@ -62,7 +62,7 @@ export function CondicoesAtuaisCard({
               <span>{localidadeNome} {localidadeUf ? `— ${localidadeUf}` : ""}</span>
             </CardTitle>
 
-            <Badge variant="secondary">
+            <Badge variant="secondary" className="whitespace-normal h-auto py-0.5 leading-snug">
               {tipoOrigem === "GPS" ? "Localização GPS (Dispositivo)" : "Centroide Municipal (IBGE)"}
             </Badge>
 
@@ -70,8 +70,9 @@ export function CondicoesAtuaisCard({
               <Badge
                 variant="destructive"
                 id="badge-dados-sinteticos"
+                className="whitespace-normal h-auto py-0.5 leading-snug"
               >
-                <ShieldAlert className="size-3" />
+                <ShieldAlert className="size-3 shrink-0" />
                 <span>Dados Sintéticos (Ambiente de Testes)</span>
               </Badge>
             )}
@@ -106,7 +107,7 @@ export function CondicoesAtuaisCard({
         </div>
 
         {onRefresh && (
-          <CardAction>
+          <div className="self-start sm:self-auto shrink-0">
             <Button
               variant="outline"
               size="sm"
@@ -118,7 +119,7 @@ export function CondicoesAtuaisCard({
               <RotateCw className={`size-3.5 ${isRefreshing ? "animate-spin text-primary" : ""}`} />
               <span>{isRefreshing ? "Atualizando..." : "Atualizar"}</span>
             </Button>
-          </CardAction>
+          </div>
         )}
       </CardHeader>
 

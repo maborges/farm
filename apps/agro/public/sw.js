@@ -1,4 +1,4 @@
-const CACHE_NAME = "deepfarms-agro-v4";
+const CACHE_NAME = "deepfarms-agro-v5";
 
 const APP_SHELL = [
   "/",

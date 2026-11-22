@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Clock, Droplets, Wind, CloudRain } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   formatarHorario,
   type PrevisaoHorariaItemClima,
@@ -42,21 +42,19 @@ export function PrevisaoHoraria({
 
   return (
     <Card id="previsao-horaria">
-      <CardHeader className="border-b border-border/60">
-        <div className="flex items-center gap-2">
-          <Clock className="size-4 text-primary" />
-          <CardTitle className="text-sm font-semibold">
-            Previsão Horária para Pulverização
+      <CardHeader className="flex flex-col gap-2 border-b border-border/60 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Clock className="size-4 text-primary shrink-0" />
+            <span>Previsão Horária para Pulverização</span>
           </CardTitle>
+          <CardDescription className="text-xs mt-0.5">
+            Condições hora a hora para acompanhar temperatura, vento e chuva antes de intervenções no campo.
+          </CardDescription>
         </div>
-        <CardAction>
-          <Badge variant="outline">
-            Próximas 24 Horas ({fusoHorario})
-          </Badge>
-        </CardAction>
-        <CardDescription className="text-xs">
-          Condições hora a hora para acompanhar temperatura, vento e chuva antes de intervenções no campo.
-        </CardDescription>
+        <Badge variant="outline" className="self-start sm:self-auto shrink-0 whitespace-normal h-auto py-0.5 leading-snug">
+          Próximas 24 Horas ({fusoHorario})
+        </Badge>
       </CardHeader>
 
       <CardContent>

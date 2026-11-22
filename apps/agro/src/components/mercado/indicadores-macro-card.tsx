@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -137,14 +137,14 @@ export function IndicadoresMacroCard() {
 
   return (
     <Card>
-      <CardHeader className="border-b border-border/50">
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2">
+      <CardHeader className="flex flex-col gap-2.5 border-b border-border/50 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
             <CardTitle className="text-sm sm:text-base font-semibold text-foreground flex items-center gap-2">
-              <Percent className="size-4 text-emerald-600 dark:text-emerald-400" />
-              Indicadores Econômicos e Câmbio Oficial
+              <Percent className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>Indicadores Econômicos e Câmbio Oficial</span>
             </CardTitle>
-            <Badge variant="outline" className="hidden sm:inline-flex">
+            <Badge variant="outline" className="hidden sm:inline-flex shrink-0">
               BCB &amp; IBGE
             </Badge>
           </div>
@@ -153,37 +153,36 @@ export function IndicadoresMacroCard() {
           </CardDescription>
         </div>
 
-        <CardAction>
-          <div className="flex items-center gap-2">
-            {isOffline ? (
-              <Badge variant="warning">
-                <WifiOff className="size-3" /> Modo offline — dado salvo
-              </Badge>
-            ) : statusDisponibilidade === "NORMAL" ? (
-              <Badge variant="success">
-                <ShieldCheck className="size-3" /> Séries Oficiais Homologadas
-              </Badge>
-            ) : statusDisponibilidade === "PARCIAL" ? (
-              <Badge variant="warning">
-                <Clock3 className="size-3" /> Atualização parcial
-              </Badge>
-            ) : statusDisponibilidade === "FONTE_INDISPONIVEL" || statusDisponibilidade === "DEFASADO" ? (
-              <Badge variant="warning">
-                <Clock3 className="size-3" /> Último fechamento conhecido
-              </Badge>
-            ) : null}
+        <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 w-full sm:w-auto">
+          {isOffline ? (
+            <Badge variant="warning" className="whitespace-normal h-auto py-0.5 leading-snug">
+              <WifiOff className="size-3 shrink-0" /> Modo offline — dado salvo
+            </Badge>
+          ) : statusDisponibilidade === "NORMAL" ? (
+            <Badge variant="success" className="whitespace-normal h-auto py-0.5 leading-snug">
+              <ShieldCheck className="size-3 shrink-0" /> Séries Oficiais Homologadas
+            </Badge>
+          ) : statusDisponibilidade === "PARCIAL" ? (
+            <Badge variant="warning" className="whitespace-normal h-auto py-0.5 leading-snug">
+              <Clock3 className="size-3 shrink-0" /> Atualização parcial
+            </Badge>
+          ) : statusDisponibilidade === "FONTE_INDISPONIVEL" || statusDisponibilidade === "DEFASADO" ? (
+            <Badge variant="warning" className="whitespace-normal h-auto py-0.5 leading-snug">
+              <Clock3 className="size-3 shrink-0" /> Último fechamento conhecido
+            </Badge>
+          ) : <span />}
 
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={handleManualRefresh}
-              disabled={refreshing || loading}
-              aria-label="Atualizar indicadores macroeconômicos"
-            >
-              <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
-            </Button>
-          </div>
-        </CardAction>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={handleManualRefresh}
+            disabled={refreshing || loading}
+            aria-label="Atualizar indicadores macroeconômicos"
+            className="shrink-0"
+          >
+            <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
       </CardHeader>
 
       <CardContent className="flex flex-col gap-3.5">

@@ -5,7 +5,7 @@ import { AlertCircle, ExternalLink, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchIbgeEstatisticas, type EstatisticasIbgeResponse } from "@/lib/mercado/ibge";
 
@@ -75,12 +75,12 @@ export function IbgeValorProducaoCard() {
 
   return (
     <Card>
-      <CardHeader className="border-b border-border/60">
-        <div>
+      <CardHeader className="flex flex-col gap-2.5 border-b border-border/60 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
           <CardTitle className="text-sm font-semibold tracking-tight">Cacau e pimenta-do-reino</CardTitle>
-          <CardDescription className="text-xs">Referência anual ao produtor calculada com dados oficiais da PAM/IBGE.</CardDescription>
+          <CardDescription className="text-xs mt-0.5">Referência anual ao produtor calculada com dados oficiais da PAM/IBGE.</CardDescription>
         </div>
-        <CardAction>
+        <div className="self-start sm:self-auto shrink-0">
           <Button
             variant="outline"
             size="sm"
@@ -91,7 +91,7 @@ export function IbgeValorProducaoCard() {
             <RefreshCw className={`size-3.5 ${carregando ? "animate-spin" : ""}`} />
             <span>Atualizar</span>
           </Button>
-        </CardAction>
+        </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -120,13 +120,15 @@ export function IbgeValorProducaoCard() {
           })}
         </div>
         <Alert variant="warning">
-          <AlertCircle className="size-4" />
+          <AlertCircle className="size-4 shrink-0" />
           <AlertDescription className="text-xs">
             Estimativa derivada de valor da produção (mil R$) ÷ quantidade produzida (toneladas). É uma média anual agregada, não cotação spot, oferta de compra ou preço atualizado diariamente.
           </AlertDescription>
         </Alert>
         <div>
-          <Badge variant="outline">Fonte pública · PAM/IBGE · valores nominais do ano de referência</Badge>
+          <Badge variant="outline" className="max-w-full whitespace-normal h-auto py-1 text-left leading-snug">
+            Fonte pública · PAM/IBGE · valores nominais do ano de referência
+          </Badge>
         </div>
       </CardContent>
     </Card>

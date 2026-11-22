@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Calendar, CloudRain, Wind, ArrowDown, ArrowUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   formatarDataDiaMes,
   type PrevisaoDiariaItemClima,
@@ -49,21 +49,19 @@ export function PrevisaoDiaria({
 
   return (
     <Card id="previsao-diaria">
-      <CardHeader className="border-b border-border/60">
-        <div className="flex items-center gap-2">
-          <Calendar className="size-4 text-emerald-600 dark:text-emerald-400" />
-          <CardTitle className="text-sm font-semibold">
-            {tituloPrevisao}
+      <CardHeader className="flex flex-col gap-2 border-b border-border/60 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Calendar className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>{tituloPrevisao}</span>
           </CardTitle>
+          <CardDescription className="text-xs mt-0.5">
+            Comportamento esperado da temperatura, chuvas acumuladas e ventos para os próximos dias.
+          </CardDescription>
         </div>
-        <CardAction>
-          <Badge variant="outline">
-            {badgeTendencia}
-          </Badge>
-        </CardAction>
-        <CardDescription className="text-xs">
-          Comportamento esperado da temperatura, chuvas acumuladas e ventos para os próximos dias.
-        </CardDescription>
+        <Badge variant="outline" className="self-start sm:self-auto shrink-0">
+          {badgeTendencia}
+        </Badge>
       </CardHeader>
 
       <CardContent className="divide-y divide-border/50">

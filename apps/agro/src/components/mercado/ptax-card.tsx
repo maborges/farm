@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Building2, Clock3, DollarSign, Info, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { inputBaseClassName } from "@/components/ui/input";
 import { useMoedaMercado } from "@/lib/mercado/moeda-store";
 import {
@@ -120,53 +120,56 @@ export function PtaxCard() {
   const shownState = visibleQuote ? effectiveState : "INDISPONIVEL";
   return (
     <Card className="sm:col-span-2 lg:col-span-3" aria-label="Câmbio PTAX — Banco Central do Brasil">
-      <CardHeader className="border-b border-border/60">
-        <div className="flex items-center gap-2.5">
-          <div className="rounded-sm bg-emerald-600/10 p-2 text-emerald-700 dark:text-emerald-400"><DollarSign className="size-5" /></div>
-          <div>
-            <CardTitle>Câmbio PTAX — Banco Central do Brasil</CardTitle>
-            <CardDescription className="text-[11px]">Taxa de referência oficial · valor em reais por unidade da moeda</CardDescription>
+      <CardHeader className="flex flex-col gap-3 border-b border-border/60 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-2.5 min-w-0">
+          <div className="rounded-sm bg-emerald-600/10 p-2 text-emerald-700 dark:text-emerald-400 shrink-0"><DollarSign className="size-5" /></div>
+          <div className="min-w-0">
+            <CardTitle className="text-sm sm:text-base font-semibold leading-snug">Câmbio PTAX — Banco Central do Brasil</CardTitle>
+            <CardDescription className="text-[11px] mt-0.5">Taxa de referência oficial · valor em reais por unidade da moeda</CardDescription>
           </div>
         </div>
-        <CardAction>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <label htmlFor="ptax-currency" className="sr-only">Moeda para consultar</label>
-            <select
-              id="ptax-currency"
-              aria-label="Moeda para consultar"
-              className={cn(inputBaseClassName, "w-auto text-xs px-2.5")}
-              value={currency}
-              onChange={(event) => {
-                const selected = CURRENCIES.find((item) => item.code === event.target.value)?.code;
-                if (selected) {
-                  setCurrency(selected);
-                }
-              }}
-            >
-              <optgroup label="Moedas padrão">
-                {CURRENCIES.slice(0, 2).map((item) => <option key={item.code} value={item.code}>{item.name} ({item.code})</option>)}
-              </optgroup>
-              <optgroup label="Outras moedas">
-                {CURRENCIES.slice(2).map((item) => <option key={item.code} value={item.code}>{item.name} ({item.code})</option>)}
-              </optgroup>
-            </select>
-            <Badge variant={shownState === "NORMAL" ? "success" : shownState === "INDISPONIVEL" ? "destructive" : "warning"}>{statusLabel(shownState)}</Badge>
-          </div>
-        </CardAction>
+        <div className="flex flex-col gap-2 w-full sm:w-auto sm:items-end shrink-0">
+          <label htmlFor="ptax-currency" className="sr-only">Moeda para consultar</label>
+          <select
+            id="ptax-currency"
+            aria-label="Moeda para consultar"
+            className={cn(inputBaseClassName, "w-full sm:w-auto sm:min-w-[200px] text-xs px-2.5")}
+            value={currency}
+            onChange={(event) => {
+              const selected = CURRENCIES.find((item) => item.code === event.target.value)?.code;
+              if (selected) {
+                setCurrency(selected);
+              }
+            }}
+          >
+            <optgroup label="Moedas padrão">
+              {CURRENCIES.slice(0, 2).map((item) => <option key={item.code} value={item.code}>{item.name} ({item.code})</option>)}
+            </optgroup>
+            <optgroup label="Outras moedas">
+              {CURRENCIES.slice(2).map((item) => <option key={item.code} value={item.code}>{item.name} ({item.code})</option>)}
+            </optgroup>
+          </select>
+          <Badge
+            variant={shownState === "NORMAL" ? "success" : shownState === "INDISPONIVEL" ? "destructive" : "warning"}
+            className="self-start sm:self-end max-w-full whitespace-normal h-auto py-0.5 leading-snug text-left"
+          >
+            {statusLabel(shownState)}
+          </Badge>
+        </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {visibleQuote ? (
-          <div className="grid grid-cols-2 gap-3" aria-live="polite">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3" aria-live="polite">
             <Card variant="muted" size="sm">
               <CardContent className="flex flex-col gap-0.5">
                 <p className="text-xs text-muted-foreground">Compra</p>
-                <p className="text-xl font-bold tabular-nums text-foreground">{formatCurrencyRate(visibleQuote.cotacaoCompra!, currency)}</p>
+                <p className="text-lg sm:text-xl font-bold tabular-nums text-foreground">{formatCurrencyRate(visibleQuote.cotacaoCompra!, currency)}</p>
               </CardContent>
             </Card>
             <Card variant="muted" size="sm">
               <CardContent className="flex flex-col gap-0.5">
                 <p className="text-xs text-muted-foreground">Venda</p>
-                <p className="text-xl font-bold tabular-nums text-foreground">{formatCurrencyRate(visibleQuote.cotacaoVenda!, currency)}</p>
+                <p className="text-lg sm:text-xl font-bold tabular-nums text-foreground">{formatCurrencyRate(visibleQuote.cotacaoVenda!, currency)}</p>
               </CardContent>
             </Card>
           </div>

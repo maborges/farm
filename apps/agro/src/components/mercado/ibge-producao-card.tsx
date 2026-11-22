@@ -15,7 +15,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { inputBaseClassName } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -220,24 +220,24 @@ export function IbgeProducaoCard() {
 
   return (
     <Card>
-      <CardHeader className="border-b border-border/60">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <CardTitle className="text-sm font-semibold tracking-tight text-foreground flex items-center gap-2">
-              <BarChart3 className="size-4 text-emerald-600 dark:text-emerald-400" />
-              Inteligência e Estatísticas Oficiais de Produção (IBGE/SIDRA)
-            </CardTitle>
-            <Badge variant="recommendation">
-              Dados Públicos Gratuitos
-            </Badge>
+      <CardHeader className="flex flex-col gap-3 border-b border-border/60">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col gap-1 min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <CardTitle className="text-sm font-semibold tracking-tight text-foreground flex items-center gap-2">
+                <BarChart3 className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>Inteligência e Estatísticas Oficiais de Produção (IBGE/SIDRA)</span>
+              </CardTitle>
+              <Badge variant="recommendation" className="shrink-0">
+                Dados Públicos Gratuitos
+              </Badge>
+            </div>
+            <CardDescription className="text-xs">
+              Séries históricas e estimativas da Produção Agrícola Municipal (PAM), Pecuária (PPM) e Levantamento Sistemático (LSPA).
+            </CardDescription>
           </div>
-          <CardDescription className="text-xs">
-            Séries históricas e estimativas da Produção Agrícola Municipal (PAM), Pecuária (PPM) e Levantamento Sistemático (LSPA).
-          </CardDescription>
-        </div>
 
-        <CardAction>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
             {isOffline && (
               <Badge variant="warning">
                 <WifiOff className="size-3" />
@@ -252,22 +252,22 @@ export function IbgeProducaoCard() {
               aria-label="Atualizar estatísticas do IBGE"
             >
               <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">Atualizar</span>
+              <span>Atualizar</span>
             </Button>
           </div>
-        </CardAction>
+        </div>
 
         {/* Barra de Filtros e Controles */}
-        <div className="col-span-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
           {/* 1. Cultura / Atividade */}
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 min-w-0">
             <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
-              <Sprout className="size-3" /> Cultura / Atividade
+              <Sprout className="size-3 shrink-0" /> Cultura / Atividade
             </Label>
             <select
               value={produtoId}
               onChange={(e) => setProdutoId(e.target.value)}
-              className={cn(inputBaseClassName, "text-xs px-2")}
+              className={cn(inputBaseClassName, "w-full min-w-0 text-xs px-2")}
               aria-label="Selecionar produto ou rebanho agropecuário"
             >
               <optgroup label="Lavouras">
@@ -301,14 +301,14 @@ export function IbgeProducaoCard() {
           </div>
 
           {/* 2. Nível Territorial */}
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 min-w-0">
             <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
-              <MapPin className="size-3" /> Abrangência
+              <MapPin className="size-3 shrink-0" /> Abrangência
             </Label>
             <select
               value={nivel}
               onChange={(e) => setNivel(e.target.value as NivelTerritorialIbge)}
-              className={cn(inputBaseClassName, "text-xs px-2")}
+              className={cn(inputBaseClassName, "w-full min-w-0 text-xs px-2")}
               aria-label="Selecionar nível territorial"
             >
               <option value="BRASIL">Brasil (Nacional)</option>
@@ -321,14 +321,14 @@ export function IbgeProducaoCard() {
 
           {/* 3. UF ou Município dependendo do Nível */}
           {nivel !== "BRASIL" ? (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 min-w-0">
               <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
                 Estado (UF)
               </Label>
               <select
                 value={uf}
                 onChange={(e) => setUf(e.target.value)}
-                className={cn(inputBaseClassName, "text-xs px-2")}
+                className={cn(inputBaseClassName, "w-full min-w-0 text-xs px-2")}
                 aria-label="Selecionar estado"
               >
                 {ufsDisponiveis.map((u) => (
@@ -339,11 +339,11 @@ export function IbgeProducaoCard() {
               </select>
             </div>
           ) : (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 min-w-0">
               <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
-                <Layers className="size-3" /> Pesquisa Primária
+                <Layers className="size-3 shrink-0" /> Pesquisa Primária
               </Label>
-              <div className="h-8 px-2.5 py-1 text-xs rounded-sm border border-border/80 bg-muted/40 text-muted-foreground flex items-center">
+              <div className="h-8 px-2.5 py-1 text-xs rounded-sm border border-border/80 bg-muted/40 text-muted-foreground flex items-center truncate">
                 {fonteLspa ? "LSPA (Estimativa Mensal)" : produtoAtual.tipo === "LAVOURA" ? "PAM (Consolidado Anual)" : "PPM (Consolidado Anual)"}
               </div>
             </div>
@@ -351,7 +351,7 @@ export function IbgeProducaoCard() {
 
           {/* 4. Município ou Alternador LSPA */}
           {nivel === "MUNICIPIO" ? (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 min-w-0">
               <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
                 Município
               </Label>
@@ -359,7 +359,7 @@ export function IbgeProducaoCard() {
                 value={municipio}
                 onChange={(e) => setMunicipio(e.target.value)}
                 disabled={carregandoMunicipios || municipiosLista.length === 0}
-                className={cn(inputBaseClassName, "text-xs px-2")}
+                className={cn(inputBaseClassName, "w-full min-w-0 text-xs px-2")}
                 aria-label="Selecionar município"
               >
                 {carregandoMunicipios ? (
@@ -374,9 +374,9 @@ export function IbgeProducaoCard() {
               </select>
             </div>
           ) : suportaLspa ? (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 min-w-0">
               <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
-                <Calendar className="size-3" /> Série / Regime
+                <Calendar className="size-3 shrink-0" /> Série / Regime
               </Label>
               <div className="flex gap-1 h-8 items-center">
                 <Button
@@ -398,11 +398,11 @@ export function IbgeProducaoCard() {
               </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 min-w-0">
               <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
-                <Calendar className="size-3" /> Periodicidade
+                <Calendar className="size-3 shrink-0" /> Periodicidade
               </Label>
-              <div className="h-8 px-2.5 py-1 text-xs rounded-sm border border-border/80 bg-muted/40 text-muted-foreground flex items-center">
+              <div className="h-8 px-2.5 py-1 text-xs rounded-sm border border-border/80 bg-muted/40 text-muted-foreground flex items-center truncate">
                 Anual (Censo / Pesquisa PPM)
               </div>
             </div>
@@ -443,7 +443,7 @@ export function IbgeProducaoCard() {
           <>
             {/* Metadados e Localidade */}
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs border-b border-border/40 pb-2">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="font-semibold text-foreground">
                   {estatisticas.localidade.nome || "Brasil"}
                 </span>
@@ -452,18 +452,18 @@ export function IbgeProducaoCard() {
                   {estatisticas.pesquisa} (Tabela {estatisticas.tabelaSidra})
                 </span>
                 {(estatisticas.estadoDisponibilidade === "DEFASADO" || estatisticas.estadoDisponibilidade === "FONTE_INDISPONIVEL") && (
-                  <Badge variant="warning">
+                  <Badge variant="warning" className="whitespace-normal h-auto py-0.5 leading-snug">
                     {estatisticas.estadoDisponibilidade === "FONTE_INDISPONIVEL" ? "Fonte indisponível — dado salvo" : "Defasado"}
                   </Badge>
                 )}
                 {estatisticas.estadoDisponibilidade === "SEM_DADOS" && (
-                  <Badge variant="outline">
+                  <Badge variant="outline" className="whitespace-normal h-auto py-0.5 leading-snug">
                     Sem registros para a localidade
                   </Badge>
                 )}
               </div>
 
-              <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
                 <span>
                   Último período:{" "}
                   <strong className="text-foreground">

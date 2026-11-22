@@ -5,6 +5,7 @@ import { ArrowRightLeft, DollarSign, Map, Scale, ShieldCheck, Truck } from "luci
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { HorizontalScrollRail } from "@/components/layout/horizontal-scroll-rail";
 import { CalculadoraAreas } from "./calculadora-areas";
 import { CalculadoraConversorGeral } from "./calculadora-conversor-geral";
 import { CalculadoraCustoHectare } from "./calculadora-custo-hectare";
@@ -63,12 +64,12 @@ export function CalculadorasContainer() {
 
   return (
     <div className="flex flex-col gap-3.5 sm:gap-4">
-      {/* Barra de Navegação entre Ferramentas (Deslizante no Mobile / Segmented no Tablet & Desktop) */}
-      <div
-        className="flex items-center gap-1.5 p-1 rounded-sm bg-muted/60 border border-border/60 overflow-x-auto scrollbar-none snap-x snap-mandatory sm:flex-wrap"
+      {/* Barra de Navegação entre Ferramentas (Deslizante com Indicação no Mobile / Segmented no Tablet & Desktop) */}
+      <HorizontalScrollRail
         role="tablist"
-        aria-label="Selecionar calculadora agrícola"
-        data-testid="calculadoras-segmented-bar"
+        ariaLabel="Selecionar calculadora agrícola"
+        testId="calculadoras-segmented-bar"
+        contentClassName="p-1 rounded-sm bg-muted/60 border border-border/60 sm:flex-wrap"
       >
         {ABAS_CALCULADORAS.map((aba) => {
           const Icone = aba.icone;
@@ -90,7 +91,7 @@ export function CalculadorasContainer() {
             </Button>
           );
         })}
-      </div>
+      </HorizontalScrollRail>
 
       {/* Conteúdo da Calculadora Ativa */}
       <div>

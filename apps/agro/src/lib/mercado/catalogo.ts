@@ -215,6 +215,22 @@ const FONTE_CONAB_PADRAO: FonteReferencia = {
   descricaoAcesso: "Preços médios mensais e levantamentos de safra",
 };
 
+function criarFonteCepea(
+  id: string,
+  url: string,
+  abrangencia: string
+): FonteReferencia {
+  return {
+    id,
+    nome: "CEPEA/ESALQ",
+    entidade: "Centro de Estudos Avançados em Economia Aplicada (USP/FEALQ)",
+    url,
+    tipoFonte: "PESQUISA_PRECO_FISICO",
+    abrangencia,
+    descricaoAcesso: "Indicador oficial de mercado spot físico",
+  };
+}
+
 /**
  * Catálogo Oficial de 22 Produtos Agropecuários com Fontes Auditadas
  */
@@ -270,7 +286,15 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: true,
-    fontesReferencia: [FONTE_DERAL_PADRAO, FONTE_CONAB_PADRAO],
+    fontesReferencia: [
+      FONTE_DERAL_PADRAO,
+      criarFonteCepea(
+        "cepea-milho",
+        "https://www.cepea.org.br/br/indicador/milho.aspx",
+        "Campinas/SP — Indicador ESALQ/BM&FBovespa"
+      ),
+      FONTE_CONAB_PADRAO,
+    ],
   },
   {
     id: "boi-gordo",
@@ -290,7 +314,15 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: true,
-    fontesReferencia: [FONTE_DERAL_PADRAO, FONTE_CONAB_PADRAO],
+    fontesReferencia: [
+      FONTE_DERAL_PADRAO,
+      criarFonteCepea(
+        "cepea-boi-gordo",
+        "https://www.cepea.org.br/br/indicador/boi-gordo.aspx",
+        "São Paulo e Praças Nacionais — Indicador CEPEA/B3"
+      ),
+      FONTE_CONAB_PADRAO,
+    ],
   },
   {
     id: "cafe-arabica",
@@ -310,7 +342,15 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: true,
-    fontesReferencia: [FONTE_DERAL_PADRAO, FONTE_CONAB_PADRAO],
+    fontesReferencia: [
+      FONTE_DERAL_PADRAO,
+      criarFonteCepea(
+        "cepea-cafe",
+        "https://www.cepea.org.br/br/indicador/cafe.aspx",
+        "Sudeste e Praças Produtoras — Indicador CEPEA/ESALQ"
+      ),
+      FONTE_CONAB_PADRAO,
+    ],
   },
   {
     id: "trigo",
@@ -330,7 +370,15 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: false,
-    fontesReferencia: [FONTE_DERAL_PADRAO, FONTE_CONAB_PADRAO],
+    fontesReferencia: [
+      FONTE_DERAL_PADRAO,
+      criarFonteCepea(
+        "cepea-trigo",
+        "https://www.cepea.org.br/br/indicador/trigo.aspx",
+        "Paraná e Rio Grande do Sul — Média Lote"
+      ),
+      FONTE_CONAB_PADRAO,
+    ],
   },
   {
     id: "arroz",
@@ -350,7 +398,15 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: false,
-    fontesReferencia: [FONTE_DERAL_PADRAO, FONTE_CONAB_PADRAO],
+    fontesReferencia: [
+      FONTE_DERAL_PADRAO,
+      criarFonteCepea(
+        "cepea-arroz",
+        "https://www.cepea.org.br/br/indicador/arroz.aspx",
+        "Rio Grande do Sul (RS) — Em Casca"
+      ),
+      FONTE_CONAB_PADRAO,
+    ],
   },
   {
     id: "feijao",
@@ -391,7 +447,7 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: false,
-    fontesReferencia: [FONTE_DERAL_PADRAO],
+    fontesReferencia: [FONTE_DERAL_PADRAO, FONTE_CONAB_PADRAO],
   },
   {
     id: "feijao-preto",
@@ -411,7 +467,7 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: false,
-    fontesReferencia: [FONTE_DERAL_PADRAO],
+    fontesReferencia: [FONTE_DERAL_PADRAO, FONTE_CONAB_PADRAO],
   },
   {
     id: "aveia-branca",
@@ -431,7 +487,7 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: false,
-    fontesReferencia: [FONTE_DERAL_PADRAO],
+    fontesReferencia: [FONTE_DERAL_PADRAO, FONTE_CONAB_PADRAO],
   },
   {
     id: "canola",
@@ -451,7 +507,7 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: false,
-    fontesReferencia: [FONTE_DERAL_PADRAO],
+    fontesReferencia: [FONTE_DERAL_PADRAO, FONTE_CONAB_PADRAO],
   },
   {
     id: "cevada",
@@ -471,7 +527,7 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: false,
-    fontesReferencia: [FONTE_DERAL_PADRAO],
+    fontesReferencia: [FONTE_DERAL_PADRAO, FONTE_CONAB_PADRAO],
   },
   {
     id: "cana-de-acucar",
@@ -491,7 +547,7 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: false,
-    fontesReferencia: [FONTE_DERAL_PADRAO],
+    fontesReferencia: [FONTE_DERAL_PADRAO, FONTE_CONAB_PADRAO],
   },
   {
     id: "erva-mate",
@@ -511,7 +567,7 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: false,
-    fontesReferencia: [FONTE_DERAL_PADRAO],
+    fontesReferencia: [FONTE_DERAL_PADRAO, FONTE_CONAB_PADRAO],
   },
   {
     id: "mandioca-industrial",
@@ -531,7 +587,15 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: false,
-    fontesReferencia: [FONTE_DERAL_PADRAO],
+    fontesReferencia: [
+      FONTE_DERAL_PADRAO,
+      criarFonteCepea(
+        "cepea-mandioca",
+        "https://www.cepea.org.br/br/indicador/mandioca.aspx",
+        "Paraná, SP, MS e MG — Raiz posta fecularia"
+      ),
+      FONTE_CONAB_PADRAO,
+    ],
   },
   {
     id: "boi-magro",
@@ -551,7 +615,7 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: false,
-    fontesReferencia: [FONTE_DERAL_PADRAO],
+    fontesReferencia: [FONTE_DERAL_PADRAO, FONTE_CONAB_PADRAO],
   },
   {
     id: "frango-vivo",
@@ -571,7 +635,15 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: false,
-    fontesReferencia: [FONTE_DERAL_PADRAO],
+    fontesReferencia: [
+      FONTE_DERAL_PADRAO,
+      criarFonteCepea(
+        "cepea-frango",
+        "https://www.cepea.org.br/br/indicador/frango.aspx",
+        "São Paulo — Mercado Atacadista"
+      ),
+      FONTE_CONAB_PADRAO,
+    ],
   },
   {
     id: "leite",
@@ -591,7 +663,15 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: false,
-    fontesReferencia: [FONTE_DERAL_PADRAO],
+    fontesReferencia: [
+      FONTE_DERAL_PADRAO,
+      criarFonteCepea(
+        "cepea-leite",
+        "https://www.cepea.org.br/br/indicador/leite.aspx",
+        "Média Brasil (BA, GO, MG, PR, RS, SC, SP)"
+      ),
+      FONTE_CONAB_PADRAO,
+    ],
   },
   {
     id: "ovo-grande",
@@ -611,7 +691,7 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: false,
-    fontesReferencia: [FONTE_DERAL_PADRAO],
+    fontesReferencia: [FONTE_DERAL_PADRAO, FONTE_CONAB_PADRAO],
   },
   {
     id: "suino",
@@ -631,7 +711,15 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: false,
-    fontesReferencia: [FONTE_DERAL_PADRAO],
+    fontesReferencia: [
+      FONTE_DERAL_PADRAO,
+      criarFonteCepea(
+        "cepea-suino",
+        "https://www.cepea.org.br/br/indicador/suino.aspx",
+        "SP, MG, PR, RS e SC — Vivo Independente"
+      ),
+      FONTE_CONAB_PADRAO,
+    ],
   },
   {
     id: "vaca-em-pe",
@@ -651,7 +739,7 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: false,
-    fontesReferencia: [FONTE_DERAL_PADRAO],
+    fontesReferencia: [FONTE_DERAL_PADRAO, FONTE_CONAB_PADRAO],
   },
   // 1 Item Cadastral com Link Homologado (sem cotação DERAL nesta fase)
   {
@@ -672,7 +760,14 @@ export const PRODUTOS_CATALOGO: ProdutoCatalogo[] = [
     estadoDisponibilidade: "REFERENCIA_INSTITUCIONAL",
     situacaoIntegracao: "LINK_HOMOLOGADO",
     destaque: true,
-    fontesReferencia: [FONTE_CONAB_PADRAO],
+    fontesReferencia: [
+      FONTE_CONAB_PADRAO,
+      criarFonteCepea(
+        "cepea-algodao",
+        "https://www.cepea.org.br/br/indicador/algodao.aspx",
+        "Brasil — Indicador CEPEA/ESALQ Pluma"
+      ),
+    ],
   },
 ];
 
