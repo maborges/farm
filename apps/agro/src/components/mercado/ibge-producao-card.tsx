@@ -258,7 +258,7 @@ export function IbgeProducaoCard() {
         </div>
 
         {/* Barra de Filtros e Controles */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
+        <div className="grid grid-cols-1 @[520px]/main:grid-cols-2 @[820px]/main:grid-cols-4 gap-2.5 pt-1">
           {/* 1. Cultura / Atividade */}
           <div className="flex flex-col gap-1 min-w-0">
             <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
@@ -267,7 +267,7 @@ export function IbgeProducaoCard() {
             <select
               value={produtoId}
               onChange={(e) => setProdutoId(e.target.value)}
-              className={cn(inputBaseClassName, "w-full min-w-0 text-xs px-2")}
+              className={cn(inputBaseClassName, "w-full min-w-0 md:text-xs px-2.5 md:px-2")}
               aria-label="Selecionar produto ou rebanho agropecuário"
             >
               <optgroup label="Lavouras">
@@ -308,7 +308,7 @@ export function IbgeProducaoCard() {
             <select
               value={nivel}
               onChange={(e) => setNivel(e.target.value as NivelTerritorialIbge)}
-              className={cn(inputBaseClassName, "w-full min-w-0 text-xs px-2")}
+              className={cn(inputBaseClassName, "w-full min-w-0 md:text-xs px-2.5 md:px-2")}
               aria-label="Selecionar nível territorial"
             >
               <option value="BRASIL">Brasil (Nacional)</option>
@@ -328,7 +328,7 @@ export function IbgeProducaoCard() {
               <select
                 value={uf}
                 onChange={(e) => setUf(e.target.value)}
-                className={cn(inputBaseClassName, "w-full min-w-0 text-xs px-2")}
+                className={cn(inputBaseClassName, "w-full min-w-0 md:text-xs px-2.5 md:px-2")}
                 aria-label="Selecionar estado"
               >
                 {ufsDisponiveis.map((u) => (
@@ -343,7 +343,7 @@ export function IbgeProducaoCard() {
               <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
                 <Layers className="size-3 shrink-0" /> Pesquisa Primária
               </Label>
-              <div className="h-8 px-2.5 py-1 text-xs rounded-sm border border-border/80 bg-muted/40 text-muted-foreground flex items-center truncate">
+              <div className="h-11 md:h-8 px-3 md:px-2.5 py-1 text-sm md:text-xs rounded-lg md:rounded-sm border border-border/80 bg-muted/40 text-muted-foreground flex items-center truncate">
                 {fonteLspa ? "LSPA (Estimativa Mensal)" : produtoAtual.tipo === "LAVOURA" ? "PAM (Consolidado Anual)" : "PPM (Consolidado Anual)"}
               </div>
             </div>
@@ -359,7 +359,7 @@ export function IbgeProducaoCard() {
                 value={municipio}
                 onChange={(e) => setMunicipio(e.target.value)}
                 disabled={carregandoMunicipios || municipiosLista.length === 0}
-                className={cn(inputBaseClassName, "w-full min-w-0 text-xs px-2")}
+                className={cn(inputBaseClassName, "w-full min-w-0 md:text-xs px-2.5 md:px-2")}
                 aria-label="Selecionar município"
               >
                 {carregandoMunicipios ? (
@@ -378,12 +378,12 @@ export function IbgeProducaoCard() {
               <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
                 <Calendar className="size-3 shrink-0" /> Série / Regime
               </Label>
-              <div className="flex gap-1 h-8 items-center">
+              <div className="flex gap-1.5 md:gap-1 min-h-11 md:min-h-8 items-center">
                 <Button
                   variant={!fonteLspa ? "default" : "outline"}
                   size="sm"
                   onClick={() => setFonteLspa(false)}
-                  className="flex-1 h-7 text-[11px] px-2"
+                  className="flex-1 text-xs md:text-[11px] px-2"
                 >
                   PAM Anual
                 </Button>
@@ -391,7 +391,7 @@ export function IbgeProducaoCard() {
                   variant={fonteLspa ? "default" : "outline"}
                   size="sm"
                   onClick={() => setFonteLspa(true)}
-                  className="flex-1 h-7 text-[11px] px-2"
+                  className="flex-1 text-xs md:text-[11px] px-2"
                 >
                   LSPA Mensal
                 </Button>
@@ -402,7 +402,7 @@ export function IbgeProducaoCard() {
               <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
                 <Calendar className="size-3 shrink-0" /> Periodicidade
               </Label>
-              <div className="h-8 px-2.5 py-1 text-xs rounded-sm border border-border/80 bg-muted/40 text-muted-foreground flex items-center truncate">
+              <div className="h-11 md:h-8 px-3 md:px-2.5 py-1 text-sm md:text-xs rounded-lg md:rounded-sm border border-border/80 bg-muted/40 text-muted-foreground flex items-center truncate">
                 Anual (Censo / Pesquisa PPM)
               </div>
             </div>
@@ -413,7 +413,7 @@ export function IbgeProducaoCard() {
       <CardContent className="flex flex-col gap-4">
         {loading && !estatisticas ? (
           /* Skeletons para Zero Layout Shift */
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 @[460px]/main:grid-cols-2 @[780px]/main:grid-cols-4 gap-3">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="h-24 rounded-sm border border-border/60 bg-muted/30 p-3 flex flex-col gap-2">
                 <Skeleton className="h-3 w-2/3" />
@@ -483,7 +483,7 @@ export function IbgeProducaoCard() {
             </div>
 
             {/* Grid de Indicadores */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 @[460px]/main:grid-cols-2 @[780px]/main:grid-cols-4 gap-3">
               {estatisticas.indicadores.map((ind) => (
                 <Card
                   key={`${ind.id}_${ind.recorte ?? ""}`}

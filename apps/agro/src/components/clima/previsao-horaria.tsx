@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Clock, Droplets, Wind, CloudRain } from "lucide-react";
+import { HorizontalScrollRail } from "@/components/layout/horizontal-scroll-rail";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -59,12 +60,10 @@ export function PrevisaoHoraria({
 
       <CardContent>
         {/* Faixa deslizante horizontal responsiva */}
-        <div
-          className="flex gap-2.5 overflow-x-auto pb-2 pt-1 scroll-smooth snap-x snap-mandatory focus:outline-none"
-          tabIndex={0}
-          role="region"
-          aria-label="Projeção horária das próximas 24 horas"
-          id="scroll-previsao-horaria"
+        <HorizontalScrollRail
+          ariaLabel="Projeção horária das próximas 24 horas"
+          testId="scroll-previsao-horaria"
+          contentClassName="pb-2 pt-1"
         >
           {lista24h.map((item, idx) => {
             const horaFormatada = formatarHorario(item.horaIso, fusoHorario);
@@ -77,7 +76,7 @@ export function PrevisaoHoraria({
             return (
               <div
                 key={item.horaIso || idx}
-                className="shrink-0 w-24 p-2.5 rounded-sm border border-border/60 bg-muted/20 flex flex-col items-center text-center gap-1.5 snap-start hover:border-primary/40 hover:bg-muted/40 transition-colors"
+                className="shrink-0 w-[104px] md:w-24 p-3 md:p-2.5 rounded-xl md:rounded-sm border border-border/60 bg-muted/20 flex flex-col items-center text-center gap-1.5 snap-start hover:border-primary/40 hover:bg-muted/40 transition-colors"
                 data-hora-iso={item.horaIso}
                 data-horario-item="true"
               >
@@ -92,31 +91,31 @@ export function PrevisaoHoraria({
                 </div>
 
                 {/* Temperatura */}
-                <span className="text-sm font-bold text-foreground font-mono">
+                <span className="text-base md:text-sm font-bold text-foreground font-mono">
                   {temp}
                 </span>
 
                 {/* Chuva */}
-                <div className="flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400">
+                <div className="flex items-center gap-1 text-xs md:text-[10px] text-blue-600 dark:text-blue-400">
                   <CloudRain className="size-3 shrink-0" />
                   <span>{chuvaPct ?? chuvaMm ?? "0%"}</span>
                 </div>
 
                 {/* Vento */}
-                <div className="flex items-center gap-1 text-[10px] text-teal-600 dark:text-teal-400">
+                <div className="flex items-center gap-1 text-xs md:text-[10px] text-teal-600 dark:text-teal-400">
                   <Wind className="size-3 shrink-0" />
                   <span>{vento ? `${vento}km/h` : "—"}</span>
                 </div>
 
                 {/* Umidade */}
-                <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <div className="flex items-center gap-1 text-xs md:text-[10px] text-muted-foreground">
                   <Droplets className="size-3 shrink-0 text-blue-500/70" />
                   <span>{umidade ?? "—"}</span>
                 </div>
               </div>
             );
           })}
-        </div>
+        </HorizontalScrollRail>
       </CardContent>
     </Card>
   );

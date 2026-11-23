@@ -119,7 +119,7 @@ export function CalculadoraFrete() {
         </Alert>
 
         {/* Formulário de Entradas */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 @[560px]/main:grid-cols-3 gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="quantidade-frete" className="text-xs">Carga a Transportar</Label>
             <Input
@@ -138,7 +138,7 @@ export function CalculadoraFrete() {
               id="unidade-carga"
               value={unidadeQuantidade}
               onChange={(e) => setUnidadeQuantidade(e.target.value as UnidadeMassaAgricola)}
-              className={cn(inputBaseClassName, "text-xs")}
+              className={cn(inputBaseClassName, "md:text-xs")}
             >
               <option value="TONELADAS">Toneladas métricas (t)</option>
               <option value="SACAS">Sacas agrícolas</option>
@@ -159,14 +159,14 @@ export function CalculadoraFrete() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 @[560px]/main:grid-cols-3 gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="tipo-tarifa" className="text-xs">Base da Tarifa</Label>
             <select
               id="tipo-tarifa"
               value={tipoTarifa}
               onChange={(e) => setTipoTarifa(e.target.value as TipoTarifaFrete)}
-              className={cn(inputBaseClassName, "text-xs")}
+              className={cn(inputBaseClassName, "md:text-xs")}
             >
               <option value="POR_TONELADA">R$ por Tonelada (R$/t)</option>
               <option value="POR_SACA">R$ por Saca (R$/saca)</option>
@@ -222,7 +222,7 @@ export function CalculadoraFrete() {
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Estimativa do Frete
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-1 @[480px]/main:grid-cols-2 @[780px]/main:grid-cols-4 gap-2.5">
               <Card variant="muted" size="sm">
                 <CardContent className="flex flex-col gap-0.5">
                   <span className="text-[11px] text-muted-foreground">Valor Total Estimado</span>

@@ -34,9 +34,10 @@ export function BottomNav(): React.ReactElement {
             <Link
               key={item.href}
               href={item.href}
+              aria-label={item.label}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "relative flex flex-col items-center justify-center h-full min-h-[48px] rounded-sm transition-all text-[11px] font-medium active:scale-95",
+                "relative flex flex-col items-center justify-center h-full min-h-[48px] rounded-lg transition-all text-[11px] font-medium active:scale-95",
                 isActive
                   ? "text-primary font-semibold"
                   : "text-muted-foreground hover:text-foreground"
@@ -59,7 +60,7 @@ export function BottomNav(): React.ReactElement {
                 <Icon className="w-4 h-4" />
               </div>
               <span className="leading-tight mt-0.5 truncate max-w-[68px]">
-                {item.label}
+                {item.shortLabel}
               </span>
             </Link>
           );

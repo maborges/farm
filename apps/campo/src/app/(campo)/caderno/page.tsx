@@ -746,7 +746,7 @@ export default function CadernoPage() {
                   value={descricao}
                   onChange={(e) => setDescricao(e.target.value)}
                   placeholder="Ex: presença de lagarta no talhão 7"
-                  className="rounded-sm border border-border bg-card px-4 py-4 text-base outline-none transition-colors focus:border-ring focus:bg-muted placeholder:text-muted-foreground/50"
+                  className="rounded-lg md:rounded-sm border border-border bg-card px-4 py-3.5 md:py-4 text-base outline-none transition-colors focus:border-ring focus:bg-muted placeholder:text-muted-foreground/50"
                   enterKeyHint="next"
                 />
               </CampoSurface>
@@ -758,7 +758,7 @@ export default function CadernoPage() {
                   onChange={(e) => setObservacao(e.target.value)}
                   placeholder="Complementos do registro, recomendação, detalhe técnico..."
                   rows={4}
-                  className="min-h-[120px] w-full resize-none rounded-sm border border-border bg-card px-4 py-3 text-sm outline-none transition-colors focus:border-ring focus:bg-muted placeholder:text-muted-foreground/50"
+                  className="min-h-[120px] w-full resize-none rounded-lg md:rounded-sm border border-border bg-card px-4 py-3 text-base md:text-sm outline-none transition-colors focus:border-ring focus:bg-muted placeholder:text-muted-foreground/50"
                   enterKeyHint="done"
                 />
               </CampoSurface>
@@ -1187,6 +1187,7 @@ export default function CadernoPage() {
       </section>
 
       <CampoStepNav
+        aboveBottomNav
         onBack={goBack}
         onNext={goNext}
         nextLabel={

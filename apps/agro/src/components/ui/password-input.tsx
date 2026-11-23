@@ -19,14 +19,14 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
           autoComplete={autoComplete}
           disabled={disabled}
           data-slot="input"
-          className={cn(inputBaseClassName, "pr-9", className)}
+          className={cn(inputBaseClassName, "pr-11 md:pr-9", className)}
           {...props}
         />
         <button
           type="button"
           onClick={() => setShowPassword((prev) => !prev)}
           disabled={disabled}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 size-6 flex items-center justify-center rounded-sm text-muted-foreground/80 hover:text-foreground hover:bg-muted/60 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:pointer-events-none disabled:opacity-40"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 size-9 md:size-6 flex items-center justify-center rounded-md md:rounded-sm text-muted-foreground/80 hover:text-foreground hover:bg-muted/60 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:pointer-events-none disabled:opacity-40"
           aria-label={showPassword ? "Ocultar senha" : "Visualizar senha"}
           title={showPassword ? "Ocultar senha" : "Visualizar senha"}
         >

@@ -21,6 +21,7 @@ import {
   Scale,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Sprout,
   Star,
   TrendingDown,
@@ -36,6 +37,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input, inputBaseClassName } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { agroApiUrl } from "@/lib/api-url";
 import { useLocalidadeClima } from "@/lib/clima/localidade-store";
 import {
@@ -156,7 +165,7 @@ function BlocoCotacaoDestaque({
   return (
     <div
       className={cn(
-        "p-2.5 rounded-sm border flex flex-col gap-1.5 min-h-[92px] justify-between",
+        "p-3 md:p-2.5 rounded-lg md:rounded-sm border flex flex-col gap-1.5 min-h-[92px] justify-between",
         ehHistorico
           ? "bg-amber-500/5 dark:bg-amber-950/20 border-amber-500/30"
           : "bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/20"
@@ -348,35 +357,36 @@ function CardCommodity({
         ehFavorito && "border-amber-500/40 ring-1 ring-amber-500/20"
       )}
     >
-      <CardHeader className="flex items-start justify-between gap-2 border-b border-border/50">
-        <div className="flex items-start gap-2.5 min-w-0 flex-1">
-          <div className="p-2 rounded-sm bg-muted text-foreground shrink-0">
-            <IconeCommodity
-              categoria={produto.categoriaMercado}
-              id={produto.id}
-              className="size-4 text-emerald-700 dark:text-emerald-400"
-            />
+      <CardHeader className="flex flex-col gap-2 border-b border-border/50">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+            <div className="p-2 rounded-lg md:rounded-sm bg-muted text-foreground shrink-0">
+              <IconeCommodity
+                categoria={produto.categoriaMercado}
+                id={produto.id}
+                className="size-4 text-emerald-700 dark:text-emerald-400"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <CardTitle className="text-sm font-semibold text-foreground leading-snug break-words">
+                {produto.nome}
+              </CardTitle>
+              <CardDescription className="text-xs md:text-[11px] mt-0.5">
+                {precoDeral ? precoDeral.unidade : produto.unidade}
+              </CardDescription>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <CardTitle className="text-sm font-semibold text-foreground leading-snug break-words">
-              {produto.nome}
-            </CardTitle>
-            <CardDescription className="text-[11px] mt-0.5">
-              {precoDeral ? precoDeral.unidade : produto.unidade}
-            </CardDescription>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-1 shrink-0">
           <Button
             type="button"
             variant="ghost"
-            size="icon-xs"
+            size="icon-sm"
             onClick={() => onToggleFavorito(produto.id)}
             data-testid={`btn-favorito-${produto.id}`}
             aria-pressed={ehFavorito}
             aria-label={ehFavorito ? `Remover ${produto.nome} dos favoritos` : `Fixar ${produto.nome} nos favoritos`}
             title={ehFavorito ? "Desafixar dos favoritos" : "Fixar no topo como favorito"}
+            className="shrink-0 -mt-0.5 -mr-1"
           >
             <Star
               className={cn(
@@ -385,10 +395,12 @@ function CardCommodity({
               )}
             />
           </Button>
+        </div>
 
+        <div className="flex flex-wrap items-center gap-1.5">
           <Badge
             variant={exibicao.badgeCabecalho.variant}
-            className="max-w-[125px] whitespace-normal h-auto py-0.5 leading-tight text-center text-[10px]"
+            className="whitespace-normal h-auto py-0.5 leading-tight text-left text-[10px]"
           >
             {exibicao.badgeCabecalho.texto}
           </Badge>
@@ -409,10 +421,10 @@ function CardCommodity({
             loadingMoeda={loadingMoeda}
           />
         ) : (
-          <div className="p-2.5 rounded-sm bg-muted/40 border border-border/60 flex flex-col gap-1.5">
+          <div className="p-3 md:p-2.5 rounded-lg md:rounded-sm bg-muted/40 border border-border/60 flex flex-col gap-1.5">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
-                <span className="text-[10px] text-muted-foreground block">
+                <span className="text-xs md:text-[10px] text-muted-foreground block">
                   Valor de Comercialização ({produto.moeda})
                 </span>
                 <span className="text-xs font-semibold text-foreground leading-snug block mt-0.5">
@@ -427,14 +439,14 @@ function CardCommodity({
                 </Badge>
               )}
             </div>
-            <p className="text-[10px] text-muted-foreground leading-snug">
+            <p className="text-xs md:text-[10px] text-muted-foreground leading-snug">
               {exibicao.subtituloIndisponivel}
             </p>
           </div>
         )}
 
         {/* Praça / Região e Outras Fontes Comparativas */}
-        <div className="flex flex-col gap-1.5 text-[11px]">
+        <div className="flex flex-col gap-1.5 text-xs md:text-[11px]">
           <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-muted-foreground">
             <span className="flex items-center gap-1 shrink-0">
               <MapPin className="size-3 text-muted-foreground shrink-0" />
@@ -446,8 +458,8 @@ function CardCommodity({
           </div>
 
           {exibicao.outrasFontes.length > 0 && (
-            <div className="rounded-sm border border-border/60 bg-muted/25 p-2 flex flex-col gap-1">
-              <div className="flex items-center justify-between text-[10px] font-semibold text-foreground">
+            <div className="rounded-lg md:rounded-sm border border-border/60 bg-muted/25 p-2.5 md:p-2 flex flex-col gap-1">
+              <div className="flex items-center justify-between text-xs md:text-[10px] font-semibold text-foreground">
                 <span className="flex items-center gap-1">
                   <Scale className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   {exibicao.destaque
@@ -456,7 +468,7 @@ function CardCommodity({
                 </span>
               </div>
 
-              <div className="divide-y divide-border/40 text-[10px]">
+              <div className="divide-y divide-border/40 text-xs md:text-[10px]">
                 {exibicao.outrasFontes.map((fonte) => (
                   <div key={fonte.chave} className="py-1 flex items-center justify-between gap-2">
                     <span className="text-muted-foreground min-w-0 flex-1 leading-snug">
@@ -484,8 +496,8 @@ function CardCommodity({
         </div>
 
         {/* Detalhes Agronômicos e Auditoria Criptográfica Recolhíveis */}
-        <Collapsible className="group rounded-sm border border-border/50 bg-muted/20">
-          <CollapsibleTrigger className="flex w-full cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+        <Collapsible className="group rounded-lg md:rounded-sm border border-border/50 bg-muted/20">
+          <CollapsibleTrigger className="flex w-full cursor-pointer list-none items-center justify-between gap-2 px-3 md:px-2.5 py-2 md:py-1.5 text-xs md:text-[11px] font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
             <span>Detalhes e auditoria</span>
             <ChevronDown className="size-3.5 shrink-0 transition-transform group-open:rotate-180" />
           </CollapsibleTrigger>
@@ -568,6 +580,7 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
   const [ufSelecionadaManual, setUfSelecionadaManual] = React.useState<string | null>(null);
   const [pracaAtiva, setPracaAtiva] = React.useState<string>("MEDIA_ESTADUAL");
   const [fonteAtiva, setFonteAtiva] = React.useState<string>("TODAS");
+  const [filtrosSheetAberto, setFiltrosSheetAberto] = React.useState(false);
   const [regiaoMultiMap, setRegiaoMultiMap] = React.useState<Record<string, CotacaoRegiaoApiItem>>({});
   const [precosMap, setPrecosMap] = React.useState<Record<string, PrecoPublicoItem>>({});
   const [estadoPrecos, setEstadoPrecos] = React.useState<EstadoPrecos>(
@@ -729,34 +742,57 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
 
   const totalGeral = initialProdutos.length;
   const dataReferenciaPrecos = Object.values(precosMap)[0]?.dataReferencia;
+  const filtrosAvancadosAtivos =
+    (pracaAtivaEfetiva !== "MEDIA_ESTADUAL" ? 1 : 0) +
+    (fonteAtiva !== "TODAS" ? 1 : 0) +
+    (apenasFavoritos ? 1 : 0);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3.5 md:gap-4">
       {/* Painel de Filtros Regionais, Favoritos e Busca */}
-      <div className="rounded-sm border border-border/60 bg-muted/20 p-3 flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="relative flex-1 sm:max-w-md min-w-0">
-            <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+      <div className="rounded-xl md:rounded-sm border border-border/60 bg-muted/20 p-3 flex flex-col gap-2.5 md:gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="relative flex-1 min-w-[210px] sm:max-w-md">
+            <Search className="size-4 md:size-3.5 absolute left-3 md:left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar por produto, praça ou fonte..."
-              className="pl-8 pr-7 text-xs"
+              className="pl-9 md:pl-8 pr-9 md:pr-7 md:text-xs"
               aria-label="Buscar produtos agropecuários no catálogo"
             />
             {busca && (
               <button
                 type="button"
                 onClick={() => setBusca("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 cursor-pointer"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 size-8 md:size-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground cursor-pointer"
                 aria-label="Limpar campo de busca"
               >
-                <X className="size-3.5" />
+                <X className="size-4 md:size-3.5" />
               </button>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 shrink-0">
+          {/* Botão Mobile de Filtros Avançados (Bottom Sheet) */}
+          <Button
+            type="button"
+            variant={filtrosAvancadosAtivos > 0 ? "default" : "outline"}
+            onClick={() => setFiltrosSheetAberto(true)}
+            data-testid="btn-filtros-mercado-mobile"
+            aria-label="Abrir filtros avançados de mercado"
+            className="sm:hidden shrink-0"
+          >
+            <SlidersHorizontal className="size-4" />
+            <span>Filtros</span>
+            {filtrosAvancadosAtivos > 0 && (
+              <span className="inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-primary-foreground/20 px-1 text-xs font-bold">
+                {filtrosAvancadosAtivos}
+              </span>
+            )}
+          </Button>
+
+          {/* Controles Desktop / Tablet inline */}
+          <div className="hidden sm:flex flex-wrap items-center justify-end gap-2 shrink-0">
             <Button
               type="button"
               variant={apenasFavoritos ? "default" : "outline"}
@@ -788,15 +824,20 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-1 @[520px]/main:grid-cols-2 @[820px]/main:grid-cols-3 gap-2.5">
           <div className="flex flex-col gap-1 min-w-0">
-            <Label
-              htmlFor="select-uf-mercado"
-              className="text-[11px] font-medium text-muted-foreground flex items-center gap-1"
-            >
-              <MapPin className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>Região (Estado / UF)</span>
-            </Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label
+                htmlFor="select-uf-mercado"
+                className="text-xs md:text-[11px] font-medium text-muted-foreground flex items-center gap-1"
+              >
+                <MapPin className="size-3.5 md:size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>Região (Estado / UF)</span>
+              </Label>
+              <span className="sm:hidden text-xs text-muted-foreground">
+                <strong>{produtosFiltrados.length}</strong> de {totalGeral}
+              </span>
+            </div>
             <select
               id="select-uf-mercado"
               value={ufAtiva}
@@ -807,7 +848,7 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
               }}
               aria-label="Selecionar estado ou região (UF)"
               data-testid="seletor-uf-mercado"
-              className={cn(inputBaseClassName, "w-full min-w-0 text-xs px-2.5")}
+              className={cn(inputBaseClassName, "w-full min-w-0 md:text-xs px-3 md:px-2.5")}
             >
               {UFS_MERCADO_BRASIL.map((uf) => (
                 <option key={uf.sigla} value={uf.sigla}>
@@ -823,7 +864,7 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
           </div>
 
           {pracasDisponiveis.length > 0 && (
-            <div className="flex flex-col gap-1 min-w-0">
+            <div className="hidden sm:flex flex-col gap-1 min-w-0">
               <Label
                 htmlFor="select-praca-deral"
                 className="text-[11px] font-medium text-muted-foreground"
@@ -836,7 +877,7 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
                 onChange={(e) => setPracaAtiva(e.target.value)}
                 aria-label={`Selecionar praça ou núcleo regional (${ufAtiva})`}
                 data-testid="seletor-praca-deral"
-                className={cn(inputBaseClassName, "w-full min-w-0 text-xs px-2.5")}
+                className={cn(inputBaseClassName, "w-full min-w-0 md:text-xs px-2.5")}
               >
                 <option value="MEDIA_ESTADUAL">
                   {ufAtiva} — Média Estadual ({pracasDisponiveis.length} praças)
@@ -852,8 +893,8 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
 
           <div
             className={cn(
-              "flex flex-col gap-1 min-w-0",
-              pracasDisponiveis.length > 0 ? "" : "sm:col-span-1 lg:col-span-2"
+              "hidden sm:flex flex-col gap-1 min-w-0",
+              pracasDisponiveis.length > 0 ? "" : "@[520px]/main:col-span-1 @[820px]/main:col-span-2"
             )}
           >
             <Label
@@ -869,7 +910,7 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
               onChange={(e) => setFonteAtiva(e.target.value)}
               aria-label="Filtrar por fonte de dados de mercado"
               data-testid="seletor-fonte-mercado"
-              className={cn(inputBaseClassName, "w-full min-w-0 text-xs px-2.5")}
+              className={cn(inputBaseClassName, "w-full min-w-0 md:text-xs px-2.5")}
             >
               <option value="TODAS">Todas (Comparativo Multi-Fonte)</option>
               <option value="DERAL">DERAL/SEAB-PR (Físico Semanal PR)</option>
@@ -889,6 +930,118 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
           </div>
         </div>
       </div>
+
+      {/* Bottom Sheet de Filtros Avançados no Mobile */}
+      <Sheet open={filtrosSheetAberto} onOpenChange={setFiltrosSheetAberto}>
+        <SheetContent side="bottom" data-testid="sheet-filtros-mercado">
+          <SheetHeader className="px-4 pt-1 pb-2 border-b border-border/60">
+            <SheetTitle className="text-base font-bold">Filtros de Mercado</SheetTitle>
+            <SheetDescription className="text-xs">
+              Refine por praça regional, fonte oficial e favoritos salvos.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex flex-col gap-4 px-4 py-1">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">Somente favoritos</p>
+                <p className="text-xs text-muted-foreground">
+                  {favoritosLoaded ? favoritos.length : 0} produto(s) fixado(s)
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant={apenasFavoritos ? "default" : "outline"}
+                size="sm"
+                aria-pressed={apenasFavoritos}
+                onClick={() => setApenasFavoritos((prev) => !prev)}
+                className="shrink-0"
+              >
+                <Star
+                  className={cn(
+                    "size-4",
+                    apenasFavoritos ? "fill-current" : "text-amber-500"
+                  )}
+                />
+                <span>{apenasFavoritos ? "Ativo" : "Ativar"}</span>
+              </Button>
+            </div>
+
+            {pracasDisponiveis.length > 0 && (
+              <div className="flex flex-col gap-1.5 min-w-0">
+                <Label htmlFor="mobile-select-praca-deral" className="text-xs font-medium text-muted-foreground">
+                  {ufAtiva === "PR" ? "Núcleo Regional DERAL-PR" : `Praça / Região (${ufAtiva})`}
+                </Label>
+                <select
+                  id="mobile-select-praca-deral"
+                  value={pracaAtivaEfetiva}
+                  onChange={(e) => setPracaAtiva(e.target.value)}
+                  className={cn(inputBaseClassName, "w-full min-w-0")}
+                >
+                  <option value="MEDIA_ESTADUAL">
+                    {ufAtiva} — Média Estadual ({pracasDisponiveis.length} praças)
+                  </option>
+                  {pracasDisponiveis.map((praca) => (
+                    <option key={praca} value={praca}>
+                      {ufAtiva === "PR" ? `Núcleo Regional: ${praca}` : praca}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-1.5 min-w-0">
+              <Label htmlFor="mobile-select-fonte-mercado" className="text-xs font-medium text-muted-foreground">
+                Fonte de Dados
+              </Label>
+              <select
+                id="mobile-select-fonte-mercado"
+                value={fonteAtiva}
+                onChange={(e) => setFonteAtiva(e.target.value)}
+                className={cn(inputBaseClassName, "w-full min-w-0")}
+              >
+                <option value="TODAS">Todas (Comparativo Multi-Fonte)</option>
+                <option value="DERAL">DERAL/SEAB-PR (Físico Semanal PR)</option>
+                <option value="IEA">IEA/SAA-SP (Diário SP / EDRs)</option>
+                {fontesUfDinamicas
+                  .filter(([val]) => val !== "IEA")
+                  .map(([val, label]) => (
+                    <option key={val} value={val}>
+                      {label}
+                    </option>
+                  ))}
+                <option value="IBGE">IBGE/SIDRA (Média Histórica Anual PAM)</option>
+                <option value="CEPEA">CEPEA/ESALQ (Indicador Spot)</option>
+                <option value="CONAB">CONAB/MAPA (Referência Federal)</option>
+                <option value="B3">B3 / Futuros</option>
+              </select>
+            </div>
+          </div>
+
+          <SheetFooter className="flex-row gap-2 border-t border-border/60 pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setPracaAtiva("MEDIA_ESTADUAL");
+                setFonteAtiva("TODAS");
+                setApenasFavoritos(false);
+              }}
+              className="flex-1"
+            >
+              Limpar
+            </Button>
+            <Button
+              type="button"
+              variant="default"
+              onClick={() => setFiltrosSheetAberto(false)}
+              className="flex-1 font-semibold"
+            >
+              Ver resultados ({produtosFiltrados.length})
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Navegação por Categorias com Indicação Visual de Rolagem Horizontal */}
       <HorizontalScrollRail
@@ -1004,7 +1157,7 @@ export function CatalogoMercado({ initialProdutos, mostrarPrecosDeral = false }:
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+        <div className="grid grid-cols-1 @[580px]/main:grid-cols-2 @[880px]/main:grid-cols-3 gap-3.5">
           {produtosFiltrados.map((produto) => {
             const precoDeral = precosMap[produto.id];
             const exibicao = resolverExibicaoCardMercado({

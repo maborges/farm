@@ -104,7 +104,7 @@ export function CalculadoraCustoHectare() {
 
       <CardContent className="flex flex-col gap-4">
         {/* Formulário de Entradas */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 @[480px]/main:grid-cols-2 @[780px]/main:grid-cols-4 gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="area-ha" className="text-xs">Área Cultivada (ha)</Label>
             <Input
@@ -178,7 +178,7 @@ export function CalculadoraCustoHectare() {
             </h4>
 
             {/* Linha 1: Custos e Produção */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-1 @[560px]/main:grid-cols-3 gap-2.5">
               <Card variant="muted" size="sm">
                 <CardContent className="flex flex-col gap-0.5">
                   <span className="text-[11px] text-muted-foreground">Custo Médio por Hectare</span>
@@ -219,7 +219,7 @@ export function CalculadoraCustoHectare() {
             </div>
 
             {/* Linha 2: Receita, Resultado Estimado e Margem */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-1 @[560px]/main:grid-cols-3 gap-2.5">
               <Card variant="muted" size="sm">
                 <CardContent className="flex flex-col gap-0.5">
                   <span className="text-[11px] text-muted-foreground">Receita Bruta Estimada</span>

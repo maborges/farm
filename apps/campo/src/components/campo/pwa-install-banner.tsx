@@ -71,17 +71,17 @@ export function CampoPwaInstallBanner() {
   };
 
   return (
-    <div className="rounded-sm border border-primary/25 bg-primary/8 px-3 py-2 text-xs text-foreground shadow-2xs">
+    <div className="rounded-xl md:rounded-sm border border-primary/25 bg-primary/8 px-3.5 py-2.5 text-xs text-foreground shadow-2xs">
       <div className="flex items-center justify-between gap-2.5">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-sm bg-primary text-primary-foreground">
-            <Smartphone className="size-3.5" />
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg md:rounded-sm bg-primary text-primary-foreground">
+            <Smartphone className="size-4" />
           </span>
           <div className="min-w-0">
             <p className="truncate font-bold text-foreground">
               Modo App de Campo disponível
             </p>
-            <p className="truncate text-[11px] text-muted-foreground">
+            <p className="truncate text-xs md:text-[11px] text-muted-foreground">
               {layoutProfile.platformOS === "ios" ? (
                 <span className="inline-flex items-center gap-1">
                   Toque em <Share className="inline size-3" /> e &ldquo;Adicionar à Tela de Início&rdquo;
@@ -100,7 +100,7 @@ export function CampoPwaInstallBanner() {
               variant="primary"
               size="sm"
               onClick={() => void handleInstall()}
-              className="min-h-[32px] px-2.5 py-1 text-[11px]"
+              className="px-3 py-1.5 text-xs"
             >
               <Download className="size-3.5" />
               Instalar
@@ -110,9 +110,9 @@ export function CampoPwaInstallBanner() {
             type="button"
             onClick={handleDismiss}
             aria-label="Dispensar aviso de instalação"
-            className="inline-flex size-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="inline-flex size-9 md:size-7 items-center justify-center rounded-lg md:rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
           >
-            <X className="size-3.5" />
+            <X className="size-4 md:size-3.5" />
           </button>
         </div>
       </div>

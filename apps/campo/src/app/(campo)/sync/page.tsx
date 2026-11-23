@@ -55,17 +55,20 @@ export default function SyncPage() {
   return (
     <div className="flex flex-col gap-4 pb-28">
       <CampoSurface className="p-4 sm:p-5">
-        <div className="flex items-start justify-between gap-3">
-          <CampoButton variant="secondary" size="sm" onClick={() => router.back()} className="size-10 px-0 shrink-0 border-border bg-card shadow-sm flex items-center justify-center">
+        <div className="flex items-center md:items-start justify-between gap-3">
+          <CampoButton variant="secondary" size="sm" onClick={() => router.back()} className="hidden md:flex size-10 px-0 shrink-0 border-border bg-card shadow-sm items-center justify-center">
             <ArrowLeft className="size-5 text-muted-foreground" />
           </CampoButton>
-          <div className="flex-1">
+          <div className="hidden md:block flex-1">
             <CampoSectionTitle
               eyebrow="Sincronização"
               title="Sincronização do campo"
               description="Veja a fila local e reenvie itens com falha."
             />
           </div>
+          <span className="md:hidden text-xs font-medium text-muted-foreground">
+            Estado da fila local
+          </span>
           <CampoPill
             className={`${isOnline ? "border-green-200 bg-green-50 text-green-800 dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-200" : "border-border bg-muted text-muted-foreground"}`}
           >
@@ -123,7 +126,7 @@ export default function SyncPage() {
               {failedItems.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-sm border border-border bg-card p-3 shadow-sm"
+                  className="rounded-xl md:rounded-sm border border-border bg-card p-3.5 md:p-3 shadow-sm"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -137,7 +140,7 @@ export default function SyncPage() {
                     </div>
                     <button
                       onClick={() => retryItem(item.id)}
-                      className="shrink-0 rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-semibold text-green-800 transition-transform active:scale-[0.97] dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-200"
+                      className="min-h-[36px] shrink-0 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-800 transition-transform active:scale-[0.97] dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-200"
                     >
                       Reenviar
                     </button>
@@ -234,7 +237,7 @@ export default function SyncPage() {
       {/* Diagnósticos */}
       <button
         onClick={exportLogs}
-        className="w-full rounded-sm border border-border bg-card py-2.5 text-sm text-muted-foreground shadow-sm transition-all hover:bg-muted active:scale-[0.99]"
+        className="min-h-[44px] w-full rounded-xl md:rounded-sm border border-border bg-card py-2.5 text-sm text-muted-foreground shadow-sm transition-all hover:bg-muted active:scale-[0.99]"
       >
         Exportar diagnóstico
       </button>

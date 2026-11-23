@@ -133,7 +133,7 @@ export function PtaxCard() {
           <select
             id="ptax-currency"
             aria-label="Moeda para consultar"
-            className={cn(inputBaseClassName, "w-full sm:w-auto sm:min-w-[200px] text-xs px-2.5")}
+            className={cn(inputBaseClassName, "w-full sm:w-auto sm:min-w-[200px] md:text-xs px-2.5")}
             value={currency}
             onChange={(event) => {
               const selected = CURRENCIES.find((item) => item.code === event.target.value)?.code;

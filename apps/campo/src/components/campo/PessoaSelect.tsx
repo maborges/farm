@@ -53,18 +53,18 @@ export function PessoaSelect({ unidadeProdutivaId, value, onChange, disabled }: 
   const filteredPessoas = useMemo(() => {
     if (!pessoas) return [];
     if (!search) return pessoas;
-    
+
     // Helper para remover acentos para a busca
     const removeAccents = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    
+
     const searchLower = removeAccents(search.toLowerCase());
-    return pessoas.filter((p) => 
+    return pessoas.filter((p) =>
       removeAccents(p.nome_exibicao.toLowerCase()).includes(searchLower)
     );
   }, [pessoas, search]);
 
-  const buttonLabel = selectedPerson 
-    ? selectedPerson.nome_exibicao 
+  const buttonLabel = selectedPerson
+    ? selectedPerson.nome_exibicao
     : "Não informado (Sistêmico / Titular)";
 
   const isDisabled = disabled || !unidadeProdutivaId;
@@ -92,9 +92,9 @@ export function PessoaSelect({ unidadeProdutivaId, value, onChange, disabled }: 
         type="button"
         disabled={isDisabled}
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`flex items-center justify-between w-full h-11 px-3.5 rounded-sm border transition-all
-          ${isDisabled 
-            ? "border-input bg-background/50 text-muted-foreground opacity-60 cursor-not-allowed" 
+        className={`flex items-center justify-between w-full h-11 px-3.5 rounded-lg md:rounded-sm border transition-all
+          ${isDisabled
+            ? "border-input bg-background/50 text-muted-foreground opacity-60 cursor-not-allowed"
             : "border-border bg-card text-foreground hover:bg-muted focus:border-ring focus:ring-1 focus:ring-ring"
           }
         `}
@@ -103,12 +103,12 @@ export function PessoaSelect({ unidadeProdutivaId, value, onChange, disabled }: 
           {buttonLabel}
         </span>
         {value && !isDisabled ? (
-          <X 
-            className="w-4 h-4 opacity-50 hover:opacity-100" 
+          <X
+            className="w-4 h-4 opacity-50 hover:opacity-100"
             onClick={(e) => {
               e.stopPropagation();
               onChange(null);
-            }} 
+            }}
           />
         ) : (
           <ChevronDown className="w-4 h-4 opacity-50" />
@@ -124,18 +124,18 @@ export function PessoaSelect({ unidadeProdutivaId, value, onChange, disabled }: 
 
       {/* Overlay Dropdown Inline */}
       {isOpen && !isDisabled && (
-        <div className="absolute top-full mt-1 left-0 right-0 z-50 rounded-sm border border-border bg-card shadow-lg max-h-[300px] flex flex-col overflow-hidden">
+        <div className="absolute top-full mt-1 left-0 right-0 z-50 rounded-xl md:rounded-sm border border-border bg-card shadow-lg max-h-[300px] flex flex-col overflow-hidden">
           {/* Search Input */}
           <div className="p-2 border-b border-border bg-muted/30">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-3 md:left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
                 autoFocus
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar por nome..."
-                className="w-full h-9 pl-9 pr-3 rounded-sm border border-input bg-background text-sm outline-none focus:border-primary"
+                className="w-full h-11 md:h-9 pl-9 pr-3 rounded-lg md:rounded-sm border border-input bg-background text-base md:text-sm outline-none focus:border-primary"
               />
             </div>
           </div>
@@ -156,13 +156,13 @@ export function PessoaSelect({ unidadeProdutivaId, value, onChange, disabled }: 
                       onChange(null);
                       setIsOpen(false);
                     }}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-sm text-left transition-colors hover:bg-muted ${!value ? 'bg-primary/10' : ''}`}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg md:rounded-sm text-left transition-colors hover:bg-muted ${!value ? 'bg-primary/10' : ''}`}
                   >
                     <span className={`text-sm ${!value ? 'font-semibold text-primary' : 'font-medium'}`}>Não informado (Sistêmico / Titular)</span>
                     {!value && <Check className="w-4 h-4 text-primary" />}
                   </button>
                 </li>
-                
+
                 {filteredPessoas.map((p) => {
                   const isSelected = p.pessoa_id === value;
                   return (
@@ -173,7 +173,7 @@ export function PessoaSelect({ unidadeProdutivaId, value, onChange, disabled }: 
                           onChange(p.pessoa_id);
                           setIsOpen(false);
                         }}
-                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-sm text-left transition-colors hover:bg-muted ${isSelected ? 'bg-primary/10' : ''}`}
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg md:rounded-sm text-left transition-colors hover:bg-muted ${isSelected ? 'bg-primary/10' : ''}`}
                       >
                         <div className="flex flex-col gap-0.5 min-w-0 pr-2">
                           <span className={`text-sm truncate ${isSelected ? 'font-semibold text-primary' : 'font-medium text-foreground'}`}>

@@ -30,7 +30,7 @@ export function Header(): React.ReactElement {
       : `${localidade.nome}${localidade.uf ? `/${localidade.uf}` : ""}`
     : "";
   const locationClassName =
-    "inline-flex items-center gap-1 px-2 py-1 rounded-sm bg-primary/10 text-primary text-[11px] font-medium max-w-[130px] sm:max-w-[180px]";
+    "inline-flex items-center gap-1 px-2.5 py-1 md:px-2 rounded-full md:rounded-sm bg-primary/10 text-primary text-xs md:text-[11px] font-medium max-w-[125px] sm:max-w-[180px]";
   const locationContent = (
     <>
       <MapPin className="size-3 shrink-0" />
@@ -105,14 +105,14 @@ export function Header(): React.ReactElement {
             {/* Título Contextual de App Nativo quando em subpágina no Mobile */}
             {isSubpage && (
               <div className="flex md:hidden items-center gap-2 min-w-0">
-                <div className="p-1.5 rounded-sm bg-primary/10 text-primary shrink-0">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
                   <ActiveIcon className="size-4" />
                 </div>
                 <div className="flex flex-col min-w-0">
                   <span className="font-bold tracking-tight text-foreground text-sm leading-tight truncate">
                     {activeNav.pageTitle}
                   </span>
-                  <span className="text-[10px] text-muted-foreground leading-tight truncate">
+                  <span className="text-[11px] text-muted-foreground leading-tight truncate">
                     {activeNav.pageSubtitle}
                   </span>
                 </div>
@@ -150,13 +150,13 @@ export function Header(): React.ReactElement {
 
           {/* Controles Direitos: Localidade Ativa, Indicador de Dispositivo, Conta e Tema */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Atalho rápido de município ativo na App Bar */}
+            {/* Atalho rápido de município ativo na App Bar (oculto em /clima no mobile para evitar duplicação) */}
             {isLoaded && localidade &&
               (pathname === "/clima" ? (
                 <span
                   title="Localidade selecionada"
                   aria-label={`Localidade selecionada: ${locationLabel}`}
-                  className={locationClassName}
+                  className={cn(locationClassName, "hidden md:inline-flex")}
                 >
                   {locationContent}
                 </span>
@@ -164,7 +164,7 @@ export function Header(): React.ReactElement {
                 <Link
                   href="/clima"
                   title="Ver clima da localidade selecionada"
-                  className={`${locationClassName} hover:bg-primary/15 transition-colors`}
+                  className={cn(locationClassName, "hover:bg-primary/15 transition-colors")}
                 >
                   {locationContent}
                 </Link>
@@ -192,11 +192,12 @@ export function Header(): React.ReactElement {
               </span>
             </Badge>
 
-            {/* Botão rápido de Minha Conta no Header (acessível em qualquer viewport) */}
+            {/* Botão rápido de Minha Conta no Header (Tablet/Desktop; no mobile usa a BottomNav) */}
             <Button
               asChild
               variant={pathname.startsWith("/conta") ? "default" : "outline"}
               size="sm"
+              className="hidden md:inline-flex"
             >
               <Link
                 href="/conta"

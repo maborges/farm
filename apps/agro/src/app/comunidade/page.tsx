@@ -35,11 +35,11 @@ export default function ComunidadePage() {
   return (
     <div className="flex flex-col gap-5">
       {/* Cabeçalho da Seção */}
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
+      <div className="hidden md:flex flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Users className="size-5 text-purple-600 dark:text-purple-400" />
-            Comunidade de Produtores
+            <Users className="size-5 text-purple-600 dark:text-purple-400 shrink-0" />
+            <span>Comunidade de Produtores</span>
           </h1>
           <Badge variant="priority">Em Breve</Badge>
         </div>
@@ -48,7 +48,7 @@ export default function ComunidadePage() {
         </p>
       </div>
 
-      <Separator />
+      <Separator className="hidden md:block" />
 
       {/* Banner de Apresentação */}
       <Card className="bg-gradient-to-br from-purple-500/5 via-card to-card border-purple-500/20">

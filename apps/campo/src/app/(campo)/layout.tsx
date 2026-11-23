@@ -71,7 +71,7 @@ export default function CampoLayout({ children }: { children: React.ReactNode })
         <div className="flex-1 flex w-full max-w-7xl mx-auto">
           <AdaptiveCampoSidebar />
 
-          <main className="flex-1 min-w-0 w-full max-w-5xl mx-auto px-3 sm:px-5 md:px-6 py-3 sm:py-5 pb-24 md:pb-8">
+          <main className="@container/main flex-1 min-w-0 w-full max-w-5xl mx-auto px-3 sm:px-5 md:px-6 py-3 sm:py-5 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:pb-8">
             <div className="flex flex-col gap-3">
               <CampoPwaUpdateBanner />
               <OfflineBanner />

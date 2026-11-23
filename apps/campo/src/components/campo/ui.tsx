@@ -20,7 +20,7 @@ export function CampoSurface({ className, children }: SurfaceProps) {
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-sm border border-border bg-card p-4 sm:p-5 text-card-foreground shadow-sm",
+        "relative overflow-hidden rounded-xl md:rounded-sm border border-border bg-card p-4 sm:p-5 text-card-foreground shadow-sm",
         className
       )}
     >
@@ -41,7 +41,7 @@ export function CampoSectionTitle({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex items-end justify-between gap-4">
+    <div className="flex flex-wrap items-end justify-between gap-2 sm:gap-4">
       <div className="min-w-0">
         {eyebrow && (
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
@@ -68,10 +68,10 @@ export function CampoButton({
 }) {
   const sizeClasses =
     size === "sm"
-      ? "px-3 py-2 text-xs"
+      ? "min-h-[40px] md:min-h-0 px-3.5 md:px-3 py-2 text-sm md:text-xs"
       : size === "lg"
-      ? "px-5 py-4 text-base"
-      : "px-4 py-3 text-sm";
+      ? "min-h-[48px] px-5 py-3.5 text-base"
+      : "min-h-[44px] md:min-h-0 px-4 py-3 text-sm";
 
   const variantClasses = {
     primary:
@@ -88,7 +88,7 @@ export function CampoButton({
     <button
       {...props}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-sm font-semibold active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45",
+        "inline-flex items-center justify-center gap-2 rounded-lg md:rounded-sm font-semibold active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45",
         sizeClasses,
         variantClasses,
         className
@@ -137,8 +137,8 @@ export function CampoMetric({
   }[tone];
 
   return (
-    <div className={cn("rounded-sm border shadow-sm", compact ? "p-3" : "p-4", toneClasses)}>
-      <p className={cn("uppercase tracking-[0.16em] opacity-70", compact ? "text-[10px]" : "text-[11px]")}>
+    <div className={cn("rounded-xl md:rounded-sm border shadow-sm", compact ? "p-3" : "p-4", toneClasses)}>
+      <p className={cn("uppercase tracking-[0.16em] opacity-70", compact ? "text-[11px]" : "text-[11px]")}>
         {label}
       </p>
       <p className={cn("font-semibold tabular-nums", compact ? "mt-1.5 text-xl" : "mt-2 text-2xl")}>

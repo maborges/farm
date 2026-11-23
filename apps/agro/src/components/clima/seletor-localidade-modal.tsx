@@ -231,7 +231,7 @@ export function SeletorLocalidadeModal({
         className={cn(
           "glass-surface relative w-full max-w-lg flex flex-col overflow-hidden ring-1 ring-border/40",
           isBottomSheet
-            ? "rounded-t-md border-b-0 max-h-[88dvh] safe-area-pb"
+            ? "rounded-t-2xl border-b-0 max-h-[88dvh] safe-area-pb"
             : "rounded-sm max-h-[85vh]"
         )}
       >
@@ -268,7 +268,7 @@ export function SeletorLocalidadeModal({
               type="button"
               variant="outline"
               size="sm"
-              className="w-full justify-center gap-2 min-h-[38px] sm:min-h-[34px] text-xs font-medium"
+              className="w-full justify-center gap-2 min-h-[44px] md:min-h-[34px] text-xs font-medium"
               onClick={handleUseGps}
               disabled={isGpsLoading}
               id="btn-usar-gps"
@@ -309,14 +309,14 @@ export function SeletorLocalidadeModal({
           {/* Filtros: Campo de Busca e Seletor de UF */}
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <Search className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               <Input
                 ref={inputRef}
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Ex: Londrina, Sorriso, Ribeirão..."
-                className="pl-8 text-xs"
+                className="pl-9 md:text-xs"
                 aria-label="Pesquisar município"
                 id="input-busca-municipio"
               />
@@ -325,7 +325,7 @@ export function SeletorLocalidadeModal({
             <select
               value={selectedUf}
               onChange={(e) => setSelectedUf(e.target.value)}
-              className={cn(inputBaseClassName, "w-28 text-xs px-2")}
+              className={cn(inputBaseClassName, "w-28 md:text-xs px-2")}
               aria-label="Filtrar por estado (UF)"
               id="select-filtro-uf"
             >

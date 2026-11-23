@@ -111,7 +111,7 @@ export default function PecuariaPage() {
       <PwaModuleNav title="Pecuária" color="pecuaria" />
 
       {/* ── Manejo e Reprodução ── */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 @[820px]/main:grid-cols-2">
         <section>
           <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
             Manejo de Curral e Pasto
@@ -133,7 +133,7 @@ export default function PecuariaPage() {
           <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
             Reprodução
           </p>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {QUICK_ACTIONS_REPRO.map((act) => (
               <PwaQuickAction
                 key={act.key}
@@ -159,7 +159,7 @@ export default function PecuariaPage() {
               </span>
             }
           />
-          <div className="mt-2.5 grid grid-cols-1 gap-2 md:grid-cols-2">
+          <div className="mt-2.5 grid grid-cols-1 gap-2 @[580px]/main:grid-cols-2">
             {emExecucao.map((task) => (
               <PecuariaTaskCard
                 key={task.id}
@@ -187,7 +187,7 @@ export default function PecuariaPage() {
               </span>
             }
           />
-          <div className="mt-2.5 grid grid-cols-1 gap-2 md:grid-cols-2">
+          <div className="mt-2.5 grid grid-cols-1 gap-2 @[580px]/main:grid-cols-2">
             {hoje_.map((task) => (
               <PecuariaTaskCard
                 key={task.id}
@@ -215,7 +215,7 @@ export default function PecuariaPage() {
               </span>
             }
           />
-          <div className="mt-2.5 grid grid-cols-1 gap-2 md:grid-cols-2">
+          <div className="mt-2.5 grid grid-cols-1 gap-2 @[580px]/main:grid-cols-2">
             {atrasadas.map((task) => (
               <PecuariaTaskCard
                 key={task.id}
@@ -266,7 +266,7 @@ export default function PecuariaPage() {
             )}
           </button>
           {recsOpen && (
-            <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+            <div className="mt-2 grid grid-cols-1 gap-2 @[580px]/main:grid-cols-2">
               {(recomendacoes ?? []).slice(0, 6).map((rec) => (
                 <button
                   key={rec.id}

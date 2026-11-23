@@ -7,7 +7,6 @@ import {
   ShieldCheck,
   Sparkles,
   TrendingUp,
-  User,
   Users,
   WifiOff,
 } from "lucide-react";
@@ -57,50 +56,50 @@ export default function HomePage() {
         </div>
 
         {/* Grade de Ícones Rápidos para Toque no Celular (App Tiles) */}
-        <div className="grid grid-cols-4 gap-2 sm:hidden" data-testid="mobile-launcher-tiles">
+        <div className="grid grid-cols-4 gap-2.5 sm:hidden" data-testid="mobile-launcher-tiles">
           <Link
             href="/clima"
-            className="flex flex-col items-center justify-center gap-1.5 p-2.5 rounded-sm border border-border/60 bg-card active:scale-95 transition-transform shadow-sm"
+            className="flex min-h-[80px] flex-col items-center justify-center gap-1.5 p-2.5 rounded-xl border border-border/60 bg-card active:scale-95 transition-transform shadow-sm"
           >
-            <div className="p-2 rounded-sm bg-blue-500/10 text-blue-600 dark:text-blue-400">
+            <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
               <CloudSun className="size-5" />
             </div>
-            <span className="text-[11px] font-semibold text-foreground">Clima</span>
+            <span className="text-xs font-semibold text-foreground">Clima</span>
           </Link>
 
           <Link
             href="/mercado"
-            className="flex flex-col items-center justify-center gap-1.5 p-2.5 rounded-sm border border-border/60 bg-card active:scale-95 transition-transform shadow-sm"
+            className="flex min-h-[80px] flex-col items-center justify-center gap-1.5 p-2.5 rounded-xl border border-border/60 bg-card active:scale-95 transition-transform shadow-sm"
           >
-            <div className="p-2 rounded-sm bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+            <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
               <TrendingUp className="size-5" />
             </div>
-            <span className="text-[11px] font-semibold text-foreground">Mercado</span>
+            <span className="text-xs font-semibold text-foreground">Mercado</span>
           </Link>
 
           <Link
             href="/calculadoras"
-            className="flex flex-col items-center justify-center gap-1.5 p-2.5 rounded-sm border border-border/60 bg-card active:scale-95 transition-transform shadow-sm"
+            className="flex min-h-[80px] flex-col items-center justify-center gap-1.5 p-2.5 rounded-xl border border-border/60 bg-card active:scale-95 transition-transform shadow-sm"
           >
-            <div className="p-2 rounded-sm bg-amber-500/10 text-amber-600 dark:text-amber-400">
+            <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
               <Calculator className="size-5" />
             </div>
-            <span className="text-[11px] font-semibold text-foreground">Cálculos</span>
+            <span className="text-xs font-semibold text-foreground">Cálculos</span>
           </Link>
 
           <Link
-            href="/conta"
-            className="flex flex-col items-center justify-center gap-1.5 p-2.5 rounded-sm border border-border/60 bg-card active:scale-95 transition-transform shadow-sm"
+            href="/comunidade"
+            className="flex min-h-[80px] flex-col items-center justify-center gap-1.5 p-2.5 rounded-xl border border-border/60 bg-card active:scale-95 transition-transform shadow-sm"
           >
-            <div className="p-2 rounded-sm bg-primary/10 text-primary">
-              <User className="size-5" />
+            <div className="p-2.5 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
+              <Users className="size-5" />
             </div>
-            <span className="text-[11px] font-semibold text-foreground">Conta</span>
+            <span className="text-xs font-semibold text-foreground">Rede</span>
           </Link>
         </div>
 
         {/* Cards Detalhados Adaptativos */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="hidden sm:grid sm:grid-cols-2 gap-3">
           {/* Card Clima */}
           <Link href="/clima" className="group active:scale-[0.99] transition-transform">
             <Card className="h-full hover:border-primary/50 transition-all">

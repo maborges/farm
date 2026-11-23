@@ -32,19 +32,19 @@ export function PwaQuickAction({
     <button
       type="button"
       onClick={onClick}
-      className="relative flex flex-col items-center justify-center gap-1.5 p-2.5 rounded-sm border border-border bg-card hover:border-primary/40 active:scale-95 transition-all shadow-xs text-center"
+      className="relative flex min-h-[76px] flex-col items-center justify-center gap-1.5 p-2.5 rounded-xl md:rounded-sm border border-border bg-card hover:border-primary/40 active:scale-95 transition-all shadow-xs text-center"
     >
       {badge && (
-        <span className="absolute -right-1 -top-1 inline-flex min-w-[16px] items-center justify-center rounded-sm bg-rose-500 px-1 py-0.2 text-[9px] font-bold text-white shadow-2xs">
+        <span className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-md md:rounded-sm bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-2xs">
           {badge}
         </span>
       )}
 
-      <div className={["p-2 rounded-sm", iconTone].join(" ")}>
+      <div className={["p-2 rounded-lg md:rounded-sm", iconTone].join(" ")}>
         <Icon className="w-5 h-5" />
       </div>
 
-      <span className="text-[11px] font-semibold text-foreground leading-tight">
+      <span className="text-xs md:text-[11px] font-semibold text-foreground leading-tight">
         {label}
       </span>
     </button>

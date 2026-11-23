@@ -198,9 +198,14 @@ export function ClimaDashboardClient(): React.ReactElement {
       {/* Diálogo Modal de Seleção de Município */}
       <SeletorLocalidadeModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
 
-      {/* Cabeçalho da Seção de Clima */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
+      {/* Cabeçalho da Seção de Clima (no mobile só aparece botão se nenhuma cidade estiver ativa) */}
+      <div
+        className={cn(
+          "flex-col sm:flex-row sm:items-center justify-between gap-3",
+          localidade ? "hidden md:flex" : "flex"
+        )}
+      >
+        <div className="hidden md:block">
           <div className="flex items-center gap-2">
             <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
               <CloudSun className="size-5 text-blue-600 dark:text-blue-400" />
@@ -220,6 +225,7 @@ export function ClimaDashboardClient(): React.ReactElement {
             size="sm"
             onClick={() => setIsModalOpen(true)}
             id="btn-abrir-seletor-localidade"
+            className="w-full sm:w-auto justify-center"
           >
             {localidade?.tipoOrigem === "GPS" ? (
               <Crosshair className="size-3.5 text-primary" />
@@ -228,24 +234,10 @@ export function ClimaDashboardClient(): React.ReactElement {
             )}
             <span>{localidade ? "Alterar Município" : "Selecionar Município"}</span>
           </Button>
-
-          {localidade && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:text-destructive"
-              onClick={clearLocalidade}
-              title="Limpar localidade salva"
-              aria-label="Limpar localidade selecionada"
-              id="btn-limpar-localidade"
-            >
-              <RotateCcw className="size-3.5" />
-            </Button>
-          )}
         </div>
       </div>
 
-      <Separator />
+      <Separator className="hidden md:block" />
 
       {/* Card da Localidade Selecionada */}
       {isLoaded && localidade && (
@@ -254,39 +246,39 @@ export function ClimaDashboardClient(): React.ReactElement {
           size="sm"
           id="card-localidade-ativa"
         >
-          <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex flex-col gap-1">
+          <CardContent className="flex flex-row items-center justify-between gap-2.5 sm:gap-3">
+            <div className="flex flex-col gap-1 min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 {localidade.tipoOrigem === "GPS" ? (
-                  <div className="flex items-center gap-1.5 font-semibold text-sm text-foreground">
+                  <div className="flex items-center gap-1.5 font-semibold text-sm text-foreground min-w-0">
                     <Crosshair className="size-4 text-primary shrink-0" />
-                    <h2 className="font-semibold text-sm text-foreground inline">Localização Atual (GPS)</h2>
+                    <h2 className="font-semibold text-sm text-foreground inline truncate">Localização Atual (GPS)</h2>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1.5 font-semibold text-sm text-foreground">
+                  <div className="flex items-center gap-1.5 font-semibold text-sm text-foreground min-w-0">
                     <MapPin className="size-4 text-primary shrink-0" />
-                    <span>
+                    <span className="truncate">
                       {localidade.nome}
                       {localidade.uf ? ` — ${localidade.uf}` : ""}
                     </span>
                   </div>
                 )}
-                <Badge variant="secondary">
+                <Badge variant="secondary" className="hidden sm:inline-flex">
                   {localidade.tipoOrigem === "GPS"
                     ? "Localização GPS (Consentida)"
                     : "Centroide Municipal Oficial (IBGE)"}
                 </Badge>
                 {localidade.codigoIbge && (
-                  <span className="text-[10px] text-muted-foreground font-mono">
+                  <span className="hidden sm:inline text-[10px] text-muted-foreground font-mono">
                     IBGE: {localidade.codigoIbge}
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-muted-foreground font-mono">
+              <p className="hidden sm:block text-[11px] text-muted-foreground font-mono">
                 Coordenadas: {localidade.latitude.toFixed(4)}°, {localidade.longitude.toFixed(4)}° • Fuso: {localidade.fusoHorario}
               </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
               <Button
                 variant="outline"
                 size="sm"
@@ -294,6 +286,17 @@ export function ClimaDashboardClient(): React.ReactElement {
                 id="btn-trocar-localidade-card"
               >
                 Trocar
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-destructive"
+                onClick={clearLocalidade}
+                title="Limpar localidade salva"
+                aria-label="Limpar localidade selecionada"
+                id="btn-limpar-localidade"
+              >
+                <RotateCcw className="size-3.5" />
               </Button>
             </div>
           </CardContent>
@@ -424,7 +427,7 @@ export function ClimaDashboardClient(): React.ReactElement {
                 ? "A atualização da base meteorológica está indisponível no momento. Os últimos dados salvos continuam visíveis abaixo e os demais recursos seguem operando normalmente."
                 : "Estamos atualizando a integração com a base meteorológica oficial para esta localidade. Os demais recursos do DeepFarms Agro continuam operando normalmente."}
             </p>
-            <div className="pt-1 flex items-center gap-2">
+            <div className="pt-1 flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"

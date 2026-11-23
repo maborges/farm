@@ -129,10 +129,10 @@ export function InstallPrompt() {
       </Button>
 
       <CardContent className="flex flex-col gap-3">
-        <div className="flex flex-col gap-3 pr-7 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 pr-9 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <span
-              className="mt-0.5 rounded-sm bg-primary text-primary-foreground p-2.5 shadow-sm shrink-0"
+              className="mt-0.5 rounded-xl md:rounded-sm bg-primary text-primary-foreground p-2.5 shadow-sm shrink-0"
               aria-hidden="true"
             >
               {appleMobile ? (
@@ -145,10 +145,10 @@ export function InstallPrompt() {
               <h2 className="text-xs sm:text-sm font-bold text-foreground">
                 Leve o DeepFarms Agro para o campo!
               </h2>
-              <p className="text-[11px] sm:text-xs leading-relaxed text-muted-foreground">
+              <p className="text-xs leading-relaxed text-muted-foreground">
                 Tenha previsão do tempo, indicadores do mercado e calculadoras agrícolas sempre à mão.
               </p>
-              <p className="text-[11px] font-semibold text-primary">
+              <p className="text-xs font-semibold text-primary">
                 Gratuito. Sem cadastro. Direto no seu celular.
               </p>
               <p className="text-[10px] text-muted-foreground hidden sm:block">

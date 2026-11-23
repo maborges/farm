@@ -101,12 +101,12 @@ export function AnimalPicker({
         <CampoPill>{filtered.length} encontrados</CampoPill>
       </div>
 
-      <label className="flex items-center gap-2 rounded-sm border border-border bg-card px-3 py-2.5">
+      <label className="flex min-h-[44px] items-center gap-2 rounded-lg md:rounded-sm border border-border bg-card px-3 py-2">
         <Search className="size-4 text-muted-foreground" />
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          className="w-full bg-transparent text-sm outline-none"
+          className="w-full bg-transparent text-base md:text-sm outline-none"
           placeholder={placeholder}
           autoComplete="off"
           inputMode="search"
@@ -114,7 +114,7 @@ export function AnimalPicker({
       </label>
 
       {selected && (
-        <div className="rounded-sm border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
+        <div className="rounded-lg md:rounded-sm border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
           <p className="font-semibold text-foreground">Selecionado</p>
           <p className="mt-1 text-muted-foreground">
             {selected.numero_brinco ?? selected.id}
@@ -124,7 +124,7 @@ export function AnimalPicker({
         </div>
       )}
 
-      <div className="max-h-72 overflow-auto rounded-sm border border-border">
+      <div className="max-h-72 overflow-auto rounded-lg md:rounded-sm border border-border">
         {filtered.length === 0 ? (
           <div className="px-3 py-4 text-sm text-muted-foreground">{emptyMessage}</div>
         ) : (
@@ -137,9 +137,8 @@ export function AnimalPicker({
                   key={animal.id}
                   type="button"
                   onClick={() => onChange(animal.id)}
-                  className={`flex w-full flex-col gap-1 px-3 py-3 text-left transition-colors ${
-                    active ? "bg-primary/5" : "bg-card hover:bg-muted/60"
-                  }`}
+                  className={`flex w-full flex-col gap-1 px-3 py-3 text-left transition-colors ${active ? "bg-primary/5" : "bg-card hover:bg-muted/60"
+                    }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">

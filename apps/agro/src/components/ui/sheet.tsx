@@ -176,7 +176,7 @@ function SheetContent({
   const sideClasses = {
     top: "inset-x-0 top-0 h-auto border-b",
     right: "inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm",
-    bottom: "inset-x-0 bottom-0 h-auto border-t",
+    bottom: "inset-x-0 bottom-0 h-auto max-h-[88dvh] overflow-y-auto rounded-t-2xl border-t border-b-0 safe-area-pb",
     left: "inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm",
   }[side]
 
@@ -197,6 +197,11 @@ function SheetContent({
         )}
         {...props}
       >
+        {side === "bottom" && (
+          <div className="pt-2.5 pb-0.5 flex justify-center shrink-0" aria-hidden="true">
+            <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+          </div>
+        )}
         {children}
         {showCloseButton && (
           <SheetClose

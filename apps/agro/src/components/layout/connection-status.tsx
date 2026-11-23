@@ -42,7 +42,7 @@ export function ConnectionStatus() {
 
   return (
     <div
-      className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full text-xs font-medium flex items-center gap-2 shadow-lg bg-amber-600 text-white animate-in fade-in duration-300"
+      className="fixed top-[calc(3.75rem+env(safe-area-inset-top,0px))] left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full text-xs font-medium flex items-center gap-2 shadow-lg bg-amber-600 text-white animate-in fade-in duration-300"
       role="status"
       aria-live="polite"
     >

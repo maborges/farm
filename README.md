@@ -15,6 +15,58 @@ Utilize português (pt-BR) para documentos e interações com o usuário, com ac
 
 ## Deploy em produção
 
+### Limpeza segura da VPS Hostinger
+
+Use este roteiro para inspecionar e liberar espaço sem remover dados de
+aplicação. Rode os diagnósticos primeiro. Os comandos de limpeza são
+separados e devem ser executados somente após revisar o que será removido.
+
+```bash
+# Diagnóstico: carga, memória e espaço em disco
+uptime
+free -h
+df -hT
+
+# Maiores diretórios do sistema (pode levar alguns minutos)
+sudo du -xhd1 / 2>/dev/null | sort -h
+
+# Uso de espaço pelo Docker, incluindo imagens e volumes
+docker system df -v
+
+# Serviços com falha e tamanho do journal
+systemctl --failed --no-pager
+journalctl --disk-usage
+
+# Simular remoção de dependências apt que não são mais necessárias
+sudo apt-get -s autoremove
+```
+
+Após revisar os resultados, estas limpezas removem somente caches e logs
+antigos que podem ser recriados:
+
+```bash
+# Limpar pacotes .deb baixados pelo apt
+sudo apt-get clean
+
+# Reduzir logs do systemd para manter no máximo 14 dias
+sudo journalctl --vacuum-time=14d
+```
+
+Se a simulação de `apt-get -s autoremove` listar apenas pacotes dispensáveis,
+revise a lista e então execute:
+
+```bash
+sudo apt-get autoremove
+```
+
+Para Docker, confira `docker system df -v` antes de remover qualquer coisa.
+Não use `docker system prune --volumes`, `docker volume prune` ou remova
+volumes manualmente: eles podem conter o PostgreSQL, arquivos enviados e
+outros dados persistentes. Imagens e cache de build só devem ser podados após
+confirmar que não são necessários para rollback ou builds locais. Antes de
+manutenção maior, confirme que existe backup recente e restaurável. Ao final,
+repita `df -hT`, `docker ps` e `systemctl --failed --no-pager`.
+
 O servidor de produção é acessado pelo usuário `ubuntu`, com a chave privada
 local autorizada. O checkout do monorepo fica em `/opt/deepfarms/farm`.
 
@@ -736,6 +788,15 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
 - **Bugfix Focado (`apps/agro/mercado` e layout mobile):**
   * **Problema corrigido:** No módulo Agro (`/mercado`), o bloco principal dos cards, a `Faixa PR`, o botão `.xls` e a linha `DERAL-PR` em `Fontes por Região` continuavam sendo exibidos em duplicidade ou com dados travados no Paraná/DERAL-PR mesmo ao trocar para outra UF ou Fonte de Dados; além disso, cabeçalhos de cards usando `CardAction` em grid comprimiam títulos no mobile e barras horizontais com `scrollbar-none` não exibiam indicação de rolagem lateral.
   * **Comportamento esperado:** Cada card usa um resolvedor único (`resolverExibicaoCardMercado`) para exibir no bloco principal estritamente a cotação da UF/núcleo/fonte selecionada (ou estado explícito de ausência com referência comparativa separada quando não houver preço naquela UF/fonte), diferenciando visualmente médias históricas anuais da PAM/IBGE (`warning`) de cotações correntes semanais (`DERAL-PR`), sem duplicar `DERAL-PR` nem exibir `Faixa PR` fora do Paraná; produtores podem fixar seus produtos favoritos (`localStorage`) no topo do catálogo e consultar detalhes técnicos/auditoria via seção expansível (`Collapsible`), enquanto os filtros cobrem todas as 27 UFs no topo de `/mercado`, barras horizontais oferecem navegação visível (`HorizontalScrollRail`) e todos os cards são responsivos em viewports móveis (360px–390px).
+
+### Padrão UI/UX Mobile-First Unificado dos PWAs (DeepFarms Agro & DeepFarms Campo)
+- **Descrição curta:** Padronização ergonômica e visual compartilhada entre os dois PWAs de campo (`apps/agro` e `apps/campo`) para uso fluido com uma mão em smartphones, mantendo o layout denso de trabalho em tablets (`navigation-rail`) e desktops (`sidebar-and-topbar`).
+- **Fluxo de funcionamento:**
+  1. **Ergonomia Touch & Zero Zoom no iOS (`apps/agro` e `apps/campo`):** Botões, selects e campos de texto passam a adotar altura mínima confortável para toque (`h-10`/`h-11`, alvos de ação `>= 40–44px`) e `text-base md:text-sm` nos controles de entrada no mobile para evitar o zoom automático do Safari/iOS, preservando o viewport acessível (`userScalable: true`, `maximumScale: 5`) e a escala compacta a partir de `md:`.
+  2. **Superfície Nativa de App (`rounded-lg`/`xl`/`2xl` no celular):** Cards, tiles, banners, seletores e Bottom Sheets utilizam cantos arredondados nativos no mobile (`rounded-xl md:rounded-sm`, `rounded-lg md:rounded-sm`, `rounded-t-2xl`), safe areas nativas (`safe-area-pt`/`pb`/`px`) e eliminação de cards duplos aninhados.
+  3. **Cabeçalhos e Barras Sem Duplicação:** No mobile (`< md`), a App Bar contextual assume título/subtítulo e o botão de retorno das subpáginas, removendo cabeçalhos redundantes (`<h1>` repetidos), atalhos duplicados no header (`Minha Conta`, alternador de tema solto quando acessível pelo menu da conta e badge estático redundante) e usando `shortLabel` na barra inferior (`Cálculos`) para evitar truncamento.
+  4. **Mercado Enxuto no Mobile (`catalogo-mercado.tsx`):** A barra inicial no celular mantém busca + UF visíveis acima da dobra e concentra os filtros avançados (**Praça/Núcleo Regional**, **Fonte de Dados** e **Somente Favoritos**) em um Bottom Sheet (`Sheet side="bottom"`), expondo as cotações logo na primeira tela.
+  5. **Responsividade Real em Tablets (`@container/main` & Navigation Rail):** Os `<main>` de `apps/agro` e `apps/campo` utilizam Container Queries nomeadas (`@container/main`) para ajustar colunas de cards, filtros, indicadores e calculadoras conforme a largura útil disponível (com sidebar expandida ou retraída), enquanto `CardCommodity` separa título/favorito e badge em duas linhas e a sidebar retrai automaticamente ao entrar na faixa `tablet`.
 
 ### Coletor Multi-Fonte de Cotações Agropecuárias (Fases 1A e 1B — Multi-UF, PDFs com IA, Parceiros & Backoffice)
 - **Descrição curta:** Agente autônomo modular de ingestão multi-fonte e multi-UF em `services/api/agro_collector/` (coletores Nível 1 determinísticos para **DERAL/SEAB-PR** e **IEA/SAA-SP**, extratores PDF Nível 2 com IA e verificação anti-alucinação para **EMATER/RS-ASCAR** e **SEAPA-MG**, coletor genérico para **Parceiros Autorizados**, Agente Sentinela Nível 3, notificações proativas com throttling de 6h e governança completa em 4 abas no Backoffice), alimentando `/api/v1/public/mercado/cotacoes-regiao`, `/mercado` (`apps/agro`) e `/cadastros/commodities` (`apps/web`).

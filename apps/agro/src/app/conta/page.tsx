@@ -14,8 +14,8 @@ export default function ContaPage() {
   return (
     <div className="max-w-3xl mx-auto flex flex-col gap-4 sm:gap-5">
       {/* Cabeçalho da Página */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-1">
+        <div className="hidden md:flex items-center gap-2">
           <Badge variant="default" className="gap-1">
             <Shield className="size-3" />
             <span>Identidade Individual Segregada</span>
@@ -29,7 +29,7 @@ export default function ContaPage() {
         </p>
       </div>
 
-      <Separator />
+      <Separator className="hidden md:block" />
 
       {/* Painel Interativo de Conta */}
       <PainelConta />

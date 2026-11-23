@@ -454,6 +454,12 @@
 }
 
 @layer utilities {
+  html,
+  body {
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   .no-scrollbar,
   .scrollbar-none {
     -ms-overflow-style: none;

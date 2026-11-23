@@ -14,9 +14,9 @@ import { PRODUTOS_CATALOGO } from "@/lib/mercado/catalogo";
 export default async function MercadoPage() {
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
-      {/* Cabeçalho da Seção */}
+      {/* Cabeçalho da Seção (no mobile a App Bar do Header já contextualiza) */}
       <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="hidden md:flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-base sm:text-xl font-bold tracking-tight text-foreground flex items-center gap-2 min-w-0">
             <TrendingUp className="size-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>Mercado e Indicadores Agro</span>
@@ -25,7 +25,7 @@ export default async function MercadoPage() {
             Cotações físicas e estatísticas oficiais
           </Badge>
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="hidden md:block text-xs text-muted-foreground">
           Cotações regionais por estado e fonte, câmbio do Banco Central, indicadores macroeconômicos e produção oficial IBGE.
         </p>
 
@@ -34,7 +34,7 @@ export default async function MercadoPage() {
           as="nav"
           ariaLabel="Atalhos das seções de mercado"
           testId="mercado-quick-jump"
-          contentClassName="pt-1 pb-0.5"
+          contentClassName="pt-0.5 md:pt-1 pb-0.5"
         >
           <Button asChild variant="default" size="sm" className="shrink-0 snap-start">
             <a href="#secao-catalogo">
@@ -63,11 +63,11 @@ export default async function MercadoPage() {
         </HorizontalScrollRail>
       </div>
 
-      <Separator />
+      <Separator className="hidden md:block" />
 
       {/* Catálogo Extensível de Produtos e Indicadores de Mercado (Destaque no topo) */}
       <section id="secao-catalogo" className="flex flex-col gap-3 scroll-mt-20">
-        <div className="flex items-center justify-between gap-2">
+        <div className="hidden md:flex items-center justify-between gap-2">
           <div className="min-w-0">
             <h2 className="text-sm font-semibold tracking-tight text-foreground flex items-center gap-2">
               <Scale className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />

@@ -307,7 +307,7 @@ export function PainelConta() {
                         placeholder="000000"
                         value={codigoVerificacaoInput}
                         onChange={(e) => setCodigoVerificacaoInput(e.target.value.replace(/\D/g, ""))}
-                        className="text-center font-mono tracking-widest text-xs"
+                        className="text-center font-mono tracking-widest md:text-xs"
                         required
                       />
                     </div>
@@ -469,9 +469,18 @@ export function PainelConta() {
 
       {/* Card de Autenticação Opcional */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-semibold">Conta Individual DeepFarms Agro</CardTitle>
-          <CardAction>
+        <CardHeader className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <CardTitle className="text-sm font-semibold">Conta Individual DeepFarms Agro</CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                {tab === "login"
+                  ? "Acesse sua identidade individual segregada para futuras integrações BYOK."
+                  : tab === "register"
+                  ? "Crie sua conta individual gratuita sem criar empresas comerciais."
+                  : "Recupere o acesso à sua conta individual com código seguro."}
+              </CardDescription>
+            </div>
             <Tabs
               value={tab === "forgot" ? "login" : tab}
               onValueChange={(next) => {
@@ -480,24 +489,18 @@ export function PainelConta() {
                   setMessage(null);
                 }
               }}
+              className="w-full sm:w-auto shrink-0"
             >
-              <TabsList className="h-8 p-0.5">
-                <TabsTrigger value="login" className="h-7 px-2.5 text-xs">
+              <TabsList className="w-full sm:w-auto h-10 md:h-8 p-0.5">
+                <TabsTrigger value="login" className="flex-1 sm:flex-initial h-9 md:h-7 px-3 md:px-2.5 text-sm md:text-xs">
                   Entrar
                 </TabsTrigger>
-                <TabsTrigger value="register" className="h-7 px-2.5 text-xs">
+                <TabsTrigger value="register" className="flex-1 sm:flex-initial h-9 md:h-7 px-3 md:px-2.5 text-sm md:text-xs">
                   Cadastrar
                 </TabsTrigger>
               </TabsList>
             </Tabs>
-          </CardAction>
-          <CardDescription className="text-xs">
-            {tab === "login"
-              ? "Acesse sua identidade individual segregada para futuras integrações BYOK."
-              : tab === "register"
-              ? "Crie sua conta individual gratuita sem criar empresas comerciais."
-              : "Recupere o acesso à sua conta individual com código seguro."}
-          </CardDescription>
+          </div>
         </CardHeader>
 
         <CardContent className="flex flex-col gap-4">
@@ -512,7 +515,7 @@ export function PainelConta() {
                   placeholder="produtor@fazenda.com.br"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="text-xs"
+                  className="md:text-xs"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -523,7 +526,7 @@ export function PainelConta() {
                     variant="link"
                     size="xs"
                     onClick={() => { setTab("forgot"); setMessage(null); }}
-                    className="h-auto p-0 text-[10px]"
+                    className="h-auto px-1 py-1 text-xs md:text-[10px]"
                   >
                     Esqueceu a senha?
                   </Button>
@@ -535,7 +538,7 @@ export function PainelConta() {
                   placeholder="••••••••••••"
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}
-                  className="text-xs"
+                  className="md:text-xs"
                 />
               </div>
               <Button type="submit" variant="default" size="sm" className="w-full" disabled={submitting}>
@@ -556,7 +559,7 @@ export function PainelConta() {
                   placeholder="José da Silva"
                   value={nome}
                   onChange={(e) => setNome(e.target.value)}
-                  className="text-xs"
+                  className="md:text-xs"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -568,7 +571,7 @@ export function PainelConta() {
                   placeholder="produtor@fazenda.com.br"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="text-xs"
+                  className="md:text-xs"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -582,7 +585,7 @@ export function PainelConta() {
                   placeholder="Mínimo 8 caracteres"
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}
-                  className="text-xs"
+                  className="md:text-xs"
                 />
               </div>
               <Button type="submit" variant="default" size="sm" className="w-full" disabled={submitting}>
@@ -605,7 +608,7 @@ export function PainelConta() {
                       placeholder="seu-email@dominio.com.br"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="text-xs"
+                      className="md:text-xs"
                     />
                   </div>
                   <div className="flex gap-2">
@@ -635,7 +638,7 @@ export function PainelConta() {
                       placeholder="Cole aqui o token recebido"
                       value={resetToken}
                       onChange={(e) => setResetToken(e.target.value)}
-                      className="text-xs font-mono"
+                      className="font-mono md:text-xs"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
@@ -647,7 +650,7 @@ export function PainelConta() {
                       placeholder="Mínimo 8 caracteres"
                       value={novaSenha}
                       onChange={(e) => setNovaSenha(e.target.value)}
-                      className="text-xs"
+                      className="md:text-xs"
                     />
                   </div>
                   <div className="flex gap-2">

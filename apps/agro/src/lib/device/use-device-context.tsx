@@ -7,6 +7,7 @@ import {
   detectPlatformOS,
   getAdaptiveLayoutProfile,
   type AdaptiveLayoutProfile,
+  type DeviceCategory,
   type DeviceExecutionContext,
 } from "./device-detection";
 
@@ -84,6 +85,26 @@ function readBrowserDeviceContext(): DeviceExecutionContext {
   };
 }
 
+/**
+ * Lê a preferência salva da sidebar para modo desktop no navegador.
+ *
+ * Args:
+ *   Nenhum argumento.
+ *
+ * Return:
+ *   Verdadeiro se a sidebar desktop deve iniciar retraída.
+ *
+ * Raises:
+ *   Nenhuma exceção é lançada.
+ */
+function readDesktopSidebarPreference(): boolean {
+  try {
+    return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
 export function DeviceContextProvider({
   children,
 }: {
@@ -92,25 +113,30 @@ export function DeviceContextProvider({
   const [context, setContext] = React.useState<DeviceExecutionContext>(DEFAULT_CONTEXT);
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState<boolean>(false);
   const [isHydrated, setIsHydrated] = React.useState<boolean>(false);
+  const contextRef = React.useRef<DeviceExecutionContext>(DEFAULT_CONTEXT);
+  const lastCategoryRef = React.useRef<DeviceCategory | null>(null);
 
   React.useEffect(() => {
-    const initialContext = readBrowserDeviceContext();
-    setContext(initialContext);
+    const applyDeviceState = (nextContext: DeviceExecutionContext) => {
+      const prevCategory = lastCategoryRef.current;
+      contextRef.current = nextContext;
+      setContext(nextContext);
+
+      if (nextContext.deviceCategory !== prevCategory) {
+        lastCategoryRef.current = nextContext.deviceCategory;
+        if (nextContext.deviceCategory === "tablet") {
+          setSidebarCollapsed(true);
+        } else if (nextContext.deviceCategory === "desktop") {
+          setSidebarCollapsed(readDesktopSidebarPreference());
+        }
+      }
+    };
+
+    applyDeviceState(readBrowserDeviceContext());
     setIsHydrated(true);
 
-    try {
-      const savedCollapsed = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
-      if (savedCollapsed !== null) {
-        setSidebarCollapsed(savedCollapsed === "true");
-      } else {
-        setSidebarCollapsed(initialContext.deviceCategory === "tablet");
-      }
-    } catch {
-      setSidebarCollapsed(initialContext.deviceCategory === "tablet");
-    }
-
     const handleUpdate = () => {
-      setContext(readBrowserDeviceContext());
+      applyDeviceState(readBrowserDeviceContext());
     };
 
     const standaloneMedia = window.matchMedia?.("(display-mode: standalone)");
@@ -130,10 +156,12 @@ export function DeviceContextProvider({
   const toggleSidebar = React.useCallback(() => {
     setSidebarCollapsed((prev) => {
       const next = !prev;
-      try {
-        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
-      } catch {
-        // Ignora erro de quota ou privacidade no localStorage
+      if (contextRef.current.deviceCategory === "desktop") {
+        try {
+          window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+        } catch {
+          // Ignora erro de quota ou privacidade no localStorage
+        }
       }
       return next;
     });

@@ -124,7 +124,7 @@ export function CampoBottomNav() {
               setQuickSheetOpen(true);
             }}
             aria-label="Registrar nova atividade de campo"
-            className="relative flex flex-col items-center justify-center h-full min-h-[48px] rounded-sm transition-all text-[11px] font-semibold text-primary active:scale-95"
+            className="relative flex flex-col items-center justify-center h-full min-h-[48px] rounded-lg transition-all text-[11px] font-semibold text-primary active:scale-95"
           >
             <div className="px-3 py-1 rounded-full bg-primary text-primary-foreground shadow-2xs flex items-center justify-center">
               <Plus className="w-4 h-4" />
@@ -269,7 +269,7 @@ function DockNavLink({
       onClick={onTap}
       aria-current={isActive ? "page" : undefined}
       className={cn(
-        "relative flex flex-col items-center justify-center h-full min-h-[48px] rounded-sm transition-all text-[11px] font-medium active:scale-95",
+        "relative flex flex-col items-center justify-center h-full min-h-[48px] rounded-lg transition-all text-[11px] font-medium active:scale-95",
         isActive
           ? "text-primary font-semibold"
           : "text-muted-foreground hover:text-foreground"
@@ -327,14 +327,14 @@ function QuickLaunchButton({
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-2.5 rounded-sm border border-border bg-card p-3 text-left shadow-xs transition-all hover:border-primary/50 active:scale-95"
+      className="flex min-h-[56px] items-center gap-2.5 rounded-xl md:rounded-sm border border-border bg-card p-3 text-left shadow-xs transition-all hover:border-primary/50 active:scale-95"
     >
-      <div className={cn("p-2 rounded-sm shrink-0", toneClass)}>
+      <div className={cn("p-2 rounded-lg md:rounded-sm shrink-0", toneClass)}>
         <Icon className="w-4 h-4" />
       </div>
       <span className="min-w-0">
         <span className="block truncate text-xs font-semibold text-foreground">{label}</span>
-        <span className="block truncate text-[10px] text-muted-foreground">{sublabel}</span>
+        <span className="block truncate text-xs md:text-[10px] text-muted-foreground">{sublabel}</span>
       </span>
     </button>
   );

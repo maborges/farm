@@ -23,12 +23,12 @@ export function TaskHeader(props: TaskHeaderProps) {
   return (
     <CampoSurface className="p-3.5 sm:p-4">
       <div className="flex items-start gap-2.5">
-        <CampoButton variant="secondary" size="sm" onClick={() => router.back()} className="size-10 px-0 shrink-0 border-border bg-card shadow-sm flex items-center justify-center">
+        <CampoButton variant="secondary" size="sm" onClick={() => router.back()} className="hidden md:flex size-10 px-0 shrink-0 border-border bg-card shadow-sm items-center justify-center">
           <ArrowLeft className="size-5 text-muted-foreground" />
         </CampoButton>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl md:rounded-sm border border-primary/20 bg-primary/10 text-primary">
               <props.icon className="size-5" strokeWidth={2} />
             </span>
             <div>

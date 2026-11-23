@@ -99,7 +99,7 @@ export function CampoTopAppBar({
                 href={routeMeta.backHref}
                 aria-label="Voltar"
                 title="Voltar"
-                className="md:hidden inline-flex items-center justify-center w-9 h-9 -ml-1 rounded-sm text-foreground hover:bg-muted active:scale-95 transition-all shrink-0"
+                className="md:hidden inline-flex items-center justify-center w-10 h-10 -ml-1 rounded-lg text-foreground hover:bg-muted active:scale-95 transition-all shrink-0"
               >
                 <ChevronLeft className="w-5 h-5 text-primary" />
               </Link>
@@ -143,14 +143,14 @@ export function CampoTopAppBar({
             {/* Título Contextual de App Nativo quando em subpágina no Mobile */}
             {isSubpage && (
               <div className="flex md:hidden items-center gap-2 min-w-0">
-                <div className="p-1.5 rounded-sm bg-primary/10 text-primary shrink-0">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
                   <ActiveIcon className="w-4 h-4" />
                 </div>
                 <div className="flex flex-col min-w-0">
                   <span className="font-bold tracking-tight text-foreground text-sm leading-tight truncate">
                     {routeMeta.title}
                   </span>
-                  <span className="text-[10px] text-muted-foreground leading-tight truncate">
+                  <span className="text-[11px] text-muted-foreground leading-tight truncate">
                     {activeFazenda?.nome ?? routeMeta.subtitle}
                   </span>
                 </div>
@@ -187,7 +187,7 @@ export function CampoTopAppBar({
 
           {/* Controles Direitos: Fazenda Ativa, Status, Dispositivo, Operador e Tema */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Seletor de Fazenda Ativa (mesmo estilo da Localidade Ativa do Agro) */}
+            {/* Seletor de Fazenda Ativa (oculto em subpágina mobile quando há apenas 1 unidade, pois já consta no subtítulo) */}
             <button
               type="button"
               onClick={() => {
@@ -200,15 +200,16 @@ export function CampoTopAppBar({
                   : activeFazenda?.nome ?? "Unidade produtiva"
               }
               className={cn(
-                "inline-flex items-center gap-1 px-2 py-1 rounded-sm bg-primary/10 text-primary text-[11px] font-medium max-w-[130px] sm:max-w-[180px] transition-colors",
+                "inline-flex items-center gap-1 px-2.5 py-1 md:px-2 rounded-full md:rounded-sm bg-primary/10 text-primary text-xs md:text-[11px] font-medium max-w-[110px] sm:max-w-[180px] min-h-[36px] md:min-h-0 transition-colors",
+                isSubpage && !canSelectFazenda && "hidden md:inline-flex",
                 canSelectFazenda ? "hover:bg-primary/15 cursor-pointer" : "cursor-default"
               )}
             >
-              <MapPin className="w-3 h-3 shrink-0" />
+              <MapPin className="w-3.5 h-3.5 md:w-3 md:h-3 shrink-0" />
               <span className="truncate">
                 {activeFazenda?.nome ?? "Unidade ativa"}
               </span>
-              {canSelectFazenda && <ChevronDown className="w-3 h-3 shrink-0" />}
+              {canSelectFazenda && <ChevronDown className="w-3.5 h-3.5 md:w-3 md:h-3 shrink-0" />}
             </button>
 
             {/* Indicadores compactos de Rede, Sync e GPS */}
@@ -216,6 +217,7 @@ export function CampoTopAppBar({
               active={isOnline}
               icon={isOnline ? SignalHigh : Signal}
               label={isOnline ? "Online" : "Offline"}
+              hideOnTiny
             />
             <StatusBadge
               active={syncOk}
@@ -254,25 +256,25 @@ export function CampoTopAppBar({
               </span>
             </span>
 
-            {/* Botão Conta do Operador (mesmo estilo do botão Minha Conta do Agro) */}
+            {/* Botão Conta do Operador */}
             <button
               type="button"
               onClick={() => setAvatarMenuOpen(true)}
               aria-label="Conta do Operador"
               title="Conta do Operador"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm text-xs font-medium border border-border bg-background hover:bg-accent text-foreground transition-colors min-h-[34px]"
+              className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg md:rounded-sm text-xs font-medium border border-border bg-background hover:bg-accent text-foreground transition-colors min-h-[40px] min-w-[40px] md:min-h-[34px] md:min-w-0"
             >
-              <User className="w-3.5 h-3.5 text-primary" />
+              <User className="w-4 h-4 md:w-3.5 md:h-3.5 text-primary" />
               <span className="hidden sm:inline">{firstName}</span>
             </button>
 
-            {/* Alternador de Tema Claro/Escuro */}
+            {/* Alternador de Tema Claro/Escuro (Desktop/Tablet; no mobile fica no painel da conta) */}
             <button
               type="button"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
               aria-label={theme === "dark" ? "Ativar modo claro" : "Ativar modo escuro"}
               title={theme === "dark" ? "Ativar modo claro" : "Ativar modo escuro"}
-              className="inline-flex items-center justify-center h-8 w-8 rounded-sm border border-border bg-background hover:bg-accent text-foreground transition-colors shrink-0"
+              className="hidden md:inline-flex items-center justify-center h-8 w-8 rounded-sm border border-border bg-background hover:bg-accent text-foreground transition-colors shrink-0"
             >
               {theme === "dark" ? (
                 <Sun className="w-3.5 h-3.5 text-amber-500" />
@@ -304,7 +306,7 @@ export function CampoTopAppBar({
                   setDialogOpen(false);
                 }}
                 className={cn(
-                  "flex min-h-[52px] w-full items-center justify-between gap-3 rounded-sm border px-3.5 py-2.5 text-left text-sm transition-all active:scale-[0.99]",
+                  "flex min-h-[52px] w-full items-center justify-between gap-3 rounded-xl md:rounded-sm border px-3.5 py-2.5 text-left text-sm transition-all active:scale-[0.99]",
                   active
                     ? "border-primary/30 bg-accent text-accent-foreground font-semibold"
                     : "border-border/60 bg-card text-foreground hover:bg-muted/70"
@@ -313,7 +315,7 @@ export function CampoTopAppBar({
                 <div className="flex min-w-0 items-center gap-3">
                   <div
                     className={cn(
-                      "flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-sm border text-xs font-semibold shadow-2xs",
+                      "flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg md:rounded-sm border text-xs font-semibold shadow-2xs",
                       active
                         ? "border-primary/25 bg-primary/12 text-primary"
                         : "border-border bg-muted text-muted-foreground"
@@ -354,10 +356,10 @@ export function CampoTopAppBar({
               setTheme(theme === "dark" ? "light" : "dark");
               setAvatarMenuOpen(false);
             }}
-            className="flex min-h-[52px] w-full items-center justify-between gap-3 rounded-sm border border-border bg-card px-3.5 py-2.5 text-left text-sm text-foreground transition-all hover:bg-muted/70 active:scale-[0.99]"
+            className="flex min-h-[52px] w-full items-center justify-between gap-3 rounded-xl md:rounded-sm border border-border bg-card px-3.5 py-2.5 text-left text-sm text-foreground transition-all hover:bg-muted/70 active:scale-[0.99]"
           >
             <div className="flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-sm border border-border bg-muted text-muted-foreground">
+              <div className="flex size-9 items-center justify-center rounded-lg md:rounded-sm border border-border bg-muted text-muted-foreground">
                 {theme === "dark" ? (
                   <Sun className="size-4 text-amber-500" />
                 ) : (
@@ -379,10 +381,10 @@ export function CampoTopAppBar({
               setAvatarMenuOpen(false);
               router.push("/pin");
             }}
-            className="flex min-h-[52px] w-full items-center justify-between gap-3 rounded-sm border border-border bg-card px-3.5 py-2.5 text-left text-sm text-foreground transition-all hover:bg-muted/70 active:scale-[0.99]"
+            className="flex min-h-[52px] w-full items-center justify-between gap-3 rounded-xl md:rounded-sm border border-border bg-card px-3.5 py-2.5 text-left text-sm text-foreground transition-all hover:bg-muted/70 active:scale-[0.99]"
           >
             <div className="flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-sm border border-border bg-muted text-muted-foreground">
+              <div className="flex size-9 items-center justify-center rounded-lg md:rounded-sm border border-border bg-muted text-muted-foreground">
                 <LogOut className="size-4" />
               </div>
               <div>
@@ -413,18 +415,18 @@ function StatusBadge({
   onClick?: () => void;
 }) {
   const classes = cn(
-    "inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold",
+    "inline-flex shrink-0 items-center justify-center gap-1 rounded-lg md:rounded-sm border px-2 md:px-1.5 py-1 md:py-0.5 text-[11px] md:text-[10px] font-semibold",
     hideOnTiny && "hidden sm:inline-flex",
     active
       ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
       : "border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-400",
-    onClick && "cursor-pointer hover:opacity-85 active:scale-95 transition-all"
+    onClick && "min-h-[36px] min-w-[36px] md:min-h-0 md:min-w-0 cursor-pointer hover:opacity-85 active:scale-95 transition-all"
   );
 
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={classes}>
-        <Icon className={cn("w-3 h-3", spinning && "animate-spin")} />
+      <button type="button" onClick={onClick} aria-label={label} title={label} className={classes}>
+        <Icon className={cn("w-4 h-4 md:w-3 md:h-3", spinning && "animate-spin")} />
         <span className="hidden md:inline">{label}</span>
       </button>
     );

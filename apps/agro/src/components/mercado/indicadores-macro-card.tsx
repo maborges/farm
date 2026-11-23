@@ -188,7 +188,7 @@ export function IndicadoresMacroCard() {
       <CardContent className="flex flex-col gap-3.5">
         {loading && !data ? (
           /* Skeletons de carregamento com alturas fixas para zero layout shift */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 @[460px]/main:grid-cols-2 @[780px]/main:grid-cols-4 gap-3">
             {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
@@ -205,7 +205,7 @@ export function IndicadoresMacroCard() {
           </div>
         ) : data && data.itens.length > 0 ? (
           /* Grid Responsivo de Indicadores */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 @[460px]/main:grid-cols-2 @[780px]/main:grid-cols-4 gap-3">
             {data.itens.map((item: IndicadorMacroItem) => {
               const Icon = obterIconeIndicador(item.id);
               const dataFormatada = formatarDataReferencia(item.dataReferencia, item.periodicidade);

@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -14,6 +15,7 @@ import {
   detectPlatformOS,
   getAdaptiveLayoutProfile,
   type AdaptiveLayoutProfile,
+  type DeviceCategory,
 } from "./device-detection";
 
 interface NavigatorWithStandalone extends Navigator {
@@ -93,18 +95,25 @@ export function DeviceContextProvider({ children }: { children: ReactNode }) {
   const [layoutProfile, setLayoutProfile] = useState<AdaptiveLayoutProfile>(DEFAULT_PROFILE);
   const [isHydrated, setIsHydrated] = useState<boolean>(false);
   const [isSidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+  const lastCategoryRef = useRef<DeviceCategory | null>(null);
 
   useEffect(() => {
     const updateProfile = () => {
       const nextProfile = readBrowserAdaptiveProfile(window);
       setLayoutProfile(nextProfile);
       setIsHydrated(true);
+
+      if (nextProfile.deviceCategory !== lastCategoryRef.current) {
+        lastCategoryRef.current = nextProfile.deviceCategory;
+        if (nextProfile.deviceCategory === "tablet") {
+          setSidebarCollapsed(true);
+        } else if (nextProfile.deviceCategory === "desktop") {
+          setSidebarCollapsed(false);
+        }
+      }
     };
 
     updateProfile();
-    if (window.innerWidth >= 768 && window.innerWidth < 1024) {
-      setSidebarCollapsed(true);
-    }
 
     const standaloneQuery = window.matchMedia("(display-mode: standalone)");
     window.addEventListener("resize", updateProfile, { passive: true });

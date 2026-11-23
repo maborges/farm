@@ -124,7 +124,7 @@ export function CalculadoraConversorGeral() {
               <ToggleGroupItem
                 key={cat}
                 value={cat}
-                className="justify-start text-xs h-8"
+                className="justify-start text-xs h-10 md:h-8"
               >
                 {ROTULOS_CATEGORIA[cat]}
               </ToggleGroupItem>
@@ -148,7 +148,7 @@ export function CalculadoraConversorGeral() {
               id="unidade-de"
               value={unidadeDe}
               onChange={(e) => setUnidadeDe(e.target.value)}
-              className={cn(inputBaseClassName, "text-xs")}
+              className={cn(inputBaseClassName, "md:text-xs")}
             >
               {UNIDADES_POR_CATEGORIA[categoria].map((codigo) => {
                 const u = CATALOGO_UNIDADES[codigo];
@@ -175,7 +175,7 @@ export function CalculadoraConversorGeral() {
 
           <div className="flex flex-col gap-1.5 sm:col-span-3">
             <Label htmlFor="unidade-para" className="text-xs">Para</Label>
-            <div className="h-8 flex items-center px-2.5 text-xs text-muted-foreground bg-muted/40 rounded-sm border border-border/60">
+            <div className="h-11 md:h-8 flex items-center px-3 md:px-2.5 text-sm md:text-xs text-muted-foreground bg-muted/40 rounded-lg md:rounded-sm border border-border/60">
               {resultado !== null ? (
                 <span className="font-semibold text-foreground truncate">
                   {formatarNumero(resultado, 6)} {defPara?.simbolo}
@@ -188,7 +188,7 @@ export function CalculadoraConversorGeral() {
               id="unidade-para"
               value={unidadePara}
               onChange={(e) => setUnidadePara(e.target.value)}
-              className={cn(inputBaseClassName, "text-xs")}
+              className={cn(inputBaseClassName, "md:text-xs")}
             >
               {UNIDADES_POR_CATEGORIA[categoria].map((codigo) => {
                 const u = CATALOGO_UNIDADES[codigo];

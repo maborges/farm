@@ -112,7 +112,7 @@ export function CalculadoraAreas() {
               id="unidade-area"
               value={unidade}
               onChange={(e) => setUnidade(e.target.value as UnidadeAreaRural)}
-              className={cn(inputBaseClassName, "text-xs")}
+              className={cn(inputBaseClassName, "md:text-xs")}
             >
               <option value="HECTARES">Hectares (ha) — 10.000 m²</option>
               <option value="METROS_QUADRADOS">Metros Quadrados (m²)</option>

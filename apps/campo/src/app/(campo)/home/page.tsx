@@ -178,15 +178,15 @@ export default function HomePage() {
     >
       {clearNotice && <CampoSessionClearNotice notice={clearNotice} />}
 
-      {/* Cabeçalho Compacto de App Mobile / Hero Adaptativo no Desktop (mesmo padrão visual do Agro) */}
-      <section className="rounded-sm border border-border bg-card p-3.5 sm:p-5 shadow-xs relative overflow-hidden">
+      {/* Cabeçalho Compacto de App Mobile / Hero Adaptativo no Desktop */}
+      <section className="rounded-xl md:rounded-sm border border-border bg-card p-3.5 sm:p-5 shadow-xs relative overflow-hidden">
         <div className="max-w-2xl flex flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <span className="inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-semibold border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+            <span className="inline-flex items-center rounded-md md:rounded-sm border px-2 py-0.5 text-[11px] md:text-[10px] font-semibold border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
               {shortDate} • Turno Ativo
             </span>
             {activeFazendaNome && (
-              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <span className="text-xs md:text-[11px] text-muted-foreground flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5 text-primary" /> {activeFazendaNome}
               </span>
             )}
@@ -197,7 +197,7 @@ export default function HomePage() {
           <h1 className="text-base sm:text-xl md:text-2xl font-bold tracking-tight text-foreground leading-snug">
             {greeting}, {firstName} — Operação de Campo
           </h1>
-          <p className="text-xs text-muted-foreground leading-relaxed">
+          <p className="hidden sm:block text-xs text-muted-foreground leading-relaxed">
             Execute tarefas programadas, registre apontamentos no caderno oficial com fotos e GPS e acompanhe recomendações técnicas da propriedade.
           </p>
         </div>
@@ -301,8 +301,8 @@ export default function HomePage() {
       {/* Progresso do dia */}
       <PwaProgressRing done={doneCount} total={totalTarefas} />
 
-      {/* Rodapé de status de sincronização no mesmo estilo da chamada inferior do Agro */}
-      <section className="p-3.5 sm:p-4 rounded-sm border border-border/80 bg-muted/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      {/* Rodapé de status de sincronização (Tablet/Desktop; no mobile fica no Header e Dock) */}
+      <section className="hidden sm:flex p-3.5 sm:p-4 rounded-sm border border-border/80 bg-muted/40 flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex flex-col gap-1 max-w-xl">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
             <RefreshCw className="w-4 h-4 text-primary" />

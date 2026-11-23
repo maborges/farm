@@ -97,13 +97,13 @@ export function BottomSheet({
           "fixed z-50 flex flex-col border border-border bg-card shadow-2xl transition-all duration-250 ease-[cubic-bezier(0.32,0.72,0,1)]",
           isBottomSheet
             ? cn(
-                "inset-x-0 bottom-0 rounded-t-2xl border-b-0",
-                open ? "translate-y-0" : "translate-y-full"
-              )
+              "inset-x-0 bottom-0 rounded-t-2xl border-b-0",
+              open ? "translate-y-0" : "translate-y-full"
+            )
             : cn(
-                "left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-sm",
-                open ? "scale-100 opacity-100" : "scale-95 opacity-0"
-              )
+              "left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-sm",
+              open ? "scale-100 opacity-100" : "scale-95 opacity-0"
+            )
         )}
         style={isBottomSheet ? { paddingBottom: "env(safe-area-inset-bottom)" } : undefined}
         role="dialog"
@@ -134,9 +134,9 @@ export function BottomSheet({
               type="button"
               onClick={() => onOpenChange(false)}
               aria-label="Fechar painel"
-              className="inline-flex size-7 shrink-0 items-center justify-center rounded-sm border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="inline-flex size-10 md:size-7 shrink-0 items-center justify-center rounded-lg md:rounded-sm border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              <X className="size-3.5" />
+              <X className="size-4 md:size-3.5" />
             </button>
           </div>
         )}

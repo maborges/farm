@@ -82,15 +82,15 @@ export function PrevisaoDiaria({
               data-diaria-item="true"
             >
               {/* Dia da Semana e Data */}
-              <div className="flex items-center gap-3 min-w-[140px]">
-                <div className="p-1.5 rounded-sm bg-muted/40 border border-border/40 shrink-0">
+              <div className="flex items-center gap-3 min-w-0 sm:min-w-[140px]">
+                <div className="p-2 md:p-1.5 rounded-lg md:rounded-sm bg-muted/40 border border-border/40 shrink-0">
                   <ClimaIcon icone={item.condicaoIcone} className="size-5" />
                 </div>
-                <div>
-                  <p className="text-xs font-semibold text-foreground capitalize">
+                <div className="min-w-0">
+                  <p className="text-sm md:text-xs font-semibold text-foreground capitalize">
                     {idx === 0 ? "Hoje" : diaNome}
                   </p>
-                  <p className="text-[10px] text-muted-foreground font-mono">
+                  <p className="text-xs md:text-[10px] text-muted-foreground font-mono">
                     {dataFormatada}
                   </p>
                 </div>
@@ -104,26 +104,26 @@ export function PrevisaoDiaria({
               </div>
 
               {/* Métricas: Chuva e Vento */}
-              <div className="flex items-center gap-4 text-xs">
+              <div className="flex flex-wrap items-center justify-between sm:justify-end gap-x-3 gap-y-1.5 text-xs">
                 {/* Chuva */}
-                <div className="flex items-center gap-1.5 min-w-[80px]" title="Probabilidade e volume de chuva">
+                <div className="flex items-center gap-1.5" title="Probabilidade e volume de chuva">
                   <CloudRain className="size-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                  <div className="text-left text-[11px]">
+                  <div className="text-left text-xs md:text-[11px]">
                     <span className="font-semibold text-foreground">{probChuva ?? "0%"}</span>
                     {volChuva && (
-                      <span className="text-[10px] text-muted-foreground ml-1">({volChuva})</span>
+                      <span className="text-xs md:text-[10px] text-muted-foreground ml-1">({volChuva})</span>
                     )}
                   </div>
                 </div>
 
                 {/* Vento Máximo */}
-                <div className="flex items-center gap-1 text-[11px] text-teal-700 dark:text-teal-300 min-w-[70px]" title="Vento máximo previsto">
+                <div className="flex items-center gap-1 text-xs md:text-[11px] text-teal-700 dark:text-teal-300" title="Vento máximo previsto">
                   <Wind className="size-3.5 shrink-0" />
                   <span>{ventoMax ?? "—"}</span>
                 </div>
 
                 {/* Faixa Térmica (Min / Max) */}
-                <div className="flex items-center gap-2 min-w-[90px] justify-end font-mono">
+                <div className="flex items-center gap-2 justify-end font-mono ml-auto sm:ml-0">
                   <span className="flex items-center text-xs text-blue-600 dark:text-blue-400 font-semibold" title="Temperatura mínima">
                     <ArrowDown className="size-3 mr-0.5" />
                     {tMin}

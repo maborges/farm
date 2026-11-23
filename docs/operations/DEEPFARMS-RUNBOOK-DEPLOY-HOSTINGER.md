@@ -1,7 +1,7 @@
 # DeepFarms — Runbook de deploy de produção na Hostinger
 
 **Versão:** 2.1  
-**Data:** 19/11/2026  
+**Data:** 22/11/2026  
 **Ambiente-alvo:** Hostinger VPS KVM 4, Ubuntu  
 **Projeto Compose:** `farm` (`/opt/deepfarms/farm/docker-compose.hostinger.yml`)  
 **Status:** procedimento operacional padrão ativo via CLI `deploy_hostinger` (`/usr/local/bin/deploy_hostinger`)
@@ -326,24 +326,25 @@ sudo --preserve-env=DEEPFARMS_DEPLOY_TARGET \
 
 ## 6. Histórico de releases e `base_sha` atual
 
-> **Próximo `base_sha` para o workflow `publish-images.yml`:** `2f2acc104b60e3ee2ec4f0a2421ad2a27afb5165`
+> **Próximo `base_sha` para o workflow `publish-images.yml`:** `88ea65aae64328491c0484cb1d0c9d83437ab1a8`
 
-### Release atual em produção — `19/11/2026`
+### Release atual em produção — `22/11/2026`
 
-- **Commit SHA (`base_sha` vigente):** `2f2acc104b60e3ee2ec4f0a2421ad2a27afb5165`
-- **Migration aplicada:** nenhuma
+- **Commit SHA (`base_sha` vigente):** `88ea65aae64328491c0484cb1d0c9d83437ab1a8`
+- **Migrations aplicadas:** `20261119_rls_global_catalog_admin_write`, `20261120_pecuaria_lote_hibrido`, `20261122_agro_collector_foundation` *(via `--migrate`)*
 
 | Componente | Ocorrências atualizadas | Digest SHA-256 em execução |
 |---|---|---|
-| `backend` (`api` + 3 workers) | 4 | `sha256:a1d882054f0a73f579383c6df99ed14d2e9a6fb8cfc8ede35d28eedf3420e953` |
-| `web` | 1 | `sha256:e89e401a9cf85b4954218c5405bf780427015ec72f7951af80632fc2a682f193` |
-| `campo` *(mantido, commit `30fd5daebd1d5c511d02629d24d303dc878add8b`)* | — | `sha256:63ba1917e309d777c76e09e06eabd6034affc4d248f8c0a8d80d8d43945416ad` |
-| `agro` *(mantido, commit `30fd5daebd1d5c511d02629d24d303dc878add8b`)* | — | `sha256:442595fe4e57a1c7f6da4f04da473dfc802655d5d1c3a922fcbcd17bb490eb19` |
+| `backend` (`api` + 3 workers) | 4 | `sha256:ad7c43b719197aeecdeb507056ab45c6c681b7189beec5893b38c707aa5b1737` |
+| `web` | 1 | `sha256:5813436027109010348edb078402a87a37cd0584c10c2343018bffdcffc1c349` |
+| `campo` | 1 | `sha256:0fbb2da86e1a47a14827c19d3614a5c7e82e9eb6583e768c16cc467f33d62b3d` |
+| `agro` | 1 | `sha256:12ac6266eaaa79d20c026b7f594d505d71e143aad7d95bf76010558c6c1dc7a5` |
 
 ### Releases anteriores registradas
 
 | Data | Commit SHA | Observação |
 |---|---|---|
+| 19/11/2026 | `2f2acc104b60e3ee2ec4f0a2421ad2a27afb5165` | Release sem migration; `backend` `@sha256:a1d882054f0a73f579383c6df99ed14d2e9a6fb8cfc8ede35d28eedf3420e953`, `web` `@sha256:e89e401a9cf85b4954218c5405bf780427015ec72f7951af80632fc2a682f193` (`campo` e `agro` mantidos no commit `30fd5daebd1d5c511d02629d24d303dc878add8b`) |
 | 18/11/2026 | `5e99b24ddc38f48ce41101e49027e86f944cec7a` | Viabilidade, Fluxo de Caixa, CapEx e Hectares ILPF; migration `20261118_plano_acao_capex`; backup `.bak.20261119012247`; `backend` `@sha256:3a261eefb8fdde9ff99198503d605cff049ebf40209662a2cb170a55e04c388f`, `web` `@sha256:2f068a75de57244980283585569f646ad3c44a340e2a1f80ec19d733b3f8b99d` |
 | Anterior a 18/11/2026 | `d97e0a36891af84ee276fef8cd39cbbbf020c709` | `feat: adicionar gerenciamento de alterações de plano pendentes e tratamento de upgrade automático` |
 

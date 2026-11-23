@@ -90,7 +90,7 @@ export function CalculadoraSacas() {
 
       <CardContent className="flex flex-col gap-4">
         {/* Formulário de Entradas */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 @[560px]/main:grid-cols-3 gap-3">
           <div className="flex flex-col gap-1.5 sm:col-span-1">
             <Label htmlFor="valor-massa" className="text-xs">Quantidade</Label>
             <Input
@@ -109,7 +109,7 @@ export function CalculadoraSacas() {
               id="unidade-massa"
               value={unidade}
               onChange={(e) => setUnidade(e.target.value as UnidadeMassaAgricola)}
-              className={cn(inputBaseClassName, "text-xs")}
+              className={cn(inputBaseClassName, "md:text-xs")}
             >
               <option value="SACAS">Sacas agrícolas</option>
               <option value="QUILOGRAMAS">Quilogramas (kg)</option>
@@ -120,7 +120,7 @@ export function CalculadoraSacas() {
           <div className="flex flex-col gap-1.5 sm:col-span-1">
             <div className="flex items-center justify-between">
               <Label htmlFor="kg-saca" className="text-xs">Massa por Saca (kg)</Label>
-              <span className="text-[10px] text-muted-foreground">Padrão: 60 kg</span>
+              <span className="text-[11px] text-muted-foreground">Padrão: 60 kg</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Input
@@ -137,7 +137,7 @@ export function CalculadoraSacas() {
                 size="sm"
                 onClick={() => setKgPorSacaTexto("60")}
                 title="Redefinir para 60 kg (padrão soja/milho)"
-                className="h-8 px-2 text-xs"
+                className="h-11 md:h-8 px-2.5 md:px-2 text-xs"
               >
                 60kg
               </Button>
@@ -147,7 +147,7 @@ export function CalculadoraSacas() {
                 size="sm"
                 onClick={() => setKgPorSacaTexto("50")}
                 title="Definir 50 kg (feijão/trigo/especiais)"
-                className="h-8 px-2 text-xs"
+                className="h-11 md:h-8 px-2.5 md:px-2 text-xs"
               >
                 50kg
               </Button>
@@ -177,7 +177,7 @@ export function CalculadoraSacas() {
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Resultados Equivalentes
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-1 @[560px]/main:grid-cols-3 gap-2.5">
               <Card variant="muted" size="sm">
                 <CardContent className="flex flex-col gap-0.5">
                   <span className="text-[11px] text-muted-foreground">Sacas ({resultado.kgPorSaca} kg cada)</span>

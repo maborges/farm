@@ -37,20 +37,20 @@ export function CampoPwaUpdateBanner({ className }: { className?: string }) {
       role="status"
       aria-live="polite"
       className={[
-        "rounded-sm border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-950 shadow-2xs dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100",
+        "rounded-xl md:rounded-sm border border-emerald-300 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-950 shadow-2xs dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100",
         className,
       ]
         .filter(Boolean)
         .join(" ")}
     >
       <div className="flex items-center justify-between gap-2.5">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-sm bg-emerald-600 text-white dark:bg-emerald-700">
-            <RefreshCw className={`size-3.5 ${isApplying ? "animate-spin" : ""}`} />
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg md:rounded-sm bg-emerald-600 text-white dark:bg-emerald-700">
+            <RefreshCw className={`size-4 ${isApplying ? "animate-spin" : ""}`} />
           </span>
           <div className="min-w-0">
             <p className="truncate font-bold">Nova versão disponível</p>
-            <p className="text-[11px] leading-snug text-emerald-900/80 dark:text-emerald-200/85">
+            <p className="text-xs md:text-[11px] leading-snug text-emerald-900/80 dark:text-emerald-200/85">
               {description}
             </p>
           </div>
@@ -63,7 +63,7 @@ export function CampoPwaUpdateBanner({ className }: { className?: string }) {
             size="sm"
             disabled={isApplying}
             onClick={() => void applyUpdate()}
-            className="min-h-[32px] px-2.5 py-1 text-[11px]"
+            className="px-3 py-1.5 text-xs"
           >
             <RefreshCw className={`size-3.5 ${isApplying ? "animate-spin" : ""}`} />
             {isApplying ? "Atualizando..." : "Atualizar"}
@@ -73,9 +73,9 @@ export function CampoPwaUpdateBanner({ className }: { className?: string }) {
             onClick={dismiss}
             disabled={isApplying}
             aria-label="Dispensar aviso de atualização"
-            className="inline-flex size-7 items-center justify-center rounded-sm text-emerald-900/70 hover:bg-emerald-200/60 hover:text-emerald-950 disabled:opacity-40 dark:text-emerald-200/75 dark:hover:bg-emerald-900/60 dark:hover:text-emerald-50"
+            className="inline-flex size-9 md:size-7 items-center justify-center rounded-lg md:rounded-sm text-emerald-900/70 hover:bg-emerald-200/60 hover:text-emerald-950 disabled:opacity-40 dark:text-emerald-200/75 dark:hover:bg-emerald-900/60 dark:hover:text-emerald-50"
           >
-            <X className="size-3.5" />
+            <X className="size-4 md:size-3.5" />
           </button>
         </div>
       </div>

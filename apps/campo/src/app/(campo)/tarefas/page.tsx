@@ -64,25 +64,25 @@ export default function TarefasPage() {
     <div className="flex flex-col gap-4 pb-8">
       {/* Header com filtros táteis */}
       <div
-        className="campo-pwa-card-stagger rounded-sm border border-border bg-card px-4 py-3.5 shadow-2xs"
+        className="campo-pwa-card-stagger rounded-xl md:rounded-sm border border-border bg-card px-4 py-3.5 shadow-2xs"
         style={{ "--campo-pwa-delay": "0ms" } as CSSProperties}
       >
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
           <div className="flex items-center gap-2.5">
-            <span className="flex size-9 items-center justify-center rounded-sm bg-muted text-muted-foreground">
+            <span className="hidden md:flex size-9 items-center justify-center rounded-sm bg-muted text-muted-foreground">
               <ClipboardList className="size-4.5" strokeWidth={2} />
             </span>
             <div>
-              <h1 className="text-sm sm:text-base font-bold tracking-tight text-foreground">
+              <h1 className="hidden md:block text-sm sm:text-base font-bold tracking-tight text-foreground">
                 Tarefas Operacionais
               </h1>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs font-medium md:font-normal text-muted-foreground">
                 {formatInt(total)} tarefa{total !== 1 ? "s" : ""} no total
               </p>
             </div>
           </div>
 
-          <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
+          <div className="flex flex-wrap gap-1.5">
             {(["ALL", "AGRICULTURA", "PECUARIA"] as DomainFilter[]).map((f) => {
               const active = domainFilter === f;
               const label =
@@ -94,7 +94,7 @@ export default function TarefasPage() {
                   variant={active ? "primary" : "secondary"}
                   size="sm"
                   onClick={() => setDomainFilter(f)}
-                  className="rounded-sm"
+                  className="min-h-[40px] md:min-h-0 rounded-lg md:rounded-sm"
                 >
                   {label}
                 </CampoButton>
@@ -116,7 +116,7 @@ export default function TarefasPage() {
               </span>
             }
           />
-          <div className="mt-2.5 grid grid-cols-1 gap-2 md:grid-cols-2">
+          <div className="mt-2.5 grid grid-cols-1 gap-2 @[580px]/main:grid-cols-2">
             {filteredEmExecucao.map((task) => (
               <TarefaRow
                 key={task.id}
@@ -145,7 +145,7 @@ export default function TarefasPage() {
               </span>
             }
           />
-          <div className="mt-2.5 grid grid-cols-1 gap-2 md:grid-cols-2">
+          <div className="mt-2.5 grid grid-cols-1 gap-2 @[580px]/main:grid-cols-2">
             {atrasadas.map((task) => (
               <TarefaRow
                 key={task.id}
@@ -174,7 +174,7 @@ export default function TarefasPage() {
               </span>
             }
           />
-          <div className="mt-2.5 grid grid-cols-1 gap-2 md:grid-cols-2">
+          <div className="mt-2.5 grid grid-cols-1 gap-2 @[580px]/main:grid-cols-2">
             {hoje_.map((task) => (
               <TarefaRow
                 key={task.id}
@@ -203,7 +203,7 @@ export default function TarefasPage() {
               </span>
             }
           />
-          <div className="mt-2.5 grid grid-cols-1 gap-2 md:grid-cols-2">
+          <div className="mt-2.5 grid grid-cols-1 gap-2 @[580px]/main:grid-cols-2">
             {futuras.map((task) => (
               <TarefaRow
                 key={task.id}

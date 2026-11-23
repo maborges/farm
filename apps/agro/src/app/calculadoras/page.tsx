@@ -13,14 +13,14 @@ export const metadata: Metadata = {
 export default function CalculadorasPage() {
   return (
     <div className="flex flex-col gap-4">
-      {/* Cabeçalho da Seção */}
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between gap-2">
-          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Calculator className="size-5 text-emerald-700 dark:text-emerald-400" />
-            Calculadoras e Conversores Agrícolas
+      {/* Cabeçalho da Seção (no mobile a App Bar do Header já exibe título e subtítulo) */}
+      <div className="hidden md:flex flex-col gap-1">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground flex items-center gap-2 min-w-0">
+            <Calculator className="size-5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+            <span>Calculadoras e Conversores Agrícolas</span>
           </h1>
-          <Badge variant="recommendation">
+          <Badge variant="recommendation" className="shrink-0">
             5 Ferramentas Prontas
           </Badge>
         </div>
@@ -29,7 +29,7 @@ export default function CalculadorasPage() {
         </p>
       </div>
 
-      <Separator />
+      <Separator className="hidden md:block" />
 
       {/* Conteúdo Interativo das Calculadoras */}
       <CalculadorasContainer />

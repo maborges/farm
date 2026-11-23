@@ -41,7 +41,7 @@ export function ClimaDashboardSkeleton(): React.ReactElement {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 @[640px]/main:grid-cols-4 gap-2.5">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="p-3 rounded-sm bg-muted/20 border border-border/50 flex flex-col gap-2">
                 <Skeleton className="h-3 w-16" />

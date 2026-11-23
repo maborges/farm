@@ -109,7 +109,7 @@ export default function AgriculturaPage() {
               </span>
             }
           />
-          <div className="mt-2.5 grid grid-cols-1 gap-2 md:grid-cols-2">
+          <div className="mt-2.5 grid grid-cols-1 gap-2 @[580px]/main:grid-cols-2">
             {emExecucao.map((task) => (
               <AgricolaTaskCard
                 key={task.id}
@@ -137,7 +137,7 @@ export default function AgriculturaPage() {
               </span>
             }
           />
-          <div className="mt-2.5 grid grid-cols-1 gap-2 md:grid-cols-2">
+          <div className="mt-2.5 grid grid-cols-1 gap-2 @[580px]/main:grid-cols-2">
             {hoje_.map((task) => (
               <AgricolaTaskCard
                 key={task.id}
@@ -165,7 +165,7 @@ export default function AgriculturaPage() {
               </span>
             }
           />
-          <div className="mt-2.5 grid grid-cols-1 gap-2 md:grid-cols-2">
+          <div className="mt-2.5 grid grid-cols-1 gap-2 @[580px]/main:grid-cols-2">
             {atrasadas.map((task) => (
               <AgricolaTaskCard
                 key={task.id}
@@ -217,7 +217,7 @@ export default function AgriculturaPage() {
           </button>
 
           {recsOpen && (
-            <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+            <div className="mt-2 grid grid-cols-1 gap-2 @[580px]/main:grid-cols-2">
               {(recomendacoes ?? []).slice(0, 6).map((rec) => (
                 <button
                   key={rec.id}

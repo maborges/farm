@@ -30,11 +30,10 @@ export function FieldSelect({ label, options, value, onChange, placeholder }: Fi
               key={opt.id}
               type="button"
               onClick={() => onChange(opt.id)}
-              className={`rounded-sm border px-3.5 py-3 text-left transition-all active:scale-[0.98] ${
-                value === opt.id
-                  ? "border-primary/40 bg-accent text-accent-foreground shadow-sm"
-                  : "border-border bg-card text-foreground hover:bg-muted"
-              }`}
+              className={`min-h-[52px] rounded-lg md:rounded-sm border px-3.5 py-3 text-left transition-all active:scale-[0.98] ${value === opt.id
+                ? "border-primary/40 bg-accent text-accent-foreground shadow-sm"
+                : "border-border bg-card text-foreground hover:bg-muted"
+                }`}
             >
               <p className="text-sm font-semibold leading-tight">{opt.label}</p>
               {opt.sublabel && (
@@ -47,7 +46,7 @@ export function FieldSelect({ label, options, value, onChange, placeholder }: Fi
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-lg border border-input bg-card px-3.5 py-3 text-base text-foreground outline-none focus:border-ring"
+          className="min-h-[44px] w-full rounded-lg md:rounded-sm border border-input bg-card px-3.5 py-2.5 text-base md:text-sm text-foreground outline-none focus:border-ring"
         >
           {placeholder && <option value="">{placeholder}</option>}
           {options.map((opt) => (
