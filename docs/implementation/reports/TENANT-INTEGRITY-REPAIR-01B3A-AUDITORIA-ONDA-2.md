@@ -2,7 +2,7 @@
 ## Relatório 01B3A — Inventário Pré-Execução
 
 **Data:** 2026-07-17
-**Banco:** `postgresql://borgus@192.168.0.3/farms` (schema `farms`)
+**Banco:** `postgresql://borgus@192.168.0.2/farms` (schema `farms`)
 **Estado Alembic:** `current = tenant_integrity_repair_01b2_onda1` | `heads = tenant_fk_repair_01d` (unapplied)
 **Autor:** Auditoria automatizada — Claude Code
 

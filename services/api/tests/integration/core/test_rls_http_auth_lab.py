@@ -69,7 +69,7 @@ async def http_rls_lab(monkeypatch):
 
     runtime_url = make_url(RUNTIME_URL)
     deploy_url = make_url(DEPLOY_URL)
-    expected = ("192.168.0.3", 5432, "deepfarms_rls_lab")
+    expected = ("192.168.0.2", 5432, "deepfarms_rls_lab")
     assert (runtime_url.host, runtime_url.port, runtime_url.database) == expected
     assert runtime_url.username == "deepfarms_rls_lab_runtime"
     assert (deploy_url.host, deploy_url.port, deploy_url.database) == expected

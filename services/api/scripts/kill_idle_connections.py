@@ -5,7 +5,7 @@ Execute com: ./.venv/bin/python scripts/kill_idle_connections.py
 import asyncio
 import asyncpg
 
-DATABASE_URL = "postgresql://borgus:numsey01@192.168.0.3/farms"
+DATABASE_URL = "postgresql://borgus:numsey01@192.168.0.2/farms"
 
 
 async def main() -> None:

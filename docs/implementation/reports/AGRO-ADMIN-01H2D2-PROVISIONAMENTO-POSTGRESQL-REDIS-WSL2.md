@@ -6,7 +6,7 @@
 
 ## 1. Diagnóstico inicial
 
-Relidos integralmente os relatórios AGRO-ADMIN-01H2D1, 01H2C e 01H2C2. O database compartilhado `farms` em `192.168.0.3` permaneceu fora do escopo. Nenhuma conexão PostgreSQL/Redis, consulta comercial, instalação, start/stop ou migration foi realizada.
+Relidos integralmente os relatórios AGRO-ADMIN-01H2D1, 01H2C e 01H2C2. O database compartilhado `farms` em `192.168.0.2` permaneceu fora do escopo. Nenhuma conexão PostgreSQL/Redis, consulta comercial, instalação, start/stop ou migration foi realizada.
 
 | Verificação | Resultado desta coleta |
 |---|---|
@@ -64,7 +64,7 @@ ID de preparação dos pacotes: `20261025-pkg-a0f4281d`. Esta é somente a raiz 
 - PostgreSQL 16: `<raiz>/postgres/data`, socket/log/PID/config próprios, bind `127.0.0.1`, porta `5433`, SCRAM, database `agro_hml_<id>`;
 - roles exclusivos: role owner/administrativo de laboratório e role da aplicação com privilégios mínimos; credenciais geradas por CSPRNG em arquivos `0600`, fora do Git e sem impressão em logs;
 - Redis: config/ACL/PID/log/dados sob `<raiz>/redis`, bind `127.0.0.1`, porta `6380`, ACL dedicada, sem réplica/cluster/integração externa;
-- nenhuma permissão, URL ou credential para `192.168.0.3`, `farms`, RDS ou serviços comerciais;
+- nenhuma permissão, URL ou credential para `192.168.0.2`, `farms`, RDS ou serviços comerciais;
 - FastAPI e frontends não serão iniciados nesta fase.
 
 Nenhum serviço existente deve ser parado, reconfigurado ou removido. Portas ocupadas, path existente, identidade divergente ou permissão inesperada significam abortar, sem correção automática.
@@ -125,7 +125,7 @@ Não preparados como scripts executáveis nesta fase. O controlador futuro dever
 
 ### 1. Autorização e escopo executado
 
-O usuário autorizou expressamente o provisionamento e start do laboratório local PostgreSQL 16.15 e Redis 6.0.16. Foi criada uma raiz inédita, sem reutilizar o diretório dos pacotes. Não foram instalados pacotes globalmente, usados `sudo`, `systemctl` ou `service`, nem alterados serviços preexistentes. Não houve conexão a `192.168.0.3`, RDS, provedores comerciais ou outros serviços externos. Não foram iniciados FastAPI/Next.js; não foram executados migrations, `stamp`, DDL DeepFarms, nem testes E2E.
+O usuário autorizou expressamente o provisionamento e start do laboratório local PostgreSQL 16.15 e Redis 6.0.16. Foi criada uma raiz inédita, sem reutilizar o diretório dos pacotes. Não foram instalados pacotes globalmente, usados `sudo`, `systemctl` ou `service`, nem alterados serviços preexistentes. Não houve conexão a `192.168.0.2`, RDS, provedores comerciais ou outros serviços externos. Não foram iniciados FastAPI/Next.js; não foram executados migrations, `stamp`, DDL DeepFarms, nem testes E2E.
 
 ### 2. Recursos provisionados e identidade
 

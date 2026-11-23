@@ -22,7 +22,7 @@ Comandos tentados:
 
 Resultado:
 - A validacao de runtime ficou bloqueada por indisponibilidade de conexao com o banco configurado em `services/api/.env.local`.
-- A URL aponta para `postgresql+asyncpg://borgus:numsey01@192.168.0.3/farms`.
+- A URL aponta para `postgresql+asyncpg://borgus:numsey01@192.168.0.2/farms`.
 - Nao havia processo Postgres local ativo no ambiente, e os comandos Alembic nao conseguiram completar a conexao.
 - Nao foi possivel confirmar upgrade/downgrade no schema `farms` neste runtime.
 

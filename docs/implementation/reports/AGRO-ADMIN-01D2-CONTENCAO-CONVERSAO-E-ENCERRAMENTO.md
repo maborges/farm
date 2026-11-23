@@ -173,7 +173,7 @@ Em cumprimento estrito às diretrizes de governança técnica:
 | `test_backoffice_identity_integration.py` | **SQLite em arquivo temporário (`aiosqlite`)** | Teste de integração de contratos de identidade do backoffice. |
 | `test_homologacao_01b2c_e2e_fluxos.py` | **SQLite em arquivo temporário (`aiosqlite`)** | Teste E2E de ciclo de vida do produtor executado com fallback seguro local. |
 | `test_agro_byok.py` | **SQLite em arquivo temporário (`aiosqlite`)** | Testes criptográficos de cofre, KEK e isolamento multitenant. |
-| **API em Produção / Homologação** | **PostgreSQL Real (`192.168.0.3/farms`)** | Validado anteriormente via `alembic upgrade head` (Head: `20261022_agro_admin_01b1`), sem modificações destrutivas. |
+| **API em Produção / Homologação** | **PostgreSQL Real (`192.168.0.2/farms`)** | Validado anteriormente via `alembic upgrade head` (Head: `20261022_agro_admin_01b1`), sem modificações destrutivas. |
 
 ### Pendências de Homologação em PostgreSQL Isolado
 Conforme identificado na auditoria 01D1, a suíte de testes automatizados local roda sobre SQLite. A homologação contínua de constraints PostgreSQL, tipos nativos `UUID` e políticas de RLS permanece dependente de um runner em pipeline CI com instância PostgreSQL dedicada.

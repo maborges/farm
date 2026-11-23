@@ -2,7 +2,7 @@
 
 ## 1. Resumo Executivo
 
-A auditoria confirmou a infraestrutura oficial de testes PostgreSQL (`tests/conftest.py`, fixture `session`, banco `farms` em `192.168.0.3`) e identificou que **um** arquivo (`tests/unit/integracoes/conftest.py`) definia um `session` local em SQLite em memória com um subconjunto manual de tabelas, sombreando a fixture oficial para 8 módulos de teste. Esse `session` local foi removido (correção mínima, sem código de produção alterado), e os 8 módulos passaram a herdar corretamente a fixture PostgreSQL oficial.
+A auditoria confirmou a infraestrutura oficial de testes PostgreSQL (`tests/conftest.py`, fixture `session`, banco `farms` em `192.168.0.2`) e identificou que **um** arquivo (`tests/unit/integracoes/conftest.py`) definia um `session` local em SQLite em memória com um subconjunto manual de tabelas, sombreando a fixture oficial para 8 módulos de teste. Esse `session` local foi removido (correção mínima, sem código de produção alterado), e os 8 módulos passaram a herdar corretamente a fixture PostgreSQL oficial.
 
 **Achado crítico que reverte a premissa do plano**: ao convergir para PostgreSQL, o `NoReferencedTableError` **não desapareceu** — apenas migrou do momento de setup de fixture (SQLite) para o momento de `flush()`/`commit()` do ORM (PostgreSQL real). Uma investigação direta (reproduzida fora do pytest, com o banco `farms` real) provou que **qualquer flush de `TenantIntegracao`, `IntegrationCredential`, `IntegrationVersion`, `IntegrationFeature`, `IntegrationSyncPolicy`, `IntegrationJob`, `IntegrationHealth`, `ExternalRecordAssociation` ou `ExternalRecordAssociationHistory` falha, em qualquer backend**, porque `integracoes/models.py` define `ForeignKey("farms.tenants.id", ...)` com prefixo de schema explícito, enquanto `core.models.tenant.Tenant.__tablename__ = "tenants"` está registrado **sem** schema no `Base.metadata` compartilhado (a app inteira depende de `search_path=farms` em nível de conexão, nunca de qualificação de schema em string de FK). O SQLAlchemy não consegue resolver a coluna de destino da FK dentro do metadata Python — isso é um bug de definição de modelo, não uma diferença SQLite vs PostgreSQL.
 
@@ -12,15 +12,15 @@ Isso significa: **este é provavelmente um bug ativo em produção** em qualquer
 
 ## 2. Configuração Oficial de Testes
 
-- `tests/conftest.py:30-34` (`_get_db_url()`): usa `settings.database_url`; se não contiver `"postgresql"`, usa fallback fixo `postgresql+asyncpg://borgus:numsey01@192.168.0.3/farms`.
-- `.env.local` (raiz de `services/api`): `DATABASE_URL=postgresql+asyncpg://borgus:numsey01@192.168.0.3/farms` — mesma URL do fallback, confirmando que é o banco de desenvolvimento/teste local oficial.
+- `tests/conftest.py:30-34` (`_get_db_url()`): usa `settings.database_url`; se não contiver `"postgresql"`, usa fallback fixo `postgresql+asyncpg://borgus:numsey01@192.168.0.2/farms`.
+- `.env.local` (raiz de `services/api`): `DATABASE_URL=postgresql+asyncpg://borgus:numsey01@192.168.0.2/farms` — mesma URL do fallback, confirmando que é o banco de desenvolvimento/teste local oficial.
 - `.env.production`: aponta para Supabase (produção) — não usado nos testes.
 - `core/config.py:12`: default `sqlite+aiosqlite:///./agrosaas.db` (usado apenas se nenhum `.env` carregar; não é o caminho real de testes, que sempre cai no fallback PostgreSQL de `_get_db_url()`).
 - Conexão usa `connect_args={'server_settings': {'search_path': 'farms'}}` — o schema `farms` é resolvido via `search_path` de conexão, **nunca** por qualificação explícita `schema=` nos models.
 
 ## 3. Banco PostgreSQL Utilizado
 
-Confirmado por conexão direta: `select current_database(), current_schema()` → `('farms', 'farms')`. Host `192.168.0.3`, banco `farms`, schema efetivo `farms` via `search_path`. É o mesmo banco já usado por **centenas** de outros testes do repositório através das fixtures `session`, `session_a`, `session_b` em `tests/conftest.py` — não é uma infraestrutura nova; é a infraestrutura oficial já estabelecida e amplamente reutilizada.
+Confirmado por conexão direta: `select current_database(), current_schema()` → `('farms', 'farms')`. Host `192.168.0.2`, banco `farms`, schema efetivo `farms` via `search_path`. É o mesmo banco já usado por **centenas** de outros testes do repositório através das fixtures `session`, `session_a`, `session_b` em `tests/conftest.py` — não é uma infraestrutura nova; é a infraestrutura oficial já estabelecida e amplamente reutilizada.
 
 ## 4. Inventário das Fixtures
 
@@ -129,7 +129,7 @@ Nenhum outro arquivo de teste foi alterado. Nenhum arquivo de produção (`model
 
 ## 11. Segurança e Isolamento do Banco
 
-- URL: `postgresql+asyncpg://borgus:numsey01@192.168.0.3/farms` (sanitizada aqui: host de rede local, não é endpoint de produção Supabase de `.env.production`).
+- URL: `postgresql+asyncpg://borgus:numsey01@192.168.0.2/farms` (sanitizada aqui: host de rede local, não é endpoint de produção Supabase de `.env.production`).
 - Confirmado por conexão direta que é o mesmo banco `farms` já usado pela fixture oficial `session`/`session_a`/`session_b` para centenas de outros testes do repositório — não é uma instância nova nem isolada introduzida por esta fase.
 - Não é nomeado explicitamente como banco "de teste" (não há sufixo `_test`), mas é o padrão já estabelecido e aceito pelo projeto (confirmado em `CLAUDE.md`: "dev local usa PostgreSQL via `.env`"), reutilizado sem questionamento por toda a suíte existente antes desta auditoria.
 - Nenhuma operação destrutiva (`drop_all`, truncate global, migration destrutiva) foi executada nesta fase. A verificação de conectividade usada apenas `SELECT current_database(), current_schema()` (somente leitura). O teste de reprodução do bug (seção 7) usou `session.rollback()` ao final, sem `commit()`.

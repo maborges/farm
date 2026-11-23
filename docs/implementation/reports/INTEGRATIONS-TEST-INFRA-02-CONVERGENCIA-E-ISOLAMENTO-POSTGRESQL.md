@@ -143,7 +143,7 @@ Isso é um **bug real de compatibilidade de tipos em código de produção**, n�
 
 ## 15. Segurança e Isolamento do Banco
 
-URL sanitizada: `postgresql+asyncpg://<usuario>:<senha>@192.168.0.3/farms` — confirmado (fases anteriores) que é o banco de desenvolvimento/teste local oficial do projeto, reutilizado por centenas de outros testes. Nenhuma operação destrutiva (`DROP DATABASE`, `drop_all`, truncate global) foi executada nesta fase. Nenhum tenant ou dado fora dos criados pelos próprios testes desta fase foi apagado ou modificado.
+URL sanitizada: `postgresql+asyncpg://<usuario>:<senha>@192.168.0.2/farms` — confirmado (fases anteriores) que é o banco de desenvolvimento/teste local oficial do projeto, reutilizado por centenas de outros testes. Nenhuma operação destrutiva (`DROP DATABASE`, `drop_all`, truncate global) foi executada nesta fase. Nenhum tenant ou dado fora dos criados pelos próprios testes desta fase foi apagado ou modificado.
 
 ## 16. Testes Executados (críticos)
 

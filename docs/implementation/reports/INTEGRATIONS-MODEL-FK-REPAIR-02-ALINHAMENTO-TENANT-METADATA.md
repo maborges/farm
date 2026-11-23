@@ -18,7 +18,7 @@ Alta, confirmada. O bug afetava (antes da correção) qualquer `flush()`/`commit
 
 ## 4. Reprodução Anterior (antes da correção)
 
-Executada fora do pytest, direto contra o PostgreSQL oficial (`postgresql+asyncpg://borgus:...@192.168.0.3/farms`):
+Executada fora do pytest, direto contra o PostgreSQL oficial (`postgresql+asyncpg://borgus:...@192.168.0.2/farms`):
 
 ```
 mi = MarketplaceIntegracao(...); session.add(mi); await session.flush()   # OK

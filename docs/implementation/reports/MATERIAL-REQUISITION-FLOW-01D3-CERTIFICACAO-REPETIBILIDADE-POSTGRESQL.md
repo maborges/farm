@@ -51,7 +51,7 @@ Essa configuração não deve ser copiada para produção sem decisão específi
 
 - PostgreSQL `16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)`;
 - database `farms`, schema `farms`;
-- host de desenvolvimento `192.168.0.3:5432`;
+- host de desenvolvimento `192.168.0.2:5432`;
 - Alembic `20260925_material_requisition_01d (head)`;
 - ambiente de desenvolvimento/teste, não produção;
 - SQLAlchemy Async + asyncpg.

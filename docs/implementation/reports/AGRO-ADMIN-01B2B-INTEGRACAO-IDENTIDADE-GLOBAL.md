@@ -251,7 +251,7 @@ $$\mathbf{Testes\ Aprovados:\ 263\ (100\%)\quad|\quad Falhas:\ 0\quad|\quad Erro
 2. **Defesa em Profundidade contra CSRF:**
    Mutações originadas via sessão de cookie são estritamente validadas via `Sec-Fetch-Site`, `Origin`/`Referer` e `X-Agro-CSRF`.
 3. **Isolamento de Banco e Ambientes:**
-   Nenhum comando destrutivo, DDL de alteração ou script de migração foi executado contra o banco PostgreSQL compartilhado de desenvolvimento/produção (`farms` em `192.168.0.3`). Todos os testes de schema executaram em engines SQLite/em memória isoladas.
+   Nenhum comando destrutivo, DDL de alteração ou script de migração foi executado contra o banco PostgreSQL compartilhado de desenvolvimento/produção (`farms` em `192.168.0.2`). Todos os testes de schema executaram em engines SQLite/em memória isoladas.
 4. **Preservação de Dados Legados:**
    Nenhum arquivo legado foi removido ou alterado irreversivelmente.
 

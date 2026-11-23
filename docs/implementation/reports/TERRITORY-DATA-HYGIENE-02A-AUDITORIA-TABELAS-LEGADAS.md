@@ -16,7 +16,7 @@ Conclusão prática:
 
 - Banco: `farms`
 - Schema auditado: `farms`
-- Conexão usada para a auditoria física: `postgresql+asyncpg://borgus:***@192.168.0.3/farms`
+- Conexão usada para a auditoria física: `postgresql+asyncpg://borgus:***@192.168.0.2/farms`
 - PostgreSQL real com RLS usado como base da auditoria
 - Nenhuma alteração de código foi feita nesta fase
 

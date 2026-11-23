@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
 
 async def check():
-    db_url = "postgresql+asyncpg://borgus:numsey01@192.168.0.3/farms"
+    db_url = "postgresql+asyncpg://borgus:numsey01@192.168.0.2/farms"
     engine = create_async_engine(db_url)
     
     async with engine.connect() as conn:

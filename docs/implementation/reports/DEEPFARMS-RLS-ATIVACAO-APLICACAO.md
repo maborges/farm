@@ -6,7 +6,7 @@ Homologação concluída em `farms` por HTTP real, com as roles restritas, isola
 
 ## Ambiente e identidades
 
-- PostgreSQL: `192.168.0.3:5432/farms`, schema `farms`.
+- PostgreSQL: `192.168.0.2:5432/farms`, schema `farms`.
 - API canário: `127.0.0.1:8012`, sem exposição pública.
 - Runtime: `deepfarms_runtime`; autenticação: `deepfarms_auth`.
 - `current_database()`, `current_user` e `session_user` foram conferidos para as duas conexões. Ambas as roles não têm `SUPERUSER` nem `BYPASSRLS`; o runtime não tem `SELECT` em `usuarios.senha_hash` nem `EXECUTE` em `farms.auth_login_material(text)`. A auth não tem acesso direto ao hash.

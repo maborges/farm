@@ -84,11 +84,11 @@ if settings.rls_dev_route_sessions_enabled:
 
     route_runtime_url = URL.create(
         "postgresql+asyncpg", username="deepfarms_runtime",
-        password=runtime_password, host="192.168.0.3", port=5432, database="farms",
+        password=runtime_password, host="192.168.0.2", port=5432, database="farms",
     )
     route_auth_url = URL.create(
         "postgresql+asyncpg", username="deepfarms_auth",
-        password=auth_password, host="192.168.0.3", port=5432, database="farms",
+        password=auth_password, host="192.168.0.2", port=5432, database="farms",
     )
     RLS_DEV_RUNTIME_DB_URL = route_runtime_url.render_as_string(hide_password=False)
     RLS_DEV_AUTH_DB_URL = route_auth_url.render_as_string(hide_password=False)

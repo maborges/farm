@@ -6,9 +6,9 @@
 
 ## 1. Resultado executivo
 
-A autorização para criar `deepfarms_rls_lab` e roles específicas foi considerada. O destino efetivo foi confirmado novamente como PostgreSQL de desenvolvimento em `192.168.0.3:5432`, database/schema `farms`; o usuário efetivo é `borgus`, PostgreSQL 16.15. A consulta de catálogo confirmou que o database `deepfarms_rls_lab` ainda não existe e que os nomes exclusivos de roles propostos estão livres.
+A autorização para criar `deepfarms_rls_lab` e roles específicas foi considerada. O destino efetivo foi confirmado novamente como PostgreSQL de desenvolvimento em `192.168.0.2:5432`, database/schema `farms`; o usuário efetivo é `borgus`, PostgreSQL 16.15. A consulta de catálogo confirmou que o database `deepfarms_rls_lab` ainda não existe e que os nomes exclusivos de roles propostos estão livres.
 
-A execução do Codex continua sem DDL/DML. A role `admin_farms` foi revalidada por catálogo: `BYPASSRLS=true`, `CREATEDB=false`, `CREATEROLE=false`, com membership herdável em `borgus`; não consegue provisionar e não serve como runtime da prova. Uma tentativa TCP do Codex como `postgres` para `192.168.0.3:5432` foi recusada (`28P01`). Em seguida, o operador forneceu saída de uma sessão que abriu no próprio servidor: `current_database=postgres`, `current_user=session_user=postgres`, PostgreSQL `16.15`, `inet_server_addr()` e porta nulos. Isso é compatível com conexão por socket Unix local; não demonstra uma sessão TCP de `192.168.0.3` acessível a este executor. A senha não foi incluída em comando, arquivo ou relatório. O operador tem caminho administrativo local, mas essa sessão não é controlável pelo Codex.
+A execução do Codex continua sem DDL/DML. A role `admin_farms` foi revalidada por catálogo: `BYPASSRLS=true`, `CREATEDB=false`, `CREATEROLE=false`, com membership herdável em `borgus`; não consegue provisionar e não serve como runtime da prova. Uma tentativa TCP do Codex como `postgres` para `192.168.0.2:5432` foi recusada (`28P01`). Em seguida, o operador forneceu saída de uma sessão que abriu no próprio servidor: `current_database=postgres`, `current_user=session_user=postgres`, PostgreSQL `16.15`, `inet_server_addr()` e porta nulos. Isso é compatível com conexão por socket Unix local; não demonstra uma sessão TCP de `192.168.0.2` acessível a este executor. A senha não foi incluída em comando, arquivo ou relatório. O operador tem caminho administrativo local, mas essa sessão não é controlável pelo Codex.
 
 **Nenhum banco, role, tabela, grant ou policy foi criado ou alterado. Nenhum teste RLS ou de escrita foi executado.** O database `farms`, o schema `tara` e a Hostinger não foram modificados nem receberam DDL/DML. As consultas de preflight foram somente leitura, dentro de transação `READ ONLY`.
 
@@ -18,14 +18,14 @@ A execução do Codex continua sem DDL/DML. A role `admin_farms` foi revalidada 
 
 | Gate de provisionamento | Evidência observada | Resultado |
 |---|---|---|
-| Servidor/endpoint autorizado | Endpoint efetivo configurado `192.168.0.3`; porta retornada `5432`; responsável já confirmou o host como desenvolvimento | Identidade aceita para este escopo. |
+| Servidor/endpoint autorizado | Endpoint efetivo configurado `192.168.0.2`; porta retornada `5432`; responsável já confirmou o host como desenvolvimento | Identidade aceita para este escopo. |
 | Identidade da conexão | DB/schema `farms`/`farms`; `current_user=session_user=borgus`; PostgreSQL `16.15` | Confere com o servidor e database existentes explicitamente autorizados para o preflight. |
 | Interface reportada pelo servidor | `172.26.132.19/32` | Difere do endpoint configurado; mapeamento de rede não foi inspecionado. A evidência de destino é a configuração confirmada e a declaração do responsável. |
 | Existência de `deepfarms_rls_lab` | Nenhuma linha para o nome em `pg_database` | Não existe no momento do preflight; portanto não há database preexistente a sobrescrever. |
 | Colisão de roles planejadas | Nenhuma linha para `deepfarms_rls_lab_owner`, `deepfarms_rls_lab_deploy`, `deepfarms_rls_lab_runtime` em `pg_roles` | Nomes livres no momento do preflight. |
 | Capacidade da identidade configurada | `borgus`: `LOGIN=true`, `SUPERUSER=false`, `BYPASSRLS=false`, `CREATEDB=false`, `CREATEROLE=false` | Incapaz de criar o database e as roles; não foi tentado DDL. |
 | Role `admin_farms` fornecida pelo responsável | `LOGIN=true`, `SUPERUSER=false`, `BYPASSRLS=true`, `CREATEDB=false`, `CREATEROLE=false`; membership herdável em `borgus` | Não consegue provisionar DB/roles e é inadequada como runtime; a senha não foi testada nem repetida. |
-| Role `postgres` / caminhos de autenticação | TCP do Codex para `192.168.0.3:5432` recusou autenticação (`28P01`); operador forneceu saída da sessão local: DB `postgres`, `current_user=session_user=postgres`, versão `16.15`, endereço/porta nulos | O operador tem uma sessão administrativa local, compatível com socket Unix. A sessão não é compartilhada com este executor e não confirma o caminho TCP. |
+| Role `postgres` / caminhos de autenticação | TCP do Codex para `192.168.0.2:5432` recusou autenticação (`28P01`); operador forneceu saída da sessão local: DB `postgres`, `current_user=session_user=postgres`, versão `16.15`, endereço/porta nulos | O operador tem uma sessão administrativa local, compatível com socket Unix. A sessão não é compartilhada com este executor e não confirma o caminho TCP. |
 | Fontes locais de credencial administrativa adicional | `.env.local` tem somente a chave `DATABASE_URL`; não existem `.pgpass`/`.pg_service.conf` no home nem variáveis de ambiente administrativas correspondentes | Não foi encontrada outra credencial. Os valores secretos não foram lidos/impressos. |
 | Hostinger | Sem conexão ou comando | Não acessada. |
 
@@ -54,7 +54,7 @@ O banco de laboratório deverá ser descartável e sem bind mount de dados, cred
 
 | Teste / gate | Resultado | Evidência ou motivo |
 |---|---|---|
-| Conexão ao servidor de desenvolvimento autorizado | **PASS — somente preflight** | Endpoint configurado `192.168.0.3:5432`; database/schema corrente `farms`; usuário `borgus`; PostgreSQL 16.15. Interface reportada: `172.26.132.19/32`, sem mapeamento independente. |
+| Conexão ao servidor de desenvolvimento autorizado | **PASS — somente preflight** | Endpoint configurado `192.168.0.2:5432`; database/schema corrente `farms`; usuário `borgus`; PostgreSQL 16.15. Interface reportada: `172.26.132.19/32`, sem mapeamento independente. |
 | Banco `deepfarms_rls_lab` ausente | **PASS — somente preflight** | Catálogo não encontrou database com esse nome. Nenhum banco foi criado. |
 | Nomes das roles de laboratório livres | **PASS — somente preflight** | Catálogo não encontrou as três roles propostas. Nenhuma role foi criada. |
 | Identidade administrativa disponível ao Codex | **FAIL / bloqueador de execução remota** | `borgus` e `admin_farms` não têm `CREATEDB`/`CREATEROLE`; `admin_farms` tem `BYPASSRLS`; login TCP de `postgres` recusado. O operador demonstrou uma sessão local administrativa, mas ela não é acessível ao executor. |
@@ -90,7 +90,7 @@ O operador já demonstrou uma sessão local como `postgres` no servidor. Para co
 ### 6.1. Conexão e repetição do gate
 
 ```bash
-psql -h 192.168.0.3 -p 5432 -U <ROLE_ADMIN_AUTORIZADA> -d farms -W -v ON_ERROR_STOP=1
+psql -h 192.168.0.2 -p 5432 -U <ROLE_ADMIN_AUTORIZADA> -d farms -W -v ON_ERROR_STOP=1
 ```
 
 Dentro do `psql`, confirme identidade/versão e repita as verificações imediatamente antes de criar qualquer objeto:
@@ -108,7 +108,7 @@ WHERE rolname IN ('deepfarms_rls_lab_owner',
                   'deepfarms_rls_lab_runtime');
 ```
 
-Se o database ou qualquer role já existir, interromper sem apagar, renomear ou sobrescrever. Confirmar que a sessão é `192.168.0.3:5432`, database `farms`, ambiente de desenvolvimento. Não usar a sessão para executar migrations.
+Se o database ou qualquer role já existir, interromper sem apagar, renomear ou sobrescrever. Confirmar que a sessão é `192.168.0.2:5432`, database `farms`, ambiente de desenvolvimento. Não usar a sessão para executar migrations.
 
 ### 6.2. Provisionamento autorizado, somente após o gate
 

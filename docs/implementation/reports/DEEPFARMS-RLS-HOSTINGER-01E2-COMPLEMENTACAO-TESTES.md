@@ -1,7 +1,7 @@
 # DEEPFARMS-RLS-HOSTINGER-01E2 — Complementação dos Testes de Isolamento
 
 **Data:** 2026-10-31  
-**Destino:** PostgreSQL de desenvolvimento `192.168.0.3:5432`, database `deepfarms_rls_lab`  
+**Destino:** PostgreSQL de desenvolvimento `192.168.0.2:5432`, database `deepfarms_rls_lab`  
 **Runtime de teste:** `deepfarms_rls_lab_runtime`, autenticado diretamente  
 **Escopo:** somente fixtures e dados sintéticos do laboratório  
 **Veredicto:** **GO COM RESSALVAS**

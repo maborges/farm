@@ -2,7 +2,7 @@
 # Setup de Performance - PostgreSQL
 # Configura pg_stat_statements e query logging
 
-DB_HOST="192.168.0.3"
+DB_HOST="192.168.0.2"
 DB_NAME="farms"
 DB_USER="borgus"
 DB_PASS="numsey01"

@@ -32,7 +32,7 @@ def _load_and_validate() -> None:
             "Canary env file must define both runtime and auth passwords; values were not logged."
         )
 
-    expected = ("192.168.0.3", 5432, "farms")
+    expected = ("192.168.0.2", 5432, "farms")
     runtime_url = URL.create(
         "postgresql+asyncpg", username="deepfarms_runtime",
         password=runtime_password, host=expected[0], port=expected[1], database=expected[2],

@@ -21,7 +21,7 @@
 | Role de aplicação | `agro_hml_dbdcc24872aa` |
 | Gate de configuração/identidade existente | **PASS** antes da regularização; identidade repetida depois para confirmar que a role de aplicação e Redis continuam funcionais. |
 
-O cluster é o da raiz exclusiva indicada. A consulta de catálogo encontrou apenas os databases do cluster dedicado: alvo, `postgres`, `template0` e `template1`. Não houve conexão a `192.168.0.3`, RDS ou serviços comerciais.
+O cluster é o da raiz exclusiva indicada. A consulta de catálogo encontrou apenas os databases do cluster dedicado: alvo, `postgres`, `template0` e `template1`. Não houve conexão a `192.168.0.2`, RDS ou serviços comerciais.
 
 ## 2. Diagnóstico de privilégios e requisitos da baseline
 

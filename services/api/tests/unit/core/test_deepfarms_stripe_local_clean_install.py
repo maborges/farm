@@ -60,7 +60,7 @@ class StripeLocalCleanInstallTests(unittest.TestCase):
 
     def test_runner_rejeita_destinos_diferentes(self) -> None:
         mismatches = (
-            {"host": "192.168.0.3"},
+            {"host": "192.168.0.2"},
             {"port": 5432},
             {"database": "farms"},
             {"username": "borgus"},

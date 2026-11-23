@@ -23,7 +23,7 @@ Nenhuma revisão Alembic, `stamp`, downgrade, DDL DeepFarms, operação em outro
 | Gate existente `agro_labctl.py identity` | **PASS** — database, role, porta/loopback e marcador sintético Redis conferem com o laboratório. |
 | Ausência de objetos comerciais/aplicação | **PASS** — no database alvo: schema `farms` ausente, `farms.alembic_version` ausente, zero relações de usuário, zero funções de usuário e zero tipos definidos pelo usuário. Sem objetos de aplicação, não há tabelas/dados comerciais transferidos para esse database. |
 
-O endereço veio como `127.0.0.1/32`, representação CIDR exata do loopback e compatível com o gate ajustado na Fase B. O database, role, porta e versão retornados coincidem com o manifesto sintético. Nenhuma conexão foi aberta para `192.168.0.3`, RDS ou serviço comercial.
+O endereço veio como `127.0.0.1/32`, representação CIDR exata do loopback e compatível com o gate ajustado na Fase B. O database, role, porta e versão retornados coincidem com o manifesto sintético. Nenhuma conexão foi aberta para `192.168.0.2`, RDS ou serviço comercial.
 
 ## 3. Bloqueio de privilégios
 
