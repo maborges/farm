@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTheme } from "@/components/theme-provider";
+import { useDemoAccess } from "@/hooks/use-demo-access";
 import { useNavigationPreference } from "@/hooks/use-navigation-preference";
 import { useVisibleNavigation } from "@/hooks/use-visible-navigation";
 import { useDeviceContext } from "@/lib/device/use-device-context";
@@ -51,6 +52,7 @@ import { QuickAddMenu } from "./quick-add-menu";
 import { TenantSwitcher } from "./tenant-switcher";
 import { ToolbarWeatherWidget } from "./weather/toolbar-weather-widget";
 import { ImpersonationBanner } from "./impersonation-banner";
+import { DemoModeBanner } from "./demo-mode-banner";
 
 interface MobileHeaderContext {
   title: string;
@@ -60,6 +62,7 @@ interface MobileHeaderContext {
 
 export function Topbar(): React.ReactElement {
   const { user, logout, tenant, activeFazendaId, unidadesProdutivasAutorizadas } = useAppStore();
+  const { isReadOnly } = useDemoAccess();
   const { mode, setMode, isUpdating } = useNavigationPreference();
   const { deviceCategory, executionMode, isHydrated } = useDeviceContext();
   const {
@@ -172,6 +175,7 @@ export function Topbar(): React.ReactElement {
       className="sticky top-0 inset-x-0 z-[var(--z-fixed)] w-full border-b border-border/80 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/85 safe-area-pt select-none"
     >
       <ImpersonationBanner />
+      <DemoModeBanner />
       <div className="flex h-14 w-full min-w-0 items-center justify-between gap-2 sm:gap-4 px-3 sm:px-4">
         {/* Bloco Esquerdo: Gatilho de Navegação + Identidade / Título Contextual Mobile */}
         <div className="flex min-w-0 items-center gap-2">
@@ -266,15 +270,17 @@ export function Topbar(): React.ReactElement {
             <TenantSwitcher />
             <ChevronRight size={12} className="text-primary/40 shrink-0" />
             <ContextSelector />
-            <QuickAddMenu />
+            {!isReadOnly && <QuickAddMenu />}
             <ToolbarWeatherWidget />
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 md:border-l md:border-border md:pl-3">
             {/* Atalho rápido de criação no mobile */}
-            <div className="md:hidden">
-              <QuickAddMenu />
-            </div>
+            {!isReadOnly && (
+              <div className="md:hidden">
+                <QuickAddMenu />
+              </div>
+            )}
 
             {/* Indicador Adaptativo de Ambiente (Mobile / Tablet / Standalone / Web) */}
             <Badge

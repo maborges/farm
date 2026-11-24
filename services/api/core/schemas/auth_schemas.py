@@ -74,6 +74,8 @@ class PerfilSimplesResponse(BaseModel):
     id: UUID
     nome: str
     permissoes: dict
+    is_read_only: bool = False
+    is_demo_profile: bool = False
 
 class UnidadeProdutivaAcessoResponse(BaseModel):
     unidade_produtiva_id: UUID
@@ -94,6 +96,11 @@ class TenantAcessoResponse(BaseModel):
     max_fazendas: int = 1
     max_usuarios: int = 2
     modulos: List[str] = []
+    is_demo: bool = False
+    data_validade_acesso: Optional[date] = None
+    demo_expired: bool = False
+    demo_dias_restantes: Optional[int] = None
+    demo_prorrogacoes_count: int = 0
 
 class UsuarioMeResponse(BaseModel):
     id: UUID

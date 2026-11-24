@@ -47,6 +47,10 @@ class Tenant(Base):
     # Configurações de e-mail próprias do produtor (White-label SMTP)
     smtp_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
+    # Demonstração / Somente Consulta
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    demo_max_sessoes_simultaneas: Mapped[int | None] = mapped_column(Integer, nullable=True, default=10)
+
     # Idioma default configurado para o Tenant (Fallback se os usuarios não definirem)
     idioma_padrao: Mapped[str] = mapped_column(String(10), default="pt-BR")
 

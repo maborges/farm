@@ -19,7 +19,7 @@ export type PlanTierId = "BASICO" | "PROFISSIONAL" | "ENTERPRISE" | "PREMIUM";
 
 export type BackofficeRole = "super_admin" | "admin" | "suporte" | "financeiro" | "comercial";
 
-export type TenantRole = "owner" | "admin" | "gerente" | "agronomo" | "veterinario" | "operador" | "financeiro" | "visualizador";
+export type TenantRole = "owner" | "admin" | "gerente" | "agronomo" | "veterinario" | "operador" | "financeiro" | "visualizador" | "demonstracao";
 
 export type PermissionLevel = "write" | "read" | "none";
 
@@ -43,6 +43,7 @@ export interface Tenant {
     dominio_customizado: string | null;
     branding: Branding | null;
     onboarding_configuracao_completo?: boolean;
+    is_demo?: boolean;
 }
 
 export interface User {
@@ -62,6 +63,12 @@ export interface User {
     grupos_auth?: string[];
     navigation_mode?: "SIDEBAR" | "MEGA_MENU";
     impersonation?: ImpersonationInfo | null;
+    is_read_only?: boolean;
+    is_demo_visitor?: boolean;
+    demo_expired?: boolean;
+    demo_validade_acesso?: string | null;
+    demo_dias_restantes?: number | null;
+    demo_prorrogacoes_count?: number;
 }
 
 export interface ImpersonationInfo {
@@ -123,9 +130,16 @@ export interface TenantSummary {
     max_fazendas?: number;
     max_usuarios?: number;
     modulos?: ModuleId[];
+    is_demo?: boolean;
+    data_validade_acesso?: string | null;
+    demo_expired?: boolean;
+    demo_dias_restantes?: number | null;
+    demo_prorrogacoes_count?: number;
     perfil?: {
         nome: string;
         permissoes?: TenantCustomPermissions;
+        is_read_only?: boolean;
+        is_demo_profile?: boolean;
     } | null;
     fazendas: Array<{
         unidade_produtiva_id: string;
@@ -280,6 +294,8 @@ export interface TenantRoleProfile {
     id: string;
     nome: string;
     is_custom: boolean;
+    is_read_only?: boolean;
+    is_demo_profile?: boolean;
     descricao: string | null;
     permissoes?: TenantCustomPermissions;
     em_uso?: number;

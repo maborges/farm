@@ -232,13 +232,31 @@ class SessionHeartbeatMiddleware(BaseHTTPMiddleware):
         from core.database import async_session_maker
         from sqlalchemy import update
         from core.models.sessao import SessaoAtiva
+        from core.services.demo_config_service import get_demo_saas_config
         from core.services.session_timeout_service import get_session_idle_minutes, session_expiration
+
+        is_demo_visitor_token = False
+        try:
+            from jose import jwt as _jwt_hb
+            from core.config import settings as _settings_hb
+            _hb_payload = _jwt_hb.decode(
+                token,
+                _settings_hb.jwt_secret_key,
+                algorithms=[_settings_hb.jwt_algorithm],
+                options={"verify_exp": False},
+            )
+            is_demo_visitor_token = bool(_hb_payload.get("is_demo_visitor"))
+        except Exception:
+            is_demo_visitor_token = False
 
         async def update_heartbeat():
             try:
                 # O pool_timeout cuidará de travar se não houver conexões
                 async with async_session_maker() as session:
                     idle_minutes = await get_session_idle_minutes(session)
+                    if is_demo_visitor_token:
+                        demo_cfg = await get_demo_saas_config(session)
+                        idle_minutes = min(idle_minutes, demo_cfg.timeout_inatividade_minutos)
                     await session.execute(
                         update(SessaoAtiva)
                         .where(SessaoAtiva.token_hash == token_hash, SessaoAtiva.status == "ATIVA")

@@ -6,7 +6,7 @@ import { useAppStore } from "@/lib/stores/app-store";
 import {
     Send, CheckCircle,
     ArrowLeft, User, Building, LifeBuoy,
-    Clock, Wifi, WifiOff, Loader2, LogIn,
+    Clock, Wifi, WifiOff, Loader2, LogIn, CalendarPlus,
 } from "lucide-react";
 import { ImpersonateTenantDialog } from "@/components/backoffice/impersonate-tenant-dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -30,11 +30,15 @@ interface AdminTicket {
     tenant_id?: string;
     tenant_nome: string;
     usuario_nome: string;
+    usuario_email?: string | null;
     assunto: string;
     categoria: string;
     status: string;
     prioridade: string;
     created_at: string;
+    is_demo_tenant?: boolean;
+    data_validade_acesso?: string | null;
+    demo_prorrogacoes_count?: number;
 }
 
 interface AdminMessage {
@@ -99,6 +103,10 @@ function useAdminSupportWS(ticketId: string | null, onMessage: (msg: AdminMessag
 
 export default function AdminSupportPage() {
     const queryClient = useQueryClient();
+    const user = useAppStore((s) => s.user);
+    const canApproveDemoExtension = Boolean(
+        user?.is_superuser || ["super_admin", "admin", "comercial"].includes(user?.role ?? "")
+    );
     const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
     const [impersonateTarget, setImpersonateTarget] = useState<{ id: string; nome: string; documento?: string | null } | null>(null);
     const [replyContent, setReplyContent] = useState("");
@@ -168,6 +176,31 @@ export default function AdminSupportPage() {
             toast.success("Chamado finalizado!");
         },
     });
+
+    const extendDemoMutation = useMutation({
+        mutationFn: () =>
+            apiFetch<{ data_validade_acesso?: string; demo_prorrogacoes_count?: number }>(
+                `/backoffice/tickets/${selectedTicketId}/aprovar-prorrogacao-demo`,
+                {
+                    method: "POST",
+                    body: JSON.stringify({}),
+                }
+            ),
+        onSuccess: (res) => {
+            queryClient.invalidateQueries({ queryKey: ["backoffice", "ticket", selectedTicketId] });
+            queryClient.invalidateQueries({ queryKey: ["backoffice", "tickets"] });
+            toast.success("Prorrogação de demonstração aprovada!", {
+                description: res?.data_validade_acesso
+                    ? `Novo prazo de acesso válido até ${res.data_validade_acesso}.`
+                    : "Acesso de demonstração prorrogado com sucesso.",
+            });
+        },
+        onError: (e: Error) => toast.error(e.message),
+    });
+
+    const isDemoTicket = Boolean(
+        activeTicket?.is_demo_tenant || activeTicket?.categoria === "PRORROGACAO_DEMO"
+    );
 
     // ─── Helpers ────────────────────────────────────────────────────────────
 
@@ -384,6 +417,22 @@ export default function AdminSupportPage() {
                                             <LogIn size={14} className="mr-1.5" /> Acessar como Assinante
                                         </Button>
                                     )}
+                                    {canApproveDemoExtension && isDemoTicket && activeTicket?.status !== "CONCLUIDO" && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={extendDemoMutation.isPending}
+                                            className="rounded-sm text-amber-700 border-amber-300 hover:bg-amber-50 dark:text-amber-300 dark:border-amber-600/40 dark:hover:bg-amber-950/20"
+                                            onClick={() => extendDemoMutation.mutate()}
+                                        >
+                                            {extendDemoMutation.isPending ? (
+                                                <Loader2 size={14} className="mr-1.5 animate-spin" />
+                                            ) : (
+                                                <CalendarPlus size={14} className="mr-1.5" />
+                                            )}
+                                            Aprovar Prorrogação
+                                        </Button>
+                                    )}
                                     {activeTicket?.status !== "CONCLUIDO" && (
                                         <Button
                                             variant="outline"
@@ -504,6 +553,30 @@ export default function AdminSupportPage() {
                                         {activeTicket?.prioridade}
                                     </Badge>
                                 </div>
+                                {isDemoTicket && (
+                                    <div className="space-y-2 rounded-sm border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-700/40 dark:bg-amber-950/20">
+                                        <p className="text-[10px] font-bold uppercase text-amber-800 dark:text-amber-300 tracking-wide">
+                                            Conta em Demonstração
+                                        </p>
+                                        {activeTicket?.usuario_email && (
+                                            <p className="text-xs text-muted-foreground break-all">
+                                                E-mail: <span className="font-medium text-foreground">{activeTicket.usuario_email}</span>
+                                            </p>
+                                        )}
+                                        <p className="text-xs text-muted-foreground">
+                                            Validade atual:{" "}
+                                            <span className="font-medium text-foreground">
+                                                {activeTicket?.data_validade_acesso || "Não definida"}
+                                            </span>
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Prorrogações concedidas:{" "}
+                                            <span className="font-medium text-foreground">
+                                                {activeTicket?.demo_prorrogacoes_count ?? 0}
+                                            </span>
+                                        </p>
+                                    </div>
+                                )}
                                 <div className="pt-4 border-t border-dashed">
                                     <p className="text-[11px] text-muted-foreground flex items-center gap-2">
                                         <Clock size={12} />

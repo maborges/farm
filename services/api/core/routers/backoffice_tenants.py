@@ -70,6 +70,8 @@ class TenantResponse(BaseModel):
     email_responsavel: Optional[str]
     telefone_responsavel: Optional[str]
     ativo: bool
+    is_demo: bool = False
+    demo_max_sessoes_simultaneas: Optional[int] = 10
     storage_usado_mb: int
     storage_limite_mb: int
     data_ultimo_acesso: Optional[datetime]
@@ -837,6 +839,75 @@ async def adicionar_dias_cortesia(
             "status": assinatura.status,
             "trial_expires_at": assinatura.trial_expires_at,
             "data_proxima_renovacao": assinatura.data_proxima_renovacao,
+        }
+
+
+class DemoConfigUpdateRequest(BaseModel):
+    """Parâmetros de governança para ambiente de demonstração."""
+    is_demo: Optional[bool] = None
+    demo_max_sessoes_simultaneas: int = Field(..., ge=1, le=500)
+
+
+@router.patch(
+    "/{tenant_id}/demo-config",
+    summary="Configurar capacidade simultânea de demonstração",
+    dependencies=[Depends(require_permission("backoffice:tenants:view"))],
+)
+async def atualizar_config_demo_tenant(
+    tenant_id: UUID,
+    body: DemoConfigUpdateRequest,
+    current_admin: dict = Depends(get_current_admin),
+):
+    """Atualiza limite de sessões simultâneas e marcação demo com registro em AdminAuditLog."""
+    async with async_session_maker() as session:
+        tenant = await session.get(Tenant, tenant_id)
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant não encontrado")
+
+        from core.models.admin_audit_log import AdminAuditLog
+        from core.services.admin_audit_service import resolve_admin_identity
+        from core.services.demo_config_service import (
+            invalidate_demo_config_cache,
+            upsert_demo_saas_config_from_tenant,
+        )
+
+        anterior = {
+            "is_demo": bool(getattr(tenant, "is_demo", False)),
+            "demo_max_sessoes_simultaneas": getattr(tenant, "demo_max_sessoes_simultaneas", None),
+        }
+        if body.is_demo is not None:
+            tenant.is_demo = body.is_demo
+        tenant.demo_max_sessoes_simultaneas = body.demo_max_sessoes_simultaneas
+
+        await upsert_demo_saas_config_from_tenant(session, tenant)
+
+        admin_id, admin_email = await resolve_admin_identity(session, current_admin)
+        session.add(
+            AdminAuditLog(
+                id=uuid_module.uuid4(),
+                admin_user_id=admin_id,
+                admin_email=admin_email,
+                acao="DEMO_CONCURRENCY_CONFIG_UPDATE",
+                entidade="tenant",
+                entidade_id=tenant.id,
+                descricao=(
+                    f"Configuração demo de '{tenant.nome}' atualizada para "
+                    f"limite simultâneo={body.demo_max_sessoes_simultaneas}."
+                ),
+                dados_anteriores=anterior,
+                dados_novos={
+                    "is_demo": bool(tenant.is_demo),
+                    "demo_max_sessoes_simultaneas": tenant.demo_max_sessoes_simultaneas,
+                },
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+        await session.commit()
+        invalidate_demo_config_cache()
+        return {
+            "tenant_id": str(tenant.id),
+            "is_demo": bool(tenant.is_demo),
+            "demo_max_sessoes_simultaneas": tenant.demo_max_sessoes_simultaneas,
         }
 
 

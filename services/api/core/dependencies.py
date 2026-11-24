@@ -9,7 +9,7 @@ import uuid
 import hashlib
 import time
 import asyncio
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select, update
 from sqlalchemy.exc import SQLAlchemyError
@@ -62,6 +62,154 @@ def _cache_set(token_hash: str, is_valid: bool) -> None:
 def invalidate_session_cache(token_hash: str) -> None:
     """Invalida o cache de uma sessão específica (chamar ao revogar)."""
     _SESSION_CACHE.pop(token_hash, None)
+
+
+async def _activate_session_read_only(session: AsyncSession) -> None:
+    """Ativa trava física READ ONLY na transação atual do PostgreSQL."""
+    session.info["read_only_transaction"] = True
+    bind = getattr(session, "bind", None)
+    dialect_name = getattr(getattr(bind, "dialect", None), "name", None)
+    if dialect_name == "sqlite":
+        return
+
+    if "postgresql" in DB_URL or dialect_name == "postgresql":
+        await session.execute(text("SET LOCAL TRANSACTION READ ONLY"))
+
+
+_READ_ONLY_EXPIRED_ALLOWED_PREFIXES = (
+    "/api/v1/auth/me",
+    "/api/v1/auth/logout",
+    "/api/v1/auth/heartbeat",
+    "/api/v1/auth/my-tenants",
+    "/api/v1/auth/switch-tenant",
+    "/api/v1/sessions/me",
+    "/api/v1/support/tickets",
+)
+
+_READ_ONLY_RESTRICTED_PREFIXES = (
+    "/api/v1/team/users",
+    "/api/v1/team/invites",
+    "/api/v1/team/stats",
+    "/api/v1/team/roles",
+    "/api/v1/team/members",
+    "/api/v1/sessions/team",
+    "/api/v1/audit-log",
+    "/api/v1/auth/tenant/usuarios",
+    "/api/v1/plan-changes",
+    "/api/v1/configuration",
+    "/api/v1/integracoes",
+    "/api/v1/iot",
+    "/api/v1/sankhya",
+    "/api/v1/tara",
+    "/api/v1/campo",
+    "/api/v1/sync",
+    "/api/v1/ia",
+    "/api/v1/agricola/agronomo/chat",
+)
+
+
+def _is_read_only_restricted_path(path: str) -> bool:
+    """Identifica rotas administrativas, de IA paga, dispositivos ou PII proibidas em modo somente consulta."""
+    if path.startswith(_READ_ONLY_RESTRICTED_PREFIXES):
+        return True
+    if path.startswith("/api/v1/billing") and not path.startswith("/api/v1/billing/plans"):
+        return True
+    if path.startswith("/api/v1/cadastros/pessoas/") and path.endswith(
+        ("/pii", "/bancario", "/consentimentos", "/anonimizar")
+    ):
+        return True
+    return False
+
+
+def _is_read_only_allowed_write(method: str, path: str) -> bool:
+    """Libera apenas mutações da própria sessão/senha ou suporte próprio."""
+    if method not in ("POST", "PUT", "PATCH", "DELETE"):
+        return False
+    if path.startswith(("/api/v1/auth/logout", "/api/v1/auth/heartbeat", "/api/v1/auth/switch-tenant")):
+        return True
+    if path in ("/api/v1/auth/me/change-password", "/api/v1/auth/me/preferences/navigation"):
+        return True
+    if path == "/api/v1/sessions/me" or path.startswith("/api/v1/sessions/me/"):
+        return True
+    if path == "/api/v1/support/tickets" or path.startswith("/api/v1/support/tickets/"):
+        return True
+    return False
+
+
+async def _validate_and_apply_tenant_membership(
+    *,
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    user_id: uuid.UUID,
+    claims: dict,
+    request: Request | None,
+) -> None:
+    """Valida vínculo ativo, vigência de acesso demo e aplica bloqueios read-only e LGPD."""
+    from core.models.auth import PerfilAcesso, TenantUsuario
+    from core.models.tenant import Tenant
+    from core.services.demo_access_service import is_demo_tenant, is_read_only_profile
+
+    row = (
+        await session.execute(
+            select(TenantUsuario, PerfilAcesso, Tenant)
+            .join(Tenant, Tenant.id == TenantUsuario.tenant_id)
+            .outerjoin(PerfilAcesso, PerfilAcesso.id == TenantUsuario.perfil_id)
+            .where(
+                TenantUsuario.tenant_id == tenant_id,
+                TenantUsuario.usuario_id == user_id,
+                TenantUsuario.status == "ATIVO",
+            )
+        )
+    ).first()
+    if row is None:
+        raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
+
+    tu, perfil, tenant = row
+    is_read_only = (not tu.is_owner) and is_read_only_profile(perfil)
+    is_demo_visitor = is_read_only and (
+        is_demo_tenant(tenant) or bool(perfil and getattr(perfil, "is_demo_profile", False))
+    )
+    is_expired = bool(tu.data_validade_acesso and tu.data_validade_acesso < date.today())
+    demo_expired = is_expired and is_demo_visitor
+
+    claims["is_read_only"] = is_read_only
+    claims["is_demo_visitor"] = is_demo_visitor
+    claims["demo_expired"] = demo_expired
+    claims["data_validade_acesso"] = (
+        tu.data_validade_acesso.isoformat() if tu.data_validade_acesso else None
+    )
+
+    path = str(getattr(getattr(request, "url", None), "path", "")) if request is not None else ""
+    method = request.method.upper() if request is not None else "GET"
+
+    if is_expired:
+        if not is_demo_visitor:
+            raise HTTPException(status_code=403, detail="Seu acesso temporário a este ambiente expirou.")
+        if request is not None and not path.startswith(_READ_ONLY_EXPIRED_ALLOWED_PREFIXES):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Seu período de demonstração expirou. Solicite uma prorrogação de +15 dias pelo módulo de Suporte.",
+                headers={"X-Error-Code": "DEMO_ACCESS_EXPIRED"},
+            )
+
+    if is_read_only and request is not None:
+        if _is_read_only_restricted_path(path):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Recurso administrativo ou sensível indisponível para perfil de demonstração.",
+                headers={"X-Error-Code": "READ_ONLY_RESTRICTED_RESOURCE"},
+            )
+
+        allowed_write = _is_read_only_allowed_write(method, path)
+        if method in ("POST", "PUT", "PATCH", "DELETE") and not allowed_write:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Perfil de demonstração somente consulta. Alterações, inclusões, exclusões ou processamentos não são permitidos.",
+                headers={"X-Error-Code": "READ_ONLY_PROFILE"},
+            )
+
+        if not allowed_write:
+            await _activate_session_read_only(session)
 
 
 async def _activate_session_tenant(session: AsyncSession, tenant_id: uuid.UUID) -> None:
@@ -467,18 +615,13 @@ async def get_current_user_claims(
         await _activate_session_tenant(session, tenant_id)
         return claims
 
-    from core.models.auth import TenantUsuario
-
-    membership = await session.execute(
-        select(TenantUsuario.id).where(
-            TenantUsuario.tenant_id == tenant_id,
-            TenantUsuario.usuario_id == user_id,
-            TenantUsuario.status == "ATIVO",
-        )
+    await _validate_and_apply_tenant_membership(
+        session=session,
+        tenant_id=tenant_id,
+        user_id=user_id,
+        claims=claims,
+        request=request,
     )
-    if membership.scalar_one_or_none() is None:
-        raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
-
     await _activate_session_tenant(session, tenant_id)
     return claims
 
@@ -499,22 +642,18 @@ async def get_tenant_id(
                 raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
             if header_tenant_id != tenant_id:
                 raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
-        if not claims.get("is_superuser") and not claims.get("impersonating"):
-            from core.models.auth import TenantUsuario
-
+        if not claims.get("is_superuser") and not claims.get("impersonating") and "is_read_only" not in claims:
             try:
                 user_id = uuid.UUID(claims["sub"])
             except (KeyError, ValueError):
                 raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
-            link = (await session.execute(
-                select(TenantUsuario.id).where(
-                    TenantUsuario.tenant_id == tenant_id,
-                    TenantUsuario.usuario_id == user_id,
-                    TenantUsuario.status == "ATIVO",
-                )
-            )).scalar_one_or_none()
-            if link is None:
-                raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
+            await _validate_and_apply_tenant_membership(
+                session=session,
+                tenant_id=tenant_id,
+                user_id=user_id,
+                claims=claims,
+                request=request,
+            )
         await _activate_session_tenant(session, tenant_id)
         return tenant_id
 
@@ -536,17 +675,15 @@ async def get_tenant_id(
         except ValueError:
             raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
 
-        result = await session.execute(
-            select(TenantUsuario.tenant_id).where(
-                TenantUsuario.tenant_id == header_tenant_id,
-                TenantUsuario.usuario_id == user_id,
-                TenantUsuario.status == "ATIVO",
-            )
+        await _validate_and_apply_tenant_membership(
+            session=session,
+            tenant_id=header_tenant_id,
+            user_id=user_id,
+            claims=claims,
+            request=request,
         )
-        if result.scalar_one_or_none():
-            await _activate_session_tenant(session, header_tenant_id)
-            return header_tenant_id
-        raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
+        await _activate_session_tenant(session, header_tenant_id)
+        return header_tenant_id
 
     result = await session.execute(
         select(TenantUsuario.tenant_id).where(
@@ -562,6 +699,13 @@ async def get_tenant_id(
             "JWT sem tenant_id resolvido pelo único tenant ativo do usuário.",
             user_id=str(user_id),
             tenant_id=str(resolved_tenant_id),
+        )
+        await _validate_and_apply_tenant_membership(
+            session=session,
+            tenant_id=resolved_tenant_id,
+            user_id=user_id,
+            claims=claims,
+            request=request,
         )
         await _activate_session_tenant(session, resolved_tenant_id)
         return resolved_tenant_id
@@ -750,7 +894,7 @@ def _assinatura_ativa_filter():
     job de suspensão — não abre acesso a recursos durante a carência.
     """
     from core.models.billing import AssinaturaTenant
-    from datetime import datetime, timezone
+    from datetime import date, datetime, timezone
     return AssinaturaTenant.status.in_(["ATIVA", "TRIAL"])
 
 
@@ -1380,7 +1524,7 @@ def require_limit(limit_type: str):
                 return True  # Ilimitado
 
             from core.models.sessao import SessaoAtiva
-            from datetime import datetime, timezone
+            from datetime import date, datetime, timezone
             agora = datetime.now(timezone.utc)
             count_stmt = select(func.count(SessaoAtiva.id)).where(
                 SessaoAtiva.tenant_id == tenant_id,
@@ -1524,7 +1668,7 @@ def check_limit_soft(limit_type: str) -> dict:
                 return {"atual": 0, "limite": None, "porcentagem": 0.0, "atingido": False}
 
             from core.models.sessao import SessaoAtiva
-            from datetime import datetime, timezone
+            from datetime import date, datetime, timezone
             agora = datetime.now(timezone.utc)
             count_stmt = select(func.count(SessaoAtiva.id)).where(
                 SessaoAtiva.tenant_id == tenant_id,

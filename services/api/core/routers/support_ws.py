@@ -57,15 +57,15 @@ manager = TicketConnectionManager()
 
 # ─── Auth Helper ─────────────────────────────────────────────────────────────
 
-async def _resolve_user_from_token(token: str) -> tuple[str, bool]:
+async def _resolve_user_from_token(token: str) -> tuple[str, bool, str | None, bool]:
     """
-    Valida JWT e retorna (user_id, is_superuser).
+    Valida JWT e retorna (user_id, is_admin, tenant_id, is_isolated_demo).
 
     Args:
         token: JWT bearer token passado via query param.
 
     Returns:
-        Tupla com UUID do usuário e flag de superusuário.
+        Tupla com UUID do usuário, flag de atendente admin, tenant_id e flag demo/read-only.
 
     Raises:
         HTTPException 401 se token inválido.
@@ -76,19 +76,30 @@ async def _resolve_user_from_token(token: str) -> tuple[str, bool]:
         verify_commercial_jwt_guardrail(token)
         payload = _decode_platform_token(token)
         user_id: str = payload.get("sub")
-        tenant_id: str = payload.get("tenant_id")
+        tenant_id: str | None = payload.get("tenant_id")
         if not user_id:
             raise HTTPException(status_code=401, detail="Token inválido ou ausente.")
     except JWTError:
         raise HTTPException(status_code=401, detail="Token inválido ou ausente.")
 
+    is_admin = bool(payload.get("is_superuser")) or bool(payload.get("backoffice_role"))
+    is_isolated_demo = bool(payload.get("is_demo_visitor") or payload.get("is_read_only"))
+
     async with async_session_maker() as session:
         stmt = select(Usuario).where(Usuario.id == uuid.UUID(user_id))
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
-        if not user or not user.ativo:
-            raise HTTPException(status_code=401, detail="Usuário indisponível ou não encontrado.")
-        return str(user.id), user.is_superuser, tenant_id
+        if user and user.ativo:
+            return str(user.id), bool(user.is_superuser or is_admin), tenant_id, is_isolated_demo
+
+        if is_admin:
+            from core.models.admin_user import AdminUser
+            admin_res = await session.execute(select(AdminUser).where(AdminUser.id == uuid.UUID(user_id)))
+            admin = admin_res.scalar_one_or_none()
+            if admin and admin.ativo:
+                return str(admin.id), True, tenant_id, False
+
+        raise HTTPException(status_code=401, detail="Usuário indisponível ou não encontrado.")
 
 
 # ─── WebSocket Endpoint ────────────────────────────────────────────────────────
@@ -120,7 +131,7 @@ async def websocket_ticket_chat(
         token: JWT de autenticação (query param ?token=...).
     """
     try:
-        user_id, is_admin, token_tenant_id = await _resolve_user_from_token(token)
+        user_id, is_admin, token_tenant_id, is_isolated_demo = await _resolve_user_from_token(token)
     except HTTPException:
         await websocket.close(code=4001, reason="Autorização inválida ou ausente.")
         return
@@ -136,6 +147,10 @@ async def websocket_ticket_chat(
 
         if not is_admin and str(chamado.tenant_id) != token_tenant_id:
             await websocket.close(code=4003, reason="Acesso negado ao ticket")
+            return
+
+        if not is_admin and is_isolated_demo and str(chamado.usuario_abertura_id) != user_id:
+            await websocket.close(code=4003, reason="Acesso negado ao chamado")
             return
 
     await manager.connect(websocket, ticket_id, user_id, is_admin)

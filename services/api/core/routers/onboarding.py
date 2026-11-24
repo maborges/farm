@@ -442,6 +442,8 @@ class RegistrarViaConviteRequest(BaseModel):
     senha: str = Field(..., min_length=8)
     nome_completo: str | None = Field(None, max_length=150)
     foto_perfil_url: str | None = None
+    telefone: str | None = Field(None, max_length=30)
+    empresa: str | None = Field(None, max_length=200)
 
 
 @router.post("/convites/registrar", response_model=TokenResponse, summary="Cria conta a partir de convite (usuário novo)")
@@ -462,6 +464,8 @@ async def registrar_via_convite(
         senha=dados.senha,
         nome_completo=dados.nome_completo,
         foto_perfil_url=dados.foto_perfil_url,
+        telefone=dados.telefone,
+        empresa=dados.empresa,
     )
 
     # Autentica imediatamente para retornar JWT

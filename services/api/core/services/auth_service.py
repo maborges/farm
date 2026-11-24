@@ -3,7 +3,7 @@ from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status, Request
 from passlib.context import CryptContext
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from jose import jwt
 from typing import Optional
 import uuid
@@ -20,6 +20,8 @@ from core.models.billing import AssinaturaTenant, PlanoAssinatura, Fatura
 from core.schemas.auth_schemas import FreeUserCreateRequest, LoginRequest, UserCreateRequest, TenantAcessoResponse, UnidadeProdutivaAcessoResponse as FazendaAcessoResponse, PerfilSimplesResponse, UsuarioMeResponse
 from core.config import settings
 from core.constants import normalize_tenant_role
+from core.services.demo_access_service import is_demo_tenant, is_read_only_profile
+from core.services.demo_config_service import get_demo_saas_config
 from core.services.login_rate_limit_service import LoginRateLimitService
 from core.services.session_timeout_service import get_session_idle_minutes, session_expiration
 from core.services.email_service import email_service, SMTPPlatformConfigNotFoundError
@@ -368,6 +370,10 @@ class AuthService:
         tenant_contexts = []
         perfil = None
 
+        is_read_only = False
+        is_demo_visitor = False
+        is_demo_expired = False
+
         # Superadministradores não entram vinculados a nenhum tenant por padrão.
         # Eles entram no contexto de Gestão Global.
         if not user.is_superuser and tenant_usuarios:
@@ -375,10 +381,20 @@ class AuthService:
             default_tenant_id = str(first_tu.tenant_id)
             self.session.info["tenant_id"] = first_tu.tenant_id
             
-            # Fetch profile to get roles
+            # Fetch profile and tenant to compute role & demo constraints
             perfil_stmt = select(PerfilAcesso).where(PerfilAcesso.id == first_tu.perfil_id)
             perfil = (await self.session.execute(perfil_stmt)).scalar_one_or_none()
-            role_name = normalize_tenant_role(perfil.nome) if perfil else "operador"
+            tenant_obj = await self.session.get(Tenant, first_tu.tenant_id)
+            role_name = "owner" if first_tu.is_owner else (
+                normalize_tenant_role(perfil.nome) if perfil else "operador"
+            )
+            is_read_only = (not first_tu.is_owner) and is_read_only_profile(perfil)
+            is_demo_visitor = is_read_only and (
+                is_demo_tenant(tenant_obj) or bool(perfil and getattr(perfil, "is_demo_profile", False))
+            )
+            is_demo_expired = bool(
+                is_demo_visitor and first_tu.data_validade_acesso and first_tu.data_validade_acesso < date.today()
+            )
             
             # Fetch allowed unidades produtivas
             fazenda_usu_stmt = select(FazendaUsuario).where(
@@ -432,7 +448,11 @@ class AuthService:
         plan_tier = tenant_contexts[0]["plan_tier"] if tenant_contexts else "BASICO"
 
         # Role do tenant (owner/admin) para acesso implícito
-        tenant_role = normalize_tenant_role(perfil.nome) if (not user.is_superuser and perfil) else None
+        tenant_role = (
+            "owner"
+            if (not user.is_superuser and tenant_usuarios and tenant_usuarios[0].is_owner)
+            else (normalize_tenant_role(perfil.nome) if (not user.is_superuser and perfil) else None)
+        )
 
         # Generate token payload
         claims = {
@@ -445,6 +465,9 @@ class AuthService:
             "is_superuser": user.is_superuser,
             "plan_tier": plan_tier,
             "session_required": True,
+            "is_read_only": is_read_only,
+            "is_demo_visitor": is_demo_visitor,
+            "demo_expired": is_demo_expired,
         }
         
         access_token = self.create_access_token(data=claims)
@@ -456,11 +479,16 @@ class AuthService:
             await self._verificar_disponibilidade_licenca_simultanea(
                 tenant_id=uuid.UUID(default_tenant_id),
                 usuario_id=user.id,
+                is_demo_visitor=is_demo_visitor,
+                is_demo_expired=is_demo_expired,
             )
 
         token_hash = hashlib.sha256(access_token.encode()).hexdigest()
         agora = datetime.now(timezone.utc)
         idle_minutes = await get_session_idle_minutes(self.session)
+        if is_demo_visitor and not is_demo_expired:
+            demo_cfg = await get_demo_saas_config(self.session)
+            idle_minutes = min(idle_minutes, demo_cfg.timeout_inatividade_minutos)
 
         self.session.add(SessaoAtiva(
             tenant_id=uuid.UUID(default_tenant_id) if default_tenant_id else None,
@@ -482,6 +510,8 @@ class AuthService:
         tenant_id: uuid.UUID,
         usuario_id: uuid.UUID,
         escopo_produto: str = "web",
+        is_demo_visitor: bool = False,
+        is_demo_expired: bool = False,
     ) -> None:
         """
         Verifica se há licença de acesso simultâneo disponível para o tenant antes de criar
@@ -489,20 +519,24 @@ class AuthService:
         usuário no mesmo tenant para permitir reconexão sem autotravamento.
 
         O acesso quando utilizado no aplicativo Campo (escopo_produto='campo') é isento
-        e não é contabilizado para o acesso simultâneo.
+        e não é contabilizado para o acesso simultâneo. Em tenants de demonstração,
+        contabiliza exclusivamente visitantes ativos com perfil Demonstração.
 
         Args:
             tenant_id: ID do tenant alvo do login/troca de contexto.
             usuario_id: ID do usuário autenticado.
             escopo_produto: Escopo do cliente ('web' ou 'campo').
+            is_demo_visitor: Indica se o usuário logando usa o perfil de demonstração.
+            is_demo_expired: Indica se o período de demonstração do visitante já venceu.
 
         Raises:
-            HTTPException 403: Quando todas as licenças simultâneas contratadas estão em uso.
+            HTTPException 403/429: Quando todas as licenças simultâneas estão em uso.
         """
         if str(escopo_produto).strip().lower() == "campo":
             return
 
         from core.models.sessao import SessaoAtiva
+        from sqlalchemy import or_
 
         agora = datetime.now(timezone.utc)
 
@@ -527,6 +561,49 @@ class AuthService:
             )
             .values(status="ENCERRADA")
         )
+
+        tenant_obj = await self.session.get(Tenant, tenant_id)
+        if is_demo_tenant(tenant_obj):
+            if not is_demo_visitor or is_demo_expired:
+                return
+
+            demo_cfg = await get_demo_saas_config(self.session)
+            limite_demo = (
+                getattr(tenant_obj, "demo_max_sessoes_simultaneas", None)
+                or demo_cfg.max_sessoes_simultaneas
+            )
+            hoje = date.today()
+            demo_count_stmt = (
+                select(func.count(func.distinct(SessaoAtiva.id)))
+                .join(
+                    TenantUsuario,
+                    (TenantUsuario.tenant_id == SessaoAtiva.tenant_id)
+                    & (TenantUsuario.usuario_id == SessaoAtiva.usuario_id),
+                )
+                .outerjoin(PerfilAcesso, PerfilAcesso.id == TenantUsuario.perfil_id)
+                .where(
+                    SessaoAtiva.tenant_id == tenant_id,
+                    SessaoAtiva.status == "ATIVA",
+                    SessaoAtiva.expira_em > agora,
+                    TenantUsuario.is_owner == False,
+                    or_(
+                        PerfilAcesso.is_read_only == True,
+                        PerfilAcesso.is_demo_profile == True,
+                    ),
+                    or_(
+                        TenantUsuario.data_validade_acesso.is_(None),
+                        TenantUsuario.data_validade_acesso >= hoje,
+                    ),
+                )
+            )
+            sessoes_demo_ativas = (await self.session.execute(demo_count_stmt)).scalar_one() or 0
+            if sessoes_demo_ativas >= limite_demo:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail=demo_cfg.mensagem_limite_simultaneo,
+                    headers={"X-Error-Code": "DEMO_CONCURRENCY_LIMIT"},
+                )
+            return
 
         # 3. Consultar limite de acessos simultâneos contratados na assinatura do tenant
         assin_stmt = (
@@ -598,8 +675,16 @@ class AuthService:
             perfil = (await self.session.execute(
                 select(PerfilAcesso).where(PerfilAcesso.id == first_tu.perfil_id)
             )).scalar_one_or_none()
+        tenant_obj = await self.session.get(Tenant, tenant_id)
         role_name = "owner" if first_tu.is_owner else (
             normalize_tenant_role(perfil.nome) if perfil else "operador"
+        )
+        is_read_only = (not first_tu.is_owner) and is_read_only_profile(perfil)
+        is_demo_visitor = is_read_only and (
+            is_demo_tenant(tenant_obj) or bool(perfil and getattr(perfil, "is_demo_profile", False))
+        )
+        is_demo_expired = bool(
+            is_demo_visitor and first_tu.data_validade_acesso and first_tu.data_validade_acesso < date.today()
         )
 
         modulos: list[str] = ["CORE"]
@@ -655,6 +740,9 @@ class AuthService:
             "is_superuser": user.is_superuser,
             "plan_tier": plan_tier,
             "session_required": True,
+            "is_read_only": is_read_only,
+            "is_demo_visitor": is_demo_visitor,
+            "demo_expired": is_demo_expired,
         }
 
         access_token = self.create_access_token(data=claims)
@@ -663,6 +751,8 @@ class AuthService:
             await self._verificar_disponibilidade_licenca_simultanea(
                 tenant_id=tenant_id,
                 usuario_id=user_id,
+                is_demo_visitor=is_demo_visitor,
+                is_demo_expired=is_demo_expired,
             )
 
         # Registrar nova sessão
@@ -671,6 +761,9 @@ class AuthService:
         token_hash = hashlib.sha256(access_token.encode()).hexdigest()
         agora = datetime.now(timezone.utc)
         idle_minutes = await get_session_idle_minutes(self.session)
+        if is_demo_visitor and not is_demo_expired:
+            demo_cfg = await get_demo_saas_config(self.session)
+            idle_minutes = min(idle_minutes, demo_cfg.timeout_inatividade_minutos)
         self.session.add(SessaoAtiva(
             tenant_id=tenant_id,
             usuario_id=user_id,
@@ -866,18 +959,47 @@ class AuthService:
                 t_modulos = ["CORE"]
                 t_max_usuarios = 2
 
+            tu_validade = tu.data_validade_acesso
+            tu_is_demo_tenant = is_demo_tenant(tenant)
+            tu_is_demo_visitor = (not tu.is_owner) and (
+                tu_is_demo_tenant or is_read_only_profile(perfil)
+            )
+            tu_demo_expired = bool(
+                tu_is_demo_visitor and tu_validade and tu_validade < date.today()
+            )
+            tu_dias_restantes = (
+                (tu_validade - date.today()).days
+                if (tu_is_demo_visitor and tu_validade)
+                else None
+            )
+
             tenants_response.append(TenantAcessoResponse(
                 tenant_id=tenant.id,
                 nome_tenant=tenant.nome,
                 is_owner=tu.is_owner,
                 ativo=tenant.ativo,
                 activation_pending=bool(tenant.activation_token),
-                perfil=PerfilSimplesResponse(id=perfil.id, nome=perfil.nome, permissoes=perfil.permissoes) if perfil else None,
+                perfil=(
+                    PerfilSimplesResponse(
+                        id=perfil.id,
+                        nome=perfil.nome,
+                        permissoes=perfil.permissoes,
+                        is_read_only=bool(getattr(perfil, "is_read_only", False)),
+                        is_demo_profile=bool(getattr(perfil, "is_demo_profile", False)),
+                    )
+                    if perfil
+                    else None
+                ),
                 fazendas=fazendas_resp,
                 plan_tier=t_plan_tier,
                 max_fazendas=t_max_fazendas,
                 max_usuarios=t_max_usuarios,
                 modulos=t_modulos,
+                is_demo=tu_is_demo_tenant,
+                data_validade_acesso=tu_validade,
+                demo_expired=tu_demo_expired,
+                demo_dias_restantes=tu_dias_restantes,
+                demo_prorrogacoes_count=int(getattr(tu, "demo_prorrogacoes_count", 0) or 0),
             ))
 
         display_name = user.nome_completo or user.apelido or user.username

@@ -15,6 +15,12 @@ from core.models.admin_audit_log import AdminAuditLog
 from core.services.config_masking import mask_sensitive_data
 from core.services.agro_config_service import agro_config_service, extrair_admin_identity
 from core.services.admin_audit_service import resolve_admin_identity
+from core.services.demo_config_service import (
+    DEMO_SAAS_CONFIG_KEY,
+    invalidate_demo_config_cache,
+    sync_demo_config_to_tenant,
+    validate_and_normalize_demo_config,
+)
 from core.schemas.config_schemas import (
     SaaSConfigResponse, SaaSConfigUpdate, SMTPConfig,
     TenantConfigResponse, TenantConfigUpdate,
@@ -141,6 +147,13 @@ async def update_saas_config(
         )
 
     # Configurações gerais do SaaS
+    valor_to_save = data.valor
+    default_desc = data.descricao
+    if chave == DEMO_SAAS_CONFIG_KEY:
+        valor_to_save = validate_and_normalize_demo_config(data.valor)
+        await sync_demo_config_to_tenant(session, valor_to_save)
+        default_desc = default_desc or "Parâmetros globais do ambiente de demonstração"
+
     stmt = select(ConfiguracaoSaaS).where(ConfiguracaoSaaS.chave == chave)
     result = await session.execute(stmt)
     config = result.scalar_one_or_none()
@@ -148,12 +161,12 @@ async def update_saas_config(
     dados_anteriores = config.valor if config and isinstance(config.valor, dict) else {}
 
     if not config:
-        config = ConfiguracaoSaaS(chave=chave, valor=data.valor, descricao=data.descricao)
+        config = ConfiguracaoSaaS(chave=chave, valor=valor_to_save, descricao=default_desc)
         session.add(config)
     else:
-        config.valor = data.valor
-        if data.descricao:
-            config.descricao = data.descricao
+        config.valor = valor_to_save
+        if default_desc:
+            config.descricao = default_desc
         if data.ativo is not None:
             config.ativo = data.ativo
 
@@ -165,7 +178,7 @@ async def update_saas_config(
         entidade="configuracoes_saas",
         descricao=f"Configuração global da plataforma '{chave}' atualizada pelo operador {admin_email}.",
         dados_anteriores=mask_sensitive_data(dados_anteriores, parent_key=chave),
-        dados_novos=mask_sensitive_data(data.valor, parent_key=chave),
+        dados_novos=mask_sensitive_data(valor_to_save, parent_key=chave),
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
@@ -173,6 +186,8 @@ async def update_saas_config(
 
     await session.commit()
     await session.refresh(config)
+    if chave == DEMO_SAAS_CONFIG_KEY:
+        invalidate_demo_config_cache()
 
     return SaaSConfigResponse(
         chave=config.chave,

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, Suspense, useRef } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import { isApiError } from "@/lib/api-error";
 import { useAppStore } from "@/lib/stores/app-store";
-import { Loader2, CheckCircle2, XCircle, Sprout, ArrowRight, UserPlus, Camera } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Sprout, ArrowRight, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input, PasswordInput } from "@/components/ui/input";
@@ -22,13 +23,14 @@ interface InviteDetails {
     expira_em: string;
     fazendas: string[];
     usuario_existe: boolean;
+    is_demo?: boolean;
 }
 
 function AcceptInviteContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const queryClient = useQueryClient();
-    const { token: userLoggedInToken } = useAppStore();
+    const currentUser = useAppStore((state) => state.user);
     
     const [status, setStatus] = useState<"loading" | "details" | "register" | "success" | "error">("loading");
     const [invite, setInvite] = useState<InviteDetails | null>(null);
@@ -37,13 +39,15 @@ function AcceptInviteContent() {
 
     // Register form state
     const [nome, setNome] = useState("");
+    const [telefone, setTelefone] = useState("");
+    const [empresa, setEmpresa] = useState("");
     const [senha, setSenha] = useState("");
     const [senhaConfirm, setSenhaConfirm] = useState("");
-    const [fotoPreview, setFotoPreview] = useState<string | null>(null);
-    const [fotoFile, setFotoFile] = useState<File | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
     const inviteToken = searchParams.get("token");
+    const currentUserMatchesInvite = Boolean(
+        currentUser?.email && invite?.email_convidado &&
+        currentUser.email.trim().toLowerCase() === invite.email_convidado.trim().toLowerCase()
+    );
 
     // 1. Buscar detalhes do convite ao carregar
     useEffect(() => {
@@ -57,15 +61,13 @@ function AcceptInviteContent() {
             try {
                 const data = await apiFetch<InviteDetails>(`/onboarding/convites/${inviteToken}`);
                 setInvite(data);
-                // Se usuário não existe e não está logado → ir direto para registro
-                if (!data.usuario_existe && !userLoggedInToken) {
+                // A existência da conta do e-mail convidado é a referência; um token
+                // de outra conta neste navegador não deve pular o cadastro.
+                if (!data.usuario_existe) {
                     setStatus("register");
                 } else {
                     setStatus("details");
                 }
-                
-                // Se já estiver logado e o email for o mesmo (ou se simplesmente estiver logado e quisermos facilitar),
-                // podemos até auto-aceitar, mas melhor pedir confirmação.
             } catch (error: any) {
                 setStatus("error");
                 setMessage(error.message || "Este convite expirou ou não é mais válido.");
@@ -90,21 +92,21 @@ function AcceptInviteContent() {
             setMessage("Convite aceito! Faça login para acessar.");
             toast.success("Convite aceito com sucesso!");
         } catch (error: any) {
+            if (
+                isApiError(error) &&
+                error.status === 404 &&
+                error.detail === "Nenhuma conta encontrada para este e-mail. Cadastre-se primeiro."
+            ) {
+                setStatus("register");
+                toast.info("Crie sua conta para concluir o convite.");
+                return;
+            }
             toast.error(error.message || "Erro ao aceitar convite.");
             setStatus("error");
             setMessage(error.message || "Não foi possível aceitar este convite.");
         } finally {
             setIsProcessing(false);
         }
-    };
-
-    const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setFotoFile(file);
-        const reader = new FileReader();
-        reader.onload = (ev) => setFotoPreview(ev.target?.result as string);
-        reader.readAsDataURL(file);
     };
 
     const handleRegister = async (e: React.FormEvent) => {
@@ -120,30 +122,14 @@ function AcceptInviteContent() {
 
         setIsProcessing(true);
         try {
-            let foto_perfil_url: string | null = null;
-
-            // Upload da foto se informada
-            if (fotoFile) {
-                const formData = new FormData();
-                formData.append("file", fotoFile);
-                try {
-                    const uploadRes = await apiFetch<{ url: string }>("/users/me/avatar", {
-                        method: "POST",
-                        body: formData,
-                    });
-                    foto_perfil_url = uploadRes.url;
-                } catch {
-                    // foto não é obrigatória, continua sem ela
-                }
-            }
-
             await apiFetch<{ access_token: string }>("/onboarding/convites/registrar", {
                 method: "POST",
                 body: JSON.stringify({
                     token: inviteToken,
                     senha,
                     nome_completo: nome || undefined,
-                    foto_perfil_url,
+                    telefone: telefone.trim() || undefined,
+                    empresa: empresa.trim() || undefined,
                 }),
             });
 
@@ -151,8 +137,18 @@ function AcceptInviteContent() {
             setMessage("Conta criada com sucesso! Faça login para entrar.");
             toast.success("Conta criada! Redirecionando para o login...");
             setTimeout(() => router.push(`/login?email=${encodeURIComponent(invite!.email_convidado)}`), 1800);
-        } catch (error: any) {
-            toast.error(error.message || "Erro ao criar conta.");
+        } catch (error: unknown) {
+            if (isApiError(error) && error.status === 429) {
+                setStatus("success");
+                setMessage(error.message);
+                toast.warning("Conta criada com aviso de acesso simultâneo", {
+                    description: error.message,
+                    duration: 9000,
+                });
+                return;
+            }
+            const errMsg = error instanceof Error ? error.message : "Erro ao criar conta.";
+            toast.error(errMsg);
         } finally {
             setIsProcessing(false);
         }
@@ -243,35 +239,22 @@ function AcceptInviteContent() {
                     {status === "register" && invite && (
                         <form onSubmit={handleRegister} className="space-y-5">
                             <div className="space-y-2 text-center">
-                                <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary text-[10px] uppercase font-black tracking-widest px-2 py-0.5">
-                                    Concluir Onboarding
-                                </Badge>
+                                <div className="flex flex-wrap items-center justify-center gap-1.5">
+                                    <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary text-[10px] uppercase font-black tracking-widest px-2 py-0.5">
+                                        Concluir Onboarding
+                                    </Badge>
+                                    {invite.is_demo && (
+                                        <Badge variant="outline" className="bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300 text-[10px] uppercase font-black tracking-widest px-2 py-0.5">
+                                            Demonstração · 15 dias
+                                        </Badge>
+                                    )}
+                                </div>
                                 <h3 className="text-2xl font-black text-foreground leading-tight tracking-tight">
                                     Criar sua conta
                                 </h3>
                                 <p className="text-xs text-muted-foreground leading-relaxed">
                                     Registre-se em <span className="text-foreground font-semibold">{invite.tenant_nome}</span> para começar.
                                 </p>
-                            </div>
-
-                            {/* Avatar upload */}
-                            <div className="flex flex-col items-center gap-2 py-2">
-                                <button
-                                    type="button"
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className="relative size-16 rounded-full bg-muted/30 border border-border flex items-center justify-center overflow-hidden hover:bg-muted/50 transition-colors group shadow-inner"
-                                >
-                                    {fotoPreview ? (
-                                        <img src={fotoPreview} alt="foto" className="size-full object-cover" />
-                                    ) : (
-                                        <Camera className="size-6 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
-                                    )}
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                        <Camera className="size-4 text-white" />
-                                    </div>
-                                </button>
-                                <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-tighter">Foto Perfil (Opcional)</span>
-                                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFotoChange} />
                             </div>
 
                             <div className="space-y-1.5">
@@ -288,6 +271,33 @@ function AcceptInviteContent() {
                                     onChange={(e) => setNome(e.target.value)}
                                 />
                             </div>
+
+                            {invite.is_demo && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="reg-telefone" className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                            Telefone / WhatsApp <span className="font-normal normal-case">(opcional)</span>
+                                        </Label>
+                                        <Input
+                                            id="reg-telefone"
+                                            placeholder="(00) 00000-0000"
+                                            value={telefone}
+                                            onChange={(e) => setTelefone(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="reg-empresa" className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                            Fazenda / Empresa <span className="font-normal normal-case">(opcional)</span>
+                                        </Label>
+                                        <Input
+                                            id="reg-empresa"
+                                            placeholder="Ex: Fazenda Boa Vista"
+                                            value={empresa}
+                                            onChange={(e) => setEmpresa(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
@@ -330,6 +340,10 @@ function AcceptInviteContent() {
                             </Button>
 
                             <p className="text-center text-[11px] text-muted-foreground">
+                                Você poderá adicionar uma foto de perfil depois de entrar.
+                            </p>
+
+                            <p className="text-center text-[11px] text-muted-foreground">
                                 Já possui conta?{" "}
                                 <button type="button" className="text-primary font-bold hover:underline" onClick={() => router.push(`/login?redirect=/convite/aceitar?token=${inviteToken}`)}>
                                     Realizar Login
@@ -340,7 +354,7 @@ function AcceptInviteContent() {
 
                     {status === "success" && (
                         <div className="flex flex-col items-center text-center py-6 space-y-6">
-                            <div className="size-20 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 animate-bounce duration-1000">
+                            <div className="size-20 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
                                 <CheckCircle2 className="size-10 text-primary shadow-sm" />
                             </div>
                             <div className="space-y-2">
@@ -351,9 +365,9 @@ function AcceptInviteContent() {
                             </div>
                             <Button
                                 className="w-full h-10 bg-primary text-primary-foreground font-black uppercase tracking-widest text-xs hover:bg-primary/90 shadow-primary/20 shadow-xl transition-all"
-                                onClick={() => router.push(userLoggedInToken ? "/dashboard" : `/login?email=${encodeURIComponent(invite?.email_convidado ?? "")}`)}
+                                onClick={() => router.push(currentUserMatchesInvite ? "/dashboard" : `/login?email=${encodeURIComponent(invite?.email_convidado ?? "")}`)}
                             >
-                                {userLoggedInToken ? "Ir para o Painel Inicial" : "Fazer Login"}
+                                {currentUserMatchesInvite ? "Ir para o Painel Inicial" : "Fazer Login"}
                             </Button>
                         </div>
                     )}

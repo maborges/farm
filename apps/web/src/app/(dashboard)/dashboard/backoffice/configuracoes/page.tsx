@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
-import { Settings, Settings2, Save, Loader2, Database, AlertCircle, CheckCircle2, CreditCard, Construction, Lock, Mail, Shield } from "lucide-react";
+import { Settings, Save, Loader2, Database, AlertCircle, CreditCard, Construction, Lock, Mail, Shield, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 interface SaaSConfig {
@@ -23,6 +24,36 @@ interface SaaSConfig {
     descricao: string | null;
     ativo: boolean;
 }
+
+interface BackofficeTenantOption {
+    id: string;
+    nome: string;
+    documento?: string | null;
+    is_demo?: boolean;
+}
+
+interface DemoSaasConfigValue {
+    tenant_id: string | null;
+    max_sessoes_simultaneas: number;
+    duracao_inicial_dias: number;
+    dias_prorrogacao_padrao: number;
+    timeout_inatividade_minutos: number;
+    estagio_crm_nome: string;
+    mensagem_limite_simultaneo: string;
+    permitir_solicitacao_prorrogacao: boolean;
+}
+
+const DEFAULT_DEMO_SAAS_CONFIG: DemoSaasConfigValue = {
+    tenant_id: null,
+    max_sessoes_simultaneas: 10,
+    duracao_inicial_dias: 15,
+    dias_prorrogacao_padrao: 15,
+    timeout_inatividade_minutos: 20,
+    estagio_crm_nome: "Demonstração",
+    mensagem_limite_simultaneo:
+        "Muitos usuários de demonstração estão usando a plataforma no momento. Por favor, aguarde alguns minutos e tente novamente mais tarde.",
+    permitir_solicitacao_prorrogacao: true,
+};
 
 export default function SaaSConfigPage() {
     const [localConfigs, setLocalConfigs] = useState<Record<string, any>>({});
@@ -35,23 +66,29 @@ export default function SaaSConfigPage() {
         retryDelay: 1000,
     });
 
+    const { data: tenantOptions } = useQuery<BackofficeTenantOption[]>({
+        queryKey: ["backoffice-tenants-demo-options"],
+        queryFn: () => apiFetch<BackofficeTenantOption[]>("/backoffice/tenants?limit=100", { suppressErrorLog: true }),
+        retry: false,
+    });
+
     useEffect(() => {
         setMounted(true);
     }, []);
 
     const updateMutation = useMutation({
-        mutationFn: ({ chave, valor }: { chave: string, valor: any }) =>
+        mutationFn: ({ chave, valor, descricao }: { chave: string; valor: unknown; descricao?: string }) =>
             apiFetch(`/config/saas/${chave}`, {
                 method: "PUT",
-                body: JSON.stringify({ valor })
+                body: JSON.stringify(descricao ? { valor, descricao } : { valor }),
             }),
         onSuccess: () => {
             toast.success("Configuração salva com sucesso!");
             refetch();
         },
-        onError: (err: any) => {
+        onError: (err: Error) => {
             toast.error(err.message || "Erro ao salvar.");
-        }
+        },
     });
 
     const testSmtpMutation = useMutation({
@@ -67,13 +104,27 @@ export default function SaaSConfigPage() {
         }
     }, [configs]);
 
-    const handleValueChange = (chave: string, field: string, value: any) => {
+    const handleValueChange = (chave: string, field: string, value: unknown) => {
         setLocalConfigs(prev => ({
             ...prev,
             [chave]: {
                 ...prev[chave],
                 [field]: value
             }
+        }));
+    };
+
+    const handleDemoChange = <K extends keyof DemoSaasConfigValue>(
+        field: K,
+        value: DemoSaasConfigValue[K]
+    ) => {
+        setLocalConfigs((prev) => ({
+            ...prev,
+            demonstracao: {
+                ...DEFAULT_DEMO_SAAS_CONFIG,
+                ...(prev["demonstracao"] as Partial<DemoSaasConfigValue> | undefined),
+                [field]: value,
+            },
         }));
     };
 
@@ -151,6 +202,12 @@ export default function SaaSConfigPage() {
         tempo_inatividade_minutos: 30
     };
 
+    const hasDemonstracao = configs?.some((c) => c.chave === "demonstracao");
+    const demoLocal: DemoSaasConfigValue = {
+        ...DEFAULT_DEMO_SAAS_CONFIG,
+        ...(localConfigs["demonstracao"] as Partial<DemoSaasConfigValue> | undefined),
+    };
+
     // Se não houver configs, usa valores padrão
     const configsExist = configs && configs.length > 0;
 
@@ -194,6 +251,13 @@ export default function SaaSConfigPage() {
                         >
                             <Construction className="size-3.5" />
                             UX & Experiência
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="demonstracao"
+                            className="data-[selected]:bg-transparent data-[selected]:border-b-2 data-[selected]:border-primary rounded-none shadow-none h-full px-1 gap-1.5 text-xs"
+                        >
+                            <Eye className="size-3.5" />
+                            Demonstração
                         </TabsTrigger>
                     </TabsList>
                 </div>
@@ -541,6 +605,205 @@ export default function SaaSConfigPage() {
                                 <CardTitle className="text-base text-balance">Modo de Manutenção</CardTitle>
                                 <CardDescription>Bloquear acesso de todos os produtores para manutenção programada (em breve)</CardDescription>
                             </CardHeader>
+                        </Card>
+                    </div>
+                </TabsContent>
+
+                {/* TAB: DEMONSTRAÇÃO */}
+                <TabsContent value="demonstracao" className="mt-6">
+                    <div className="grid gap-6 grid-cols-1">
+                        <Card className="rounded-sm">
+                            <CardHeader className="border-b border-muted/20 bg-muted/10">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="space-y-0.5">
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Eye className="size-4 text-primary" />
+                                            Ambiente de Demonstração (Somente Consulta)
+                                        </CardTitle>
+                                        <CardDescription className="text-xs">
+                                            Parâmetros persistidos no banco de dados e sincronizados com o tenant demonstrativo.
+                                        </CardDescription>
+                                    </div>
+                                    {hasDemonstracao ? (
+                                        <StatusBadge status="ativo" />
+                                    ) : (
+                                        <Badge variant="secondary" className="text-[10px] rounded-sm">Padrão</Badge>
+                                    )}
+                                </div>
+                            </CardHeader>
+                            <CardContent className="pt-6 space-y-5">
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <div className="space-y-2 md:col-span-2">
+                                        <Label className="text-[11px] uppercase font-bold text-muted-foreground">
+                                            Tenant de Demonstração Ativo
+                                        </Label>
+                                        <Select
+                                            value={demoLocal.tenant_id ?? "__auto__"}
+                                            onValueChange={(val) =>
+                                                handleDemoChange("tenant_id", val === "__auto__" ? null : val)
+                                            }
+                                        >
+                                            <SelectTrigger className="h-8 rounded-sm text-sm">
+                                                <SelectValue placeholder="Automático (Produtor DeepFarms)" />
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-sm">
+                                                <SelectItem value="__auto__">
+                                                    Automático (Produtor DeepFarms)
+                                                </SelectItem>
+                                                {(tenantOptions ?? []).map((item) => (
+                                                    <SelectItem key={item.id} value={item.id}>
+                                                        {item.nome}
+                                                        {item.is_demo ? " (Demo atual)" : ""}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label className="text-[11px] uppercase font-bold text-muted-foreground">
+                                            Limite de Acessos Simultâneos
+                                        </Label>
+                                        <Input
+                                            type="number"
+                                            min={1}
+                                            max={500}
+                                            value={demoLocal.max_sessoes_simultaneas}
+                                            onChange={(e) =>
+                                                handleDemoChange(
+                                                    "max_sessoes_simultaneas",
+                                                    Math.max(1, parseInt(e.target.value, 10) || 10)
+                                                )
+                                            }
+                                            className="h-8 rounded-sm text-sm tabular-nums"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label className="text-[11px] uppercase font-bold text-muted-foreground">
+                                            Timeout de Inatividade Demo (min)
+                                        </Label>
+                                        <Input
+                                            type="number"
+                                            min={5}
+                                            max={240}
+                                            value={demoLocal.timeout_inatividade_minutos}
+                                            onChange={(e) =>
+                                                handleDemoChange(
+                                                    "timeout_inatividade_minutos",
+                                                    Math.max(5, parseInt(e.target.value, 10) || 20)
+                                                )
+                                            }
+                                            className="h-8 rounded-sm text-sm tabular-nums"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label className="text-[11px] uppercase font-bold text-muted-foreground">
+                                            Prazo Inicial (dias corridos)
+                                        </Label>
+                                        <Input
+                                            type="number"
+                                            min={1}
+                                            max={365}
+                                            value={demoLocal.duracao_inicial_dias}
+                                            onChange={(e) =>
+                                                handleDemoChange(
+                                                    "duracao_inicial_dias",
+                                                    Math.max(1, parseInt(e.target.value, 10) || 15)
+                                                )
+                                            }
+                                            className="h-8 rounded-sm text-sm tabular-nums"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label className="text-[11px] uppercase font-bold text-muted-foreground">
+                                            Prorrogação Padrão (dias corridos)
+                                        </Label>
+                                        <Input
+                                            type="number"
+                                            min={1}
+                                            max={90}
+                                            value={demoLocal.dias_prorrogacao_padrao}
+                                            onChange={(e) =>
+                                                handleDemoChange(
+                                                    "dias_prorrogacao_padrao",
+                                                    Math.max(1, parseInt(e.target.value, 10) || 15)
+                                                )
+                                            }
+                                            className="h-8 rounded-sm text-sm tabular-nums"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label className="text-[11px] uppercase font-bold text-muted-foreground">
+                                            Estágio do CRM para Leads Demo
+                                        </Label>
+                                        <Input
+                                            value={demoLocal.estagio_crm_nome}
+                                            onChange={(e) =>
+                                                handleDemoChange("estagio_crm_nome", e.target.value)
+                                            }
+                                            placeholder="Demonstração"
+                                            className="h-8 rounded-sm text-sm"
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center justify-between rounded-sm border border-border px-3 py-2">
+                                        <div className="space-y-0.5 pr-3">
+                                            <Label className="text-xs font-semibold">
+                                                Permitir Solicitação de Prorrogação
+                                            </Label>
+                                            <p className="text-[11px] text-muted-foreground">
+                                                Habilita abertura de chamado de prorrogação pelo visitante expirado.
+                                            </p>
+                                        </div>
+                                        <Switch
+                                            checked={demoLocal.permitir_solicitacao_prorrogacao}
+                                            onCheckedChange={(checked) =>
+                                                handleDemoChange("permitir_solicitacao_prorrogacao", checked)
+                                            }
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2 md:col-span-2">
+                                        <Label className="text-[11px] uppercase font-bold text-muted-foreground">
+                                            Mensagem de Limite Simultâneo (HTTP 429)
+                                        </Label>
+                                        <Textarea
+                                            rows={2}
+                                            value={demoLocal.mensagem_limite_simultaneo}
+                                            onChange={(e) =>
+                                                handleDemoChange("mensagem_limite_simultaneo", e.target.value)
+                                            }
+                                            className="rounded-sm text-sm"
+                                        />
+                                    </div>
+                                </div>
+                            </CardContent>
+                            <CardFooter className="flex justify-end border-t py-4 bg-muted/10">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="rounded-sm"
+                                    onClick={() =>
+                                        updateMutation.mutate({
+                                            chave: "demonstracao",
+                                            valor: demoLocal,
+                                            descricao: "Parâmetros globais do ambiente de demonstração",
+                                        })
+                                    }
+                                    disabled={updateMutation.isPending}
+                                >
+                                    {updateMutation.isPending ? (
+                                        <Loader2 size={14} className="mr-1.5 animate-spin" />
+                                    ) : (
+                                        <Save size={14} className="mr-1.5" />
+                                    )}
+                                    Salvar
+                                </Button>
+                            </CardFooter>
                         </Card>
                     </div>
                 </TabsContent>

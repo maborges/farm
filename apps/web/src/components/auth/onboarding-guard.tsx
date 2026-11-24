@@ -44,11 +44,12 @@ export function OnboardingGuard({ children }: { children: React.ReactNode }) {
   const tenantId = tenant?.id ?? null;
   const isAllowedPath = isOnboardingAllowedPath(pathname);
   const isImpersonating = Boolean(impersonation?.active);
-  const needsStatusCheck = _hasHydrated && !!tenantId && !user?.is_superuser && !isImpersonating;
+  const isDemoOrReadOnly = Boolean(user?.is_demo_visitor || user?.is_read_only || user?.demo_expired);
+  const needsStatusCheck =
+    _hasHydrated && !!tenantId && !user?.is_superuser && !isImpersonating && !isDemoOrReadOnly;
 
   useEffect(() => {
     if (!needsStatusCheck || isAllowedPath) {
-      setIsCheckingStatus(false);
       return;
     }
 

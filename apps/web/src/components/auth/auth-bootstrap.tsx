@@ -105,6 +105,20 @@ export function AuthBootstrap({
                     }))
                     : [];
 
+                const perfilNomeNorm = tenantAtual?.perfil?.nome
+                    ?.normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .trim()
+                    .toLowerCase();
+                const isReadOnlyProfile = !tenantAtual?.is_owner && Boolean(
+                    tenantAtual?.perfil?.is_read_only ||
+                    tenantAtual?.perfil?.is_demo_profile ||
+                    perfilNomeNorm === "demonstracao"
+                );
+                const isDemoVisitor = isReadOnlyProfile && Boolean(
+                    tenantAtual?.is_demo || tenantAtual?.perfil?.is_demo_profile || perfilNomeNorm === "demonstracao"
+                );
+
                 setSession(
                     tokenFromCookie,
                     tenantAtual ? {
@@ -114,6 +128,7 @@ export function AuthBootstrap({
                         slug: "",
                         dominio_customizado: null,
                         branding: { primaryColor: "154 100% 21%" },
+                        is_demo: Boolean(tenantAtual.is_demo),
                     } : null,
                     {
                         id: profile.id,
@@ -128,8 +143,14 @@ export function AuthBootstrap({
                         navigation_mode: profile.navigation_mode,
                         tenant_role: tenantAtual?.is_owner
                             ? "owner"
-                            : ((tenantAtual?.perfil?.nome?.toLowerCase() as TenantRole | undefined) ?? undefined),
+                            : ((perfilNomeNorm as TenantRole | undefined) ?? undefined),
                         custom_permissions: tenantAtual?.perfil?.permissoes ?? undefined,
+                        is_read_only: isReadOnlyProfile,
+                        is_demo_visitor: isDemoVisitor,
+                        demo_expired: Boolean(tenantAtual?.demo_expired),
+                        demo_validade_acesso: tenantAtual?.data_validade_acesso ?? null,
+                        demo_dias_restantes: tenantAtual?.demo_dias_restantes ?? null,
+                        demo_prorrogacoes_count: tenantAtual?.demo_prorrogacoes_count ?? 0,
                     },
                     grupos,
                     unidadesProdutivas,

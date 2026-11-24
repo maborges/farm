@@ -327,6 +327,8 @@ def apply_tenant_context_after_begin(session, transaction, connection):
             text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
             {"tenant_id": str(tenant_id)},
         )
+    if session.info.get("read_only_transaction") is True:
+        connection.execute(text("SET LOCAL TRANSACTION READ ONLY"))
 
 
 # Configuração de isolamento por conexão; não instala contexto Tenant.

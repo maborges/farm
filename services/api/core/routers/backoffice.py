@@ -6,7 +6,8 @@ from typing import Any, List
 import uuid
 from loguru import logger
 
-from core.dependencies import get_session, get_current_admin
+from core.constants import DEMO_EXTENSION_TICKET_CATEGORY
+from core.dependencies import get_session, get_current_admin, require_any_permission, require_permission
 from core.models.tenant import Tenant
 from core.models.auth import Usuario, TenantUsuario
 from core.models.sessao import SessaoAtiva
@@ -14,12 +15,21 @@ from core.models.billing import AssinaturaTenant, PlanoAssinatura, Fatura
 from core.models.support import ChamadoSuporte, MensagemChamado, TicketStatus
 from core.models.admin_audit_log import AdminAuditLog
 from core.services.admin_audit_service import resolve_admin_identity
+from core.services.demo_access_service import (
+    DemoExtensionApprovalInput,
+    approve_demo_extension,
+    is_demo_tenant,
+)
 from core.schemas.billing_schemas import (
     PlanoAssinaturaCreate, PlanoAssinaturaResponse, PlanoAssinaturaUpdate,
     FaturaResponse, ReviewInvoiceRequest
 )
 from core.schemas.support_schemas import (
-    ChamadoSuporteResponse, ChamadoDetalheResponse, MensagemChamadoCreate, MensagemChamadoResponse
+    AprovarProrrogacaoDemoRequest,
+    ChamadoSuporteResponse,
+    ChamadoDetalheResponse,
+    MensagemChamadoCreate,
+    MensagemChamadoResponse,
 )
 from core.schemas.auth_schemas import LoginBloqueadoItem, LoginBloqueadosListaResponse
 from core.services.email_service import email_service
@@ -741,17 +751,29 @@ async def reset_user_password(
         "usuario_email": user.email
     }
 
-@router.get("/tickets", response_model=List[dict], dependencies=[Depends(get_current_admin)])
+@router.get("/tickets", response_model=List[dict], dependencies=[Depends(require_permission("backoffice:support:view"))])
 async def list_all_tickets(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     session: AsyncSession = Depends(get_session),
 ):
-    """Lista todos os chamados da plataforma para o administrador."""
+    """Lista todos os chamados da plataforma para o administrador ou comercial."""
     stmt = (
-        select(ChamadoSuporte, Tenant.nome.label("tenant_nome"), Usuario.nome_completo.label("usuario_nome"))
+        select(
+            ChamadoSuporte,
+            Tenant,
+            Usuario.nome_completo.label("usuario_nome"),
+            Usuario.email.label("usuario_email"),
+            TenantUsuario.data_validade_acesso,
+            TenantUsuario.demo_prorrogacoes_count,
+        )
         .join(Tenant, ChamadoSuporte.tenant_id == Tenant.id)
         .join(Usuario, ChamadoSuporte.usuario_abertura_id == Usuario.id)
+        .outerjoin(
+            TenantUsuario,
+            (TenantUsuario.tenant_id == ChamadoSuporte.tenant_id)
+            & (TenantUsuario.usuario_id == ChamadoSuporte.usuario_abertura_id),
+        )
         .order_by(ChamadoSuporte.created_at.desc())
         .offset(skip)
         .limit(limit)
@@ -761,22 +783,27 @@ async def list_all_tickets(
     tickets = []
     for row in result:
         c = row.ChamadoSuporte
+        t = row.Tenant
         tickets.append({
             "id": c.id,
             "tenant_id": str(c.tenant_id),
-            "tenant_nome": row.tenant_nome,
+            "tenant_nome": t.nome,
             "usuario_nome": row.usuario_nome,
+            "usuario_email": row.usuario_email,
             "assunto": c.assunto,
             "categoria": c.categoria,
             "status": c.status,
             "prioridade": c.prioridade,
+            "is_demo_tenant": is_demo_tenant(t),
+            "data_validade_acesso": row.data_validade_acesso.isoformat() if row.data_validade_acesso else None,
+            "demo_prorrogacoes_count": int(row.demo_prorrogacoes_count or 0),
             "created_at": c.created_at
         })
     return tickets
 
-@router.get("/tickets/{ticket_id}", response_model=ChamadoDetalheResponse, dependencies=[Depends(get_current_admin)])
+@router.get("/tickets/{ticket_id}", response_model=ChamadoDetalheResponse, dependencies=[Depends(require_permission("backoffice:support:view"))])
 async def get_admin_ticket_details(ticket_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
-    """Retorna detalhes de um chamado para o administrador."""
+    """Retorna detalhes de um chamado para o administrador ou comercial."""
     stmt = (
         select(ChamadoSuporte)
         .options(selectinload(ChamadoSuporte.mensagens))
@@ -786,9 +813,42 @@ async def get_admin_ticket_details(ticket_id: uuid.UUID, session: AsyncSession =
     chamado = result.scalar_one_or_none()
     if not chamado:
         raise HTTPException(status_code=404, detail="Chamado indisponível ou não encontrado.")
-    return chamado
 
-@router.post("/tickets/{ticket_id}/reply", response_model=MensagemChamadoResponse, dependencies=[Depends(get_current_admin)])
+    tenant = await session.get(Tenant, chamado.tenant_id)
+    usuario = await session.get(Usuario, chamado.usuario_abertura_id)
+    tu = (
+        await session.execute(
+            select(TenantUsuario).where(
+                TenantUsuario.tenant_id == chamado.tenant_id,
+                TenantUsuario.usuario_id == chamado.usuario_abertura_id,
+            )
+        )
+    ).scalar_one_or_none()
+
+    return ChamadoDetalheResponse(
+        id=chamado.id,
+        tenant_id=chamado.tenant_id,
+        usuario_abertura_id=chamado.usuario_abertura_id,
+        assunto=chamado.assunto,
+        categoria=chamado.categoria,
+        prioridade=chamado.prioridade,
+        status=chamado.status,
+        created_at=chamado.created_at,
+        updated_at=chamado.updated_at,
+        mensagens=[MensagemChamadoResponse.model_validate(m) for m in chamado.mensagens],
+        tenant_nome=tenant.nome if tenant else None,
+        usuario_nome=(usuario.nome_completo or usuario.username) if usuario else None,
+        usuario_email=usuario.email if usuario else None,
+        is_demo_tenant=is_demo_tenant(tenant),
+        data_validade_acesso=(
+            tu.data_validade_acesso.isoformat()
+            if (tu and tu.data_validade_acesso)
+            else None
+        ),
+        demo_prorrogacoes_count=int(getattr(tu, "demo_prorrogacoes_count", 0) or 0) if tu else 0,
+    )
+
+@router.post("/tickets/{ticket_id}/reply", response_model=MensagemChamadoResponse, dependencies=[Depends(require_permission("backoffice:support:update"))])
 async def admin_reply_to_ticket(
     ticket_id: uuid.UUID,
     data: MensagemChamadoCreate,
@@ -817,7 +877,7 @@ async def admin_reply_to_ticket(
     await session.commit()
     return msg
 
-@router.post("/tickets/{ticket_id}/close", dependencies=[Depends(get_current_admin)])
+@router.post("/tickets/{ticket_id}/close", dependencies=[Depends(require_permission("backoffice:support:update"))])
 async def close_ticket(ticket_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
     """Finaliza um chamado de suporte."""
     chamado = await session.get(ChamadoSuporte, ticket_id)
@@ -827,6 +887,38 @@ async def close_ticket(ticket_id: uuid.UUID, session: AsyncSession = Depends(get
     chamado.status = TicketStatus.CONCLUIDO
     await session.commit()
     return {"id": ticket_id, "status": "CONCLUIDO"}
+
+
+@router.post(
+    "/tickets/{ticket_id}/aprovar-prorrogacao-demo",
+    dependencies=[Depends(require_permission("backoffice:support:update"))],
+)
+async def approve_ticket_demo_extension(
+    ticket_id: uuid.UUID,
+    request: Request,
+    body: AprovarProrrogacaoDemoRequest | None = None,
+    admin_claims: dict = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Aprova prorrogação de acesso de demonstração (+15 dias por padrão) com auditoria obrigatória."""
+    role = str(admin_claims.get("role") or "").lower()
+    if not admin_claims.get("is_superuser") and role not in {"super_admin", "admin", "comercial"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Aprovação de prorrogação restrita ao time Comercial ou Administradores.",
+        )
+
+    admin_id, admin_email = await resolve_admin_identity(session, admin_claims)
+    payload = DemoExtensionApprovalInput(
+        ticket_id=ticket_id,
+        admin_id=admin_id,
+        admin_email=admin_email,
+        dias=(body.dias if body and body.dias is not None else None),
+        observacao=(body.observacao if body else None),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    return await approve_demo_extension(session, payload)
 
 
 @router.post("/tenants/{tenant_id}/reset-password", dependencies=[Depends(get_current_admin)])

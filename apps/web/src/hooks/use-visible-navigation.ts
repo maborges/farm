@@ -72,14 +72,29 @@ export function useVisibleNavigation() {
         })).filter(section => section.items.length > 0);
     }, [user]);
 
+    const isReadOnlyDemo = Boolean(user?.is_demo_visitor || user?.is_read_only);
+
     // Itens de Acesso rápido e Configurações (footer do tenant — usado no sidebar e no mega menu)
     const accessItems = useMemo(
-        () => ACCESS_ITEMS.filter((item) => canSeeTenantItem(user, item.permission)),
-        [user]
+        () =>
+            isReadOnlyDemo
+                ? []
+                : ACCESS_ITEMS.filter((item) => canSeeTenantItem(user, item.permission)),
+        [isReadOnlyDemo, user]
     );
     const settingsItems = useMemo(
-        () => SETTINGS_ITEMS.filter((item) => canSeeTenantItem(user, item.permission)),
-        [user]
+        () =>
+            SETTINGS_ITEMS.filter((item) => {
+                if (isReadOnlyDemo) {
+                    return (
+                        item.href === "/dashboard/settings/account" ||
+                        item.href === "/dashboard/settings/kb" ||
+                        item.href === "/dashboard/settings/support"
+                    );
+                }
+                return canSeeTenantItem(user, item.permission);
+            }),
+        [isReadOnlyDemo, user]
     );
 
     const activeModule = getSidebarModuleFromPath(pathname);

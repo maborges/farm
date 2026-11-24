@@ -42,8 +42,9 @@ from core.models.auth import (
 from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
 from core.models.tenant import Tenant
 from core.constants import TenantRoles, TenantPermissions
+from core.services.demo_access_service import ensure_demo_profile, is_demo_tenant
 from core.services.email_service import email_service
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import AliasChoices, BaseModel, EmailStr, Field
 
 router = APIRouter(prefix="/team", tags=["Team Management"])
 
@@ -57,6 +58,8 @@ class PerfilResponse(BaseModel):
     id: uuid.UUID | str
     nome: str
     is_custom: bool
+    is_read_only: bool = False
+    is_demo_profile: bool = False
     descricao: str | None = None
     permissoes: dict | None = None
 
@@ -84,7 +87,11 @@ class TeamStatsResponse(BaseModel):
 class InviteCreateRequest(BaseModel):
     email: EmailStr
     perfil_id: str
-    fazendas_ids: List[str] = Field(default_factory=list, description="IDs das fazendas (vazio = todas)")
+    fazendas_ids: List[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("fazendas_ids", "fazenda_ids"),
+        description="IDs das fazendas (vazio = todas)",
+    )
     data_validade_acesso: str | None = Field(None, description="YYYY-MM-DD para acesso temporário")
 
 class InviteResponse(BaseModel):
@@ -300,15 +307,32 @@ async def invite_team_member(
 ):
     """Convida um novo membro para a equipe (cadastro de usuários livre; controle aplicado na sessão simultânea)."""
 
-    # Verificar se perfil existe
-    try:
-        perfil_uuid = uuid.UUID(data.perfil_id)
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Identificador de perfil inválido.")
+    tenant = await session.get(Tenant, tenant_id)
+    if is_demo_tenant(tenant):
+        perfil = await ensure_demo_profile(session)
+        perfil_uuid = perfil.id
+        all_faz_rows = (
+            await session.execute(
+                select(Fazenda.id).where(Fazenda.tenant_id == tenant_id, Fazenda.ativo == True)
+            )
+        ).scalars().all()
+        fazendas_ids = [str(fid) for fid in all_faz_rows] if all_faz_rows else list(data.fazendas_ids)
+        validade_convite = None
+    else:
+        try:
+            perfil_uuid = uuid.UUID(data.perfil_id)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Identificador de perfil inválido.")
 
-    perfil = await session.get(PerfilAcesso, perfil_uuid)
-    if not perfil:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil indisponível ou não encontrado.")
+        perfil = await session.get(PerfilAcesso, perfil_uuid)
+        if not perfil:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil indisponível ou não encontrado.")
+        fazendas_ids = list(data.fazendas_ids)
+        validade_convite = (
+            datetime.strptime(data.data_validade_acesso, "%Y-%m-%d").date()
+            if data.data_validade_acesso
+            else None
+        )
 
     # Verificar se já existe usuário com este email no tenant
     stmt = (
@@ -353,18 +377,17 @@ async def invite_team_member(
         tenant_id=tenant_id,
         email_convidado=str(data.email).strip().lower(),
         perfil_id=perfil_uuid,
-        unidades_produtivas_ids=data.fazendas_ids,
+        unidades_produtivas_ids=fazendas_ids,
         token_convite=token,
         status="PENDENTE",
         data_expiracao=expiracao,
-        data_validade_acesso=datetime.strptime(data.data_validade_acesso, "%Y-%m-%d").date() if data.data_validade_acesso else None
+        data_validade_acesso=validade_convite,
     )
 
     session.add(convite)
     await session.commit()
     await session.refresh(convite)
 
-    tenant = await session.get(Tenant, tenant_id)
     remetente = current_user.nome_completo or current_user.username
     await email_service.send_invite(
         email=data.email,
@@ -761,6 +784,11 @@ async def list_available_roles(
     session: AsyncSession = Depends(get_session)
 ):
     """Lista perfis disponíveis (padrão do sistema + customizados do tenant)."""
+    tenant = await session.get(Tenant, tenant_id)
+    demo_tenant = is_demo_tenant(tenant)
+    if demo_tenant:
+        await ensure_demo_profile(session)
+        await session.commit()
 
     stmt = (
         select(PerfilAcesso)
@@ -773,12 +801,16 @@ async def list_available_roles(
 
     result = await session.execute(stmt)
     perfis = result.scalars().all()
+    if not demo_tenant:
+        perfis = [p for p in perfis if not getattr(p, "is_demo_profile", False)]
 
     return [
         PerfilResponse(
             id=str(p.id),
             nome=p.nome,
             is_custom=p.is_custom,
+            is_read_only=bool(getattr(p, "is_read_only", False)),
+            is_demo_profile=bool(getattr(p, "is_demo_profile", False)),
             descricao=(TenantRoles.DESCRIPTIONS.get(p.nome.lower(), None) if not p.is_custom else p.descricao),
             permissoes=p.permissoes,
         )

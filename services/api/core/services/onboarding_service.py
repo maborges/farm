@@ -12,6 +12,13 @@ from core.models.tenant import Tenant
 from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
 from core.models.billing import PlanoAssinatura, AssinaturaTenant, Fatura
 from core.schemas.onboarding_schemas import AssinanteRegisterRequest, ConviteCreateRequest, ConviteResponse
+from core.services.demo_config_service import get_demo_saas_config
+from core.services.demo_access_service import (
+    DemoLeadSyncInput,
+    is_demo_tenant,
+    is_read_only_profile,
+    sync_demo_lead_to_crm,
+)
 from core.services.email_service import email_service
 from core.utils.cpf_cnpj import normalizar_documento_opcional, validar_cpf_ou_cnpj
 from loguru import logger
@@ -304,7 +311,12 @@ class OnboardingService:
         if not convite:
             raise HTTPException(status_code=404, detail="Convite inválido ou já expirou.")
 
-        if convite.data_expiracao < datetime.now(timezone.utc):
+        exp_aware = (
+            convite.data_expiracao.replace(tzinfo=timezone.utc)
+            if convite.data_expiracao.tzinfo is None
+            else convite.data_expiracao
+        )
+        if exp_aware < datetime.now(timezone.utc):
              convite.status = "EXPIRADO"
              await self.session.commit()
              raise HTTPException(status_code=400, detail="Convite expirado.")
@@ -333,10 +345,19 @@ class OnboardingService:
             "expira_em": convite.data_expiracao,
             "fazendas": fazendas_nomes,
             "usuario_existe": usuario_existente is not None,
+            "is_demo": bool(is_demo_tenant(tenant) or is_read_only_profile(perfil)),
         }
 
 
-    async def registrar_via_convite(self, token: str, senha: str, nome_completo: str | None, foto_perfil_url: str | None) -> Usuario:
+    async def registrar_via_convite(
+        self,
+        token: str,
+        senha: str,
+        nome_completo: str | None,
+        foto_perfil_url: str | None,
+        telefone: str | None = None,
+        empresa: str | None = None,
+    ) -> Usuario:
         """Cria um novo usuário usando o email do convite e já aceita o convite."""
         from core.services.auth_service import hash_password
 
@@ -349,7 +370,12 @@ class OnboardingService:
         if not convite:
             raise HTTPException(status_code=404, detail="Convite inválido, expirado ou já aceito.")
 
-        if convite.data_expiracao < datetime.now(timezone.utc):
+        exp_aware = (
+            convite.data_expiracao.replace(tzinfo=timezone.utc)
+            if convite.data_expiracao.tzinfo is None
+            else convite.data_expiracao
+        )
+        if exp_aware < datetime.now(timezone.utc):
             convite.status = "EXPIRADO"
             await self.session.commit()
             raise HTTPException(status_code=400, detail="Convite expirado.")
@@ -374,6 +400,7 @@ class OnboardingService:
             email=convite.email_convidado,
             username=username,
             nome_completo=nome_completo or convite.email_convidado.split("@")[0],
+            telefone=telefone.strip() if telefone else None,
             senha_hash=hash_password(senha),
             foto_perfil_url=foto_perfil_url,
             ativo=True,
@@ -382,10 +409,15 @@ class OnboardingService:
         await self.session.flush()  # gera ID sem commit
 
         # Aceitar convite — resolve a conta pelo e-mail (já flushed, portanto visível na query)
-        await self.aceitar_convite(token)
+        await self.aceitar_convite(token, telefone=telefone, empresa=empresa)
         return novo_usuario
 
-    async def aceitar_convite(self, token: str):
+    async def aceitar_convite(
+        self,
+        token: str,
+        telefone: str | None = None,
+        empresa: str | None = None,
+    ):
         """
         Vincula a conta dona do e-mail convidado ao tenant do convite.
 
@@ -402,7 +434,12 @@ class OnboardingService:
         if not convite:
             raise HTTPException(status_code=404, detail="Convite inválido, expirado ou já aceito.")
 
-        if convite.data_expiracao < datetime.now(timezone.utc):
+        exp_aware = (
+            convite.data_expiracao.replace(tzinfo=timezone.utc)
+            if convite.data_expiracao.tzinfo is None
+            else convite.data_expiracao
+        )
+        if exp_aware < datetime.now(timezone.utc):
             convite.status = "EXPIRADO"
             await self.session.commit()
             raise HTTPException(status_code=400, detail="Convite expirado.")
@@ -418,6 +455,15 @@ class OnboardingService:
             )
         user_id = usuario.id
 
+        tenant = await self.session.get(Tenant, convite.tenant_id)
+        perfil = await self.session.get(PerfilAcesso, convite.perfil_id)
+        eh_demo = is_demo_tenant(tenant) or is_read_only_profile(perfil)
+        if eh_demo:
+            demo_cfg = await get_demo_saas_config(self.session)
+            validade_acesso = date.today() + timedelta(days=demo_cfg.duracao_inicial_dias)
+        else:
+            validade_acesso = convite.data_validade_acesso
+
         # Vínculo no Tenant
         # Checar unicidade de Vínculo (Regra 10)
         check_tu = select(TenantUsuario).where(
@@ -431,9 +477,12 @@ class OnboardingService:
                 tenant_id=convite.tenant_id,
                 usuario_id=user_id,
                 perfil_id=convite.perfil_id,
-                data_validade_acesso=convite.data_validade_acesso
+                data_validade_acesso=validade_acesso,
             )
             self.session.add(tu)
+        elif eh_demo and not existe_tu.is_owner:
+            existe_tu.perfil_id = convite.perfil_id
+            existe_tu.data_validade_acesso = validade_acesso
             
         # Vínculo nas Unidades Produtivas — lista vazia no convite significa "todas
         # as UPs atuais do tenant" (documentado em InviteCreateRequest.fazendas_ids).
@@ -462,5 +511,19 @@ class OnboardingService:
 
         # Trancar convite
         convite.status = "ACEITO"
+
+        if eh_demo:
+            await sync_demo_lead_to_crm(
+                self.session,
+                DemoLeadSyncInput(
+                    email=usuario.email,
+                    nome=usuario.nome_completo or usuario.username,
+                    telefone=telefone or usuario.telefone,
+                    empresa=empresa,
+                    data_validade_acesso=validade_acesso,
+                    tenant_id=convite.tenant_id,
+                ),
+            )
+
         await self.session.commit()
         return {"status": "success", "message": "Bem-vindo à Fazenda!"}

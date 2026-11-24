@@ -44,6 +44,8 @@ class PerfilAcesso(Base):
     nome: Mapped[str] = mapped_column(String(100), nullable=False)
     descricao: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_custom: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_read_only: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    is_demo_profile: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
     # Ex: {"agricola": "write", "financeiro": "read"}
     permissoes: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -64,6 +66,7 @@ class TenantUsuario(Base):
     is_owner: Mapped[bool] = mapped_column(Boolean, default=False) # Owner não pode ser expulso
     status: Mapped[str] = mapped_column(String(20), default="ATIVO") # ATIVO, SUSPENSO
     data_validade_acesso: Mapped[date | None] = mapped_column(Date, nullable=True) # Data para prestadores temporários perderem acesso
+    demo_prorrogacoes_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 

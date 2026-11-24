@@ -95,6 +95,8 @@ const BACKOFFICE_PERMISSIONS: Record<BackofficeRole, string[]> = {
         "backoffice:cupons:view", "backoffice:cupons:create", "backoffice:cupons:update",
         "backoffice:crm:view", "backoffice:crm:create", "backoffice:crm:update",
         "backoffice:ia:view", "backoffice:ia:update",
+        // Suporte (solicitações de prorrogação demo)
+        "backoffice:support:view", "backoffice:support:update",
     ],
 };
 
@@ -164,6 +166,11 @@ const TENANT_PERMISSIONS: Record<TenantRole, string[]> = {
         "integrations:view",
         "estoque:implantacao_assistida:view",
         "estoque:implantacao_assistida:list",
+    ],
+    demonstracao: [
+        "tenant:fazendas:view",
+        "tenant:fazendas:list",
+        "tenant:grupos:view",
     ],
 };
 
@@ -247,4 +254,5 @@ export const TENANT_ROLE_LABELS: Record<TenantRole, string> = {
     operador: "Operador",
     financeiro: "Financeiro",
     visualizador: "Visualizador",
+    demonstracao: "Demonstração",
 };

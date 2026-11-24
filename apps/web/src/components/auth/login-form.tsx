@@ -123,6 +123,20 @@ export function LoginForm() {
 
             const grupos = extractTenantContextsFromToken(access_token);
 
+            const perfilNomeNorm = defaultTenant?.perfil?.nome
+                ?.normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .trim()
+                .toLowerCase();
+            const isReadOnlyProfile = !defaultTenant?.is_owner && Boolean(
+                defaultTenant?.perfil?.is_read_only ||
+                defaultTenant?.perfil?.is_demo_profile ||
+                perfilNomeNorm === "demonstracao"
+            );
+            const isDemoVisitor = isReadOnlyProfile && Boolean(
+                defaultTenant?.is_demo || defaultTenant?.perfil?.is_demo_profile || perfilNomeNorm === "demonstracao"
+            );
+
             setSession(
                 access_token,
                 defaultTenant ? {
@@ -131,7 +145,8 @@ export function LoginForm() {
                     documento: "",
                     slug: "",
                     dominio_customizado: null,
-                    branding: { primaryColor: "154 100% 21%" }
+                    branding: { primaryColor: "154 100% 21%" },
+                    is_demo: Boolean(defaultTenant.is_demo),
                 } : null,
                 {
                     id: profile.id,
@@ -145,8 +160,14 @@ export function LoginForm() {
                     is_superuser: profile.is_superuser,
                     tenant_role: defaultTenant?.is_owner
                         ? "owner"
-                        : ((defaultTenant?.perfil?.nome?.toLowerCase() as TenantRole | undefined) ?? undefined),
+                        : ((perfilNomeNorm as TenantRole | undefined) ?? undefined),
                     custom_permissions: defaultTenant?.perfil?.permissoes ?? undefined,
+                    is_read_only: isReadOnlyProfile,
+                    is_demo_visitor: isDemoVisitor,
+                    demo_expired: Boolean(defaultTenant?.demo_expired),
+                    demo_validade_acesso: defaultTenant?.data_validade_acesso ?? null,
+                    demo_dias_restantes: defaultTenant?.demo_dias_restantes ?? null,
+                    demo_prorrogacoes_count: defaultTenant?.demo_prorrogacoes_count ?? 0,
                 },
                 grupos,
                 defaultTenant ? defaultTenant.fazendas.map((f: TenantFazenda) => ({
@@ -195,7 +216,7 @@ export function LoginForm() {
 
             let nextRoute = "/dashboard";
 
-            if (!profile.is_superuser && defaultTenant) {
+            if (!profile.is_superuser && defaultTenant && !isDemoVisitor && !isReadOnlyProfile) {
                 try {
                     const onboardingStatus = await apiFetch<OnboardingStatusResponse>("/onboarding/status", {
                         suppressErrorLog: true,
@@ -246,7 +267,20 @@ export function LoginForm() {
             const msg: string = error instanceof Error ? error.message : "Erro inesperado ao autenticar.";
             const lowerMsg = msg.toLowerCase();
 
-            if (lowerMsg.includes("bloqueada") || lowerMsg.includes("bloqueado") || msg.includes("423") || lowerMsg.includes("tente novamente")) {
+            if (
+                (lowerMsg.includes("demonstra") && lowerMsg.includes("momento")) ||
+                msg.includes("429") ||
+                lowerMsg.includes("muitos usuários de demonstração")
+            ) {
+                const friendlyMessage = msg.includes("demonstração")
+                    ? msg
+                    : "Muitos usuários de demonstração estão usando a plataforma no momento. Por favor, tente novamente mais tarde.";
+                setSubmitError(friendlyMessage);
+                toast.warning("Ambiente de Demonstração Ocupado", {
+                    description: friendlyMessage,
+                    duration: 10000,
+                });
+            } else if (lowerMsg.includes("bloqueada") || lowerMsg.includes("bloqueado") || msg.includes("423") || lowerMsg.includes("tente novamente")) {
                 const friendlyMessage = msg.includes("minuto")
                     ? msg
                     : "Muitas tentativas incorretas. Aguarde 15 minutos antes de tentar novamente.";

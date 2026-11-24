@@ -42,3 +42,14 @@ class ChamadoSuporteResponse(ChamadoSuporteBase):
 
 class ChamadoDetalheResponse(ChamadoSuporteResponse):
     mensagens: List[MensagemChamadoResponse] = Field(default_factory=list)
+    tenant_nome: Optional[str] = None
+    usuario_nome: Optional[str] = None
+    usuario_email: Optional[str] = None
+    is_demo_tenant: bool = False
+    data_validade_acesso: Optional[str] = None
+    demo_prorrogacoes_count: int = 0
+
+
+class AprovarProrrogacaoDemoRequest(BaseModel):
+    dias: Optional[int] = Field(default=None, ge=1, le=90)
+    observacao: Optional[str] = Field(default=None, max_length=500)

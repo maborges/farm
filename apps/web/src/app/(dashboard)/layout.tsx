@@ -4,6 +4,7 @@ import { AdaptiveDashboardShell } from "@/components/layout/adaptive-dashboard-s
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SessionGuard } from "@/components/auth/session-guard";
+import { DemoExpiredGuard } from "@/components/auth/demo-expired-guard";
 import { OnboardingGuard } from "@/components/auth/onboarding-guard";
 import { FazendasSync } from "@/components/auth/fazendas-sync";
 import { AuthBootstrap } from "@/components/auth/auth-bootstrap";
@@ -52,7 +53,7 @@ export default async function DashboardLayout({
                             <Topbar />
                             <main className="flex min-h-0 flex-1 w-full overflow-y-auto overflow-x-hidden">
                                 <AdaptiveDashboardShell hasExplicitSidebarCookie={hasExplicitSidebarCookie}>
-                                    {children}
+                                    <DemoExpiredGuard>{children}</DemoExpiredGuard>
                                 </AdaptiveDashboardShell>
                             </main>
                         </SidebarInset>

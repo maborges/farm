@@ -653,6 +653,9 @@ class BackofficePermissions:
             "backoffice:dashboard:view",
             "backoffice:plans:*",
             "backoffice:cupons:*",
+            "backoffice:crm:*",
+            "backoffice:support:view",
+            "backoffice:support:update",
             "backoffice:tenants:view",
             "backoffice:tenants:assign_plan",
             "backoffice:bi:view",
@@ -706,6 +709,7 @@ class TenantRoles:
     CONSULTOR = "consultor"
     FINANCEIRO = "financeiro"
     AUDITOR = "auditor"
+    DEMONSTRACAO = "demonstracao"
 
     # Descrições
     DESCRIPTIONS = {
@@ -717,7 +721,117 @@ class TenantRoles:
         CONSULTOR: "Consultor externo (apenas leitura)",
         FINANCEIRO: "Gestor financeiro (módulo financeiro completo)",
         AUDITOR: "Auditor externo (leitura e exportação, sem escrita)",
+        DEMONSTRACAO: "Visitante de demonstração (somente consulta, sem gravação ou alteração)",
     }
+
+
+DEMO_DEFAULT_DURATION_DAYS = 15
+DEMO_DEFAULT_MAX_CONCURRENT_SESSIONS = 10
+DEMO_IDLE_TIMEOUT_MINUTES = 20
+DEMO_EXTENSION_TICKET_CATEGORY = "PRORROGACAO_DEMO"
+DEMO_TENANT_CANONICAL_NAME = "Produtor DeepFarms"
+DEMO_CRM_STAGE_NAME = "Demonstração"
+DEMO_PROFILE_NAME = "Demonstração"
+
+DEMO_READ_ONLY_PERMISSIONS: list[str] = [
+    "tenant:fazendas:view",
+    "tenant:fazendas:list",
+    "tenant:grupos:view",
+    "agricola:view",
+    "agricola:list",
+    *[
+        f"agricola:{res}:{act}"
+        for res in (
+            "safras", "talhoes", "cadastros", "planejamento", "operacoes",
+            "custos", "colheita", "beneficiamento", "analises_solo",
+            "monitoramento", "ndvi", "climatico", "fenologia", "irrigacao",
+            "prescricoes", "rastreabilidade", "checklist", "alertas",
+            "agronomo", "relatorios", "dashboard", "caderno", "cultivos",
+            "defensivos", "cenarios", "planejamento_operacional",
+        )
+        for act in ("view", "list")
+    ],
+    "pecuaria:view",
+    "pecuaria:list",
+    *[
+        f"pecuaria:{res}:{act}"
+        for res in (
+            "dashboard", "sync_campo", "nutricao", "confinamento", "leite",
+            "lotes", "animais", "manejos", "pesagens", "reproducao",
+            "piquetes", "climatico", "inteligencia", "custos", "abates",
+            "alertas", "relatorios", "genetica", "manejo",
+        )
+        for act in ("view", "list")
+    ],
+    "financeiro:view",
+    "financeiro:list",
+    *[
+        f"financeiro:{res}:{act}"
+        for res in (
+            "dashboard", "hedge", "fiscal", "despesas", "receitas",
+            "lancamentos", "categorias", "centro_custo", "contas",
+            "dre", "fluxo_caixa", "relatorios", "conciliacao", "viabilidade",
+        )
+        for act in ("view", "list")
+    ],
+    "operacional:view",
+    "operacional:list",
+    *[
+        f"operacional:{res}:{act}"
+        for res in (
+            "frota", "abastecimento", "oficina", "checklist", "apontamento",
+            "compras", "inteligencia", "relatorios", "ordens_servico", "custos",
+        )
+        for act in ("view", "list")
+    ],
+    "estoque:view",
+    "estoque:list",
+    *[
+        f"estoque:{res}:{act}"
+        for res in (
+            "saldo", "movimentacoes", "lotes", "recepcao", "devolucao",
+            "implantacao_assistida", "fornecedores", "relatorios",
+        )
+        for act in ("view", "list")
+    ],
+    "rh:view",
+    "rh:list",
+    *[
+        f"pessoas:{res}:{act}"
+        for res in (
+            "colaboradores", "contratos", "folha", "ponto", "esocial", "relatorios",
+        )
+        for act in ("view", "list")
+    ],
+    "sst:seguranca:view",
+    "sst:seguranca:list",
+    *[
+        f"imoveis:{res}:{act}"
+        for res in ("propriedades", "documentos", "areas", "avaliacoes", "arrendamento")
+        for act in ("view", "list")
+    ],
+    *[
+        f"cadastros:{res}:{act}"
+        for res in ("commodities", "produtos", "pessoas", "marcas", "modelos", "categorias_produto")
+        for act in ("view", "list")
+    ],
+    *[
+        f"ambiental:{res}:{act}"
+        for res in ("dashboard", "car", "outorgas", "carbono", "certificacoes", "monitoramento")
+        for act in ("view", "list")
+    ],
+    "certificacoes_esg:view",
+    "certificacoes_esg:list",
+    "recommendations:view",
+    "recommendations:list",
+    "ia:dashboard:view",
+    "ia:recomendacoes:view",
+    "ia:performance:view",
+    "ia:plano:view",
+    "ia:plano:list",
+    "enterprise:view",
+    "enterprise:list",
+]
 
 
 def normalize_tenant_role(role: str | None) -> str | None:
@@ -729,6 +843,7 @@ def normalize_tenant_role(role: str | None) -> str | None:
     aliases = {
         "administrador": TenantRoles.ADMIN,
         "proprietario": TenantRoles.OWNER,
+        "demonstracao": TenantRoles.DEMONSTRACAO,
     }
     return aliases.get(normalized, normalized)
 
@@ -936,6 +1051,8 @@ class TenantPermissions:
             "ambiental:carbono:list",
             "ambiental:carbono:export",
         ],
+
+        "demonstracao": DEMO_READ_ONLY_PERMISSIONS,
     }
 
     @classmethod

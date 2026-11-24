@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -574,16 +574,44 @@ function InviteForm({
     onCancel: () => void;
     onSuccess: () => void;
 }) {
+    const tenant = useAppStore((s) => s.tenant);
+    const isDemoTenant = Boolean(
+        tenant?.is_demo ||
+        tenant?.nome?.trim().toLowerCase() === "produtor deepfarms"
+    );
+    const demoRole = roles.find(
+        (role) =>
+            role.is_demo_profile ||
+            role.nome.trim().toLowerCase() === "demonstração" ||
+            role.nome.trim().toLowerCase() === "demonstracao"
+    );
+
     const [selectedFazendas, setSelectedFazendas] = useState<string[]>([]);
     const [farmSearch, setFarmSearch] = useState("");
+    const appliedDemoFarmsRef = useRef(false);
 
     const {
-        register, handleSubmit, setValue,
+        register, handleSubmit, setValue, watch,
         formState: { errors, isSubmitting },
     } = useForm<TeamInviteInput>({
         resolver: zodResolver(teamInviteSchema),
-        defaultValues: { fazenda_ids: [] },
+        defaultValues: { fazenda_ids: [], perfil_id: demoRole?.id ?? "" },
     });
+
+    const selectedPerfilId = watch("perfil_id");
+
+    useEffect(() => {
+        if (!isDemoTenant) return;
+        if (demoRole && selectedPerfilId !== demoRole.id) {
+            setValue("perfil_id", demoRole.id, { shouldValidate: true });
+        }
+        if (!appliedDemoFarmsRef.current && fazendas.length > 0) {
+            const allIds = fazendas.map((f: Fazenda) => f.id);
+            appliedDemoFarmsRef.current = true;
+            setSelectedFazendas(allIds);
+            setValue("fazenda_ids", allIds, { shouldValidate: true });
+        }
+    }, [isDemoTenant, demoRole, fazendas, selectedPerfilId, setValue]);
 
     const inviteMutation = useMutation({
         mutationFn: (data: TeamInviteInput) =>
@@ -634,9 +662,15 @@ function InviteForm({
                         {formField("Perfil Corporativo", "perfil_id", (
                             <div className="relative">
                                 <Users size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
-                                <Select onValueChange={(val: string) => setValue("perfil_id", val)}>
-                                    <SelectTrigger className="pl-8 bg-surface border-border-subtle">
-                                        <SelectValue placeholder="Defina as permissões" />
+                                <Select
+                                    value={selectedPerfilId || ""}
+                                    onValueChange={(val: string) => {
+                                        if (!isDemoTenant) setValue("perfil_id", val);
+                                    }}
+                                    disabled={isDemoTenant}
+                                >
+                                    <SelectTrigger className={`pl-8 bg-surface border-border-subtle ${isDemoTenant ? "opacity-80 cursor-not-allowed" : ""}`}>
+                                        <SelectValue placeholder={isDemoTenant ? (demoRole?.nome ?? "Demonstração") : "Defina as permissões"} />
                                     </SelectTrigger>
                                     <SelectContent className="rounded-sm">
                                         {roles.map((role) => (
@@ -649,6 +683,11 @@ function InviteForm({
                                 </Select>
                             </div>
                         ), true)}
+                        {isDemoTenant && (
+                            <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-300">
+                                Ambiente de demonstração: perfil fixado em Demonstração (somente consulta, 15 dias) e todas as fazendas do Produtor DeepFarms pré-selecionadas.
+                            </p>
+                        )}
                         {errors.perfil_id && <p className="mt-1 text-[10px] font-bold text-red-500">{errors.perfil_id.message}</p>}
                     </div>
                 </div>
