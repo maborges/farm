@@ -135,9 +135,29 @@ async def demo_app(tmp_path, monkeypatch):
     async def demo_probe_unprotected_delete(tenant_id: uuid.UUID = Depends(get_tenant_id)):
         return {"written": True, "tenant_id": str(tenant_id)}
 
+    @app.get("/api/v1/cadastros/pessoas")
+    async def demo_probe_pessoas_list(tenant_id: uuid.UUID = Depends(get_tenant_id)):
+        return {"items": [], "tenant_id": str(tenant_id)}
+
     @app.get("/api/v1/cadastros/pessoas/{pessoa_id}/pii")
     async def demo_probe_pii(pessoa_id: str, tenant_id: uuid.UUID = Depends(get_tenant_id)):
         return {"pessoa_id": pessoa_id, "tenant_id": str(tenant_id)}
+
+    @app.get("/api/v1/config/tenant")
+    async def demo_probe_config_tenant(tenant_id: uuid.UUID = Depends(get_tenant_id)):
+        return {"tenant_id": str(tenant_id)}
+
+    @app.get("/api/v1/config/my-smtp")
+    async def demo_probe_config_smtp(tenant_id: uuid.UUID = Depends(get_tenant_id)):
+        return {"tenant_id": str(tenant_id)}
+
+    @app.get("/api/v1/config/seguranca")
+    async def demo_probe_config_seguranca(tenant_id: uuid.UUID = Depends(get_tenant_id)):
+        return {"tenant_id": str(tenant_id)}
+
+    @app.get("/api/v1/config/historico")
+    async def demo_probe_config_historico(tenant_id: uuid.UUID = Depends(get_tenant_id)):
+        return {"tenant_id": str(tenant_id)}
 
     @app.get("/api/v1/ia/assistente")
     async def demo_probe_ia(tenant_id: uuid.UUID = Depends(get_tenant_id)):
@@ -681,15 +701,27 @@ async def test_lgpd_restricted_paths_and_cross_visitor_support_isolation(demo_ap
 
         for path in (
             "/api/v1/team/users",
+            "/api/v1/team/invites",
             "/api/v1/audit-log",
             "/api/v1/sessions/team",
+            "/api/v1/cadastros/pessoas",
             "/api/v1/cadastros/pessoas/123/pii",
+            "/api/v1/config/tenant",
+            "/api/v1/config/my-smtp",
+            "/api/v1/config/seguranca",
+            "/api/v1/config/historico",
             "/api/v1/ia/assistente",
             "/api/v1/campo/sync",
         ):
             r = await client.get(path, headers={"Authorization": f"Bearer {tok_a}"})
             assert r.status_code == 403, f"Esperado 403 em {path}, obteve {r.status_code}"
             assert r.headers.get("X-Error-Code") == "READ_ONLY_RESTRICTED_RESOURCE"
+
+        perms_resp = await client.get("/api/v1/team/me/permissoes", headers={"Authorization": f"Bearer {tok_a}"})
+        assert perms_resp.status_code == 200
+        granted_perms = (perms_resp.json().get("permissoes") or {}).get("granted") or []
+        assert "cadastros:pessoas:view" not in granted_perms
+        assert "cadastros:pessoas:list" not in granted_perms
 
         # Visitante A abre chamado; Visitante B não enxerga nem consegue interagir
         ticket_a = await client.post(

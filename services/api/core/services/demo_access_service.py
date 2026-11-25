@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+import logging
+import secrets
 import unicodedata
 import uuid
 
@@ -17,11 +19,15 @@ from core.constants import (
     DEMO_TENANT_CANONICAL_NAME,
 )
 from core.models.admin_audit_log import AdminAuditLog
-from core.models.auth import PerfilAcesso, TenantUsuario, Usuario
+from core.models.auth import ConviteAcesso, PerfilAcesso, TenantUsuario, Usuario
 from core.models.crm import AtividadeCRM, LeadCRM, PipelineEstagio
 from core.models.support import ChamadoSuporte, MensagemChamado, TicketStatus
 from core.models.tenant import Tenant
+from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
 from core.services.demo_config_service import get_demo_saas_config
+from core.services.email_service import email_service
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -407,3 +413,243 @@ async def approve_demo_extension(
         "data_validade_acesso": nova_validade.isoformat(),
         "demo_prorrogacoes_count": tu.demo_prorrogacoes_count,
     }
+
+
+@dataclass(slots=True)
+class DemoRequestInput:
+    """Dados informados pelo visitante na landing page para acesso à demonstração."""
+
+    nome: str
+    email: str
+    telefone: str | None = None
+    empresa: str | None = None
+
+
+@dataclass(slots=True)
+class DemoRequestResult:
+    """Resultado do processamento de solicitação pública de demonstração."""
+
+    ja_cadastrado: bool
+    ja_vinculado_demo: bool
+    convite_reenviado: bool
+    dias_acesso: int
+    mensagem: str
+
+
+async def resolve_demo_tenant(session: AsyncSession) -> Tenant:
+    """
+    Resolve o tenant oficial de demonstração configurado na plataforma.
+
+    Args:
+        session: Sessão assíncrona ativa do SQLAlchemy.
+
+    Return:
+        Instância de Tenant configurada como ambiente de demonstração.
+
+    Raises:
+        HTTPException: 503 quando nenhum tenant de demonstração estiver disponível.
+    """
+    demo_cfg = await get_demo_saas_config(session)
+    if demo_cfg.tenant_id:
+        tenant = await session.get(Tenant, uuid.UUID(demo_cfg.tenant_id))
+        if tenant and tenant.ativo:
+            return tenant
+
+    demo_tenant = (
+        await session.execute(select(Tenant).where(Tenant.is_demo.is_(True), Tenant.ativo.is_(True)).limit(1))
+    ).scalar_one_or_none()
+    if demo_tenant:
+        return demo_tenant
+
+    canonical = _normalize_ascii_lower(DEMO_TENANT_CANONICAL_NAME)
+    ativos = (await session.execute(select(Tenant).where(Tenant.ativo.is_(True)))).scalars().all()
+    for tenant in ativos:
+        if _normalize_ascii_lower(tenant.nome) == canonical:
+            return tenant
+
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Ambiente de demonstração indisponível no momento.",
+    )
+
+
+async def _get_or_create_demo_invite(
+    session: AsyncSession,
+    tenant: Tenant,
+    email_norm: str,
+) -> tuple[ConviteAcesso, PerfilAcesso, bool]:
+    """
+    Obtém um convite pendente reutilizável ou cria novo convite para o tenant de demonstração.
+
+    Args:
+        session: Sessão assíncrona ativa do SQLAlchemy.
+        tenant: Tenant de demonstração de destino.
+        email_norm: E-mail normalizado em minúsculas.
+
+    Return:
+        Tupla `(convite, perfil_demo, convite_reenviado)`.
+
+    Raises:
+        SQLAlchemyError: Em falha de consulta ou persistência.
+    """
+    perfil = await ensure_demo_profile(session)
+    fazendas_ids = [
+        str(fid)
+        for fid in (
+            await session.execute(
+                select(Fazenda.id).where(Fazenda.tenant_id == tenant.id, Fazenda.ativo.is_(True))
+            )
+        ).scalars().all()
+    ]
+    agora = datetime.now(timezone.utc)
+    nova_expiracao = agora + timedelta(days=7)
+
+    existente = (
+        await session.execute(
+            select(ConviteAcesso)
+            .where(
+                ConviteAcesso.tenant_id == tenant.id,
+                func.lower(ConviteAcesso.email_convidado) == email_norm,
+                ConviteAcesso.status == "PENDENTE",
+            )
+            .order_by(ConviteAcesso.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    if existente:
+        exp = (
+            existente.data_expiracao.replace(tzinfo=timezone.utc)
+            if existente.data_expiracao.tzinfo is None
+            else existente.data_expiracao
+        )
+        if exp >= agora:
+            existente.data_expiracao = nova_expiracao
+            existente.perfil_id = perfil.id
+            existente.unidades_produtivas_ids = fazendas_ids
+            return existente, perfil, True
+        existente.status = "EXPIRADO"
+
+    convite = ConviteAcesso(
+        tenant_id=tenant.id,
+        email_convidado=email_norm,
+        perfil_id=perfil.id,
+        unidades_produtivas_ids=fazendas_ids,
+        token_convite=secrets.token_urlsafe(32),
+        status="PENDENTE",
+        data_expiracao=nova_expiracao,
+        data_validade_acesso=None,
+    )
+    session.add(convite)
+    await session.flush()
+    return convite, perfil, False
+
+
+async def _send_demo_invite_email(
+    email_norm: str,
+    tenant: Tenant,
+    perfil_nome: str,
+    token: str,
+) -> None:
+    """Dispara o e-mail de convite/confirmação da demonstração sem propagar falhas SMTP."""
+    try:
+        await email_service.send_invite(
+            email=email_norm,
+            remetente="Equipe DeepFarms",
+            tenant_nome=tenant.nome,
+            perfil_nome=perfil_nome,
+            token=token,
+            tenant_id=tenant.id,
+        )
+    except Exception:
+        logger.warning("Falha ao enviar e-mail de demonstração para o tenant %s.", tenant.id)
+
+
+async def solicitar_acesso_demonstracao(
+    session: AsyncSession,
+    payload: DemoRequestInput,
+) -> DemoRequestResult:
+    """
+    Processa solicitação pública de acesso à demonstração pela landing page.
+
+    Args:
+        session: Sessão assíncrona ativa do SQLAlchemy.
+        payload: Dados informados pelo visitante (nome, e-mail, telefone e empresa opcionais).
+
+    Return:
+        `DemoRequestResult` indicando se o usuário já possui conta, vínculo e orientação.
+
+    Raises:
+        HTTPException: 503 se o ambiente de demonstração não estiver configurado.
+    """
+    tenant = await resolve_demo_tenant(session)
+    demo_cfg = await get_demo_saas_config(session)
+    email_norm = payload.email.strip().lower()
+
+    usuario = (
+        await session.execute(select(Usuario).where(func.lower(Usuario.email) == email_norm))
+    ).scalar_one_or_none()
+    ja_cadastrado = usuario is not None
+
+    ja_vinculado_demo = False
+    if usuario is not None:
+        vinculo = (
+            await session.execute(
+                select(TenantUsuario.id).where(
+                    TenantUsuario.tenant_id == tenant.id,
+                    TenantUsuario.usuario_id == usuario.id,
+                )
+            )
+        ).scalar_one_or_none()
+        ja_vinculado_demo = vinculo is not None
+
+    validade_prevista = date.today() + timedelta(days=demo_cfg.duracao_inicial_dias)
+    await sync_demo_lead_to_crm(
+        session,
+        DemoLeadSyncInput(
+            email=email_norm,
+            nome=payload.nome.strip(),
+            telefone=payload.telefone,
+            empresa=payload.empresa,
+            data_validade_acesso=validade_prevista,
+            tenant_id=tenant.id,
+        ),
+    )
+
+    if ja_vinculado_demo:
+        await session.commit()
+        return DemoRequestResult(
+            ja_cadastrado=True,
+            ja_vinculado_demo=True,
+            convite_reenviado=False,
+            dias_acesso=demo_cfg.duracao_inicial_dias,
+            mensagem=(
+                "Você já está cadastrado na plataforma e já possui acesso ao ambiente de "
+                "demonstração. Faça login com seu e-mail e senha para entrar."
+            ),
+        )
+
+    convite, perfil, reenviado = await _get_or_create_demo_invite(session, tenant, email_norm)
+    await session.commit()
+    await _send_demo_invite_email(email_norm, tenant, perfil.nome, convite.token_convite)
+
+    # TODO(security): Mensagem diferenciada para usuários já cadastrados é requisito explícito
+    # de produto; o risco de enumeração de e-mail é mitigado por DemoRequestRateLimiter (5 req/15min por IP).
+    if ja_cadastrado:
+        mensagem = (
+            "Você já está cadastrado na plataforma. Enviamos um e-mail de confirmação "
+            "para liberar seu acesso ao ambiente de demonstração."
+        )
+    else:
+        mensagem = (
+            f"Enviamos um e-mail com o link para concluir seu cadastro e acessar o "
+            f"ambiente de demonstração por {demo_cfg.duracao_inicial_dias} dias."
+        )
+
+    return DemoRequestResult(
+        ja_cadastrado=ja_cadastrado,
+        ja_vinculado_demo=False,
+        convite_reenviado=reenviado,
+        dias_acesso=demo_cfg.duracao_inicial_dias,
+        mensagem=mensagem,
+    )

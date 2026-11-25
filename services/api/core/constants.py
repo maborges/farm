@@ -812,7 +812,7 @@ DEMO_READ_ONLY_PERMISSIONS: list[str] = [
     ],
     *[
         f"cadastros:{res}:{act}"
-        for res in ("commodities", "produtos", "pessoas", "marcas", "modelos", "categorias_produto")
+        for res in ("commodities", "produtos", "marcas", "modelos", "categorias_produto")
         for act in ("view", "list")
     ],
     *[

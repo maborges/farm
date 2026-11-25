@@ -87,16 +87,19 @@ _READ_ONLY_EXPIRED_ALLOWED_PREFIXES = (
 )
 
 _READ_ONLY_RESTRICTED_PREFIXES = (
-    "/api/v1/team/users",
-    "/api/v1/team/invites",
-    "/api/v1/team/stats",
-    "/api/v1/team/roles",
-    "/api/v1/team/members",
     "/api/v1/sessions/team",
     "/api/v1/audit-log",
     "/api/v1/auth/tenant/usuarios",
     "/api/v1/plan-changes",
     "/api/v1/configuration",
+    "/api/v1/config/tenant",
+    "/api/v1/config/my-smtp",
+    "/api/v1/config/seguranca",
+    "/api/v1/config/historico",
+    "/api/v1/config/sequenciais",
+    "/api/v1/config/onboarding",
+    "/api/v1/cadastros/pessoas",
+    "/api/v1/cadastros/tipos-relacionamento",
     "/api/v1/integracoes",
     "/api/v1/iot",
     "/api/v1/sankhya",
@@ -110,13 +113,11 @@ _READ_ONLY_RESTRICTED_PREFIXES = (
 
 def _is_read_only_restricted_path(path: str) -> bool:
     """Identifica rotas administrativas, de IA paga, dispositivos ou PII proibidas em modo somente consulta."""
+    if path.startswith("/api/v1/team") and path != "/api/v1/team/me/permissoes":
+        return True
     if path.startswith(_READ_ONLY_RESTRICTED_PREFIXES):
         return True
     if path.startswith("/api/v1/billing") and not path.startswith("/api/v1/billing/plans"):
-        return True
-    if path.startswith("/api/v1/cadastros/pessoas/") and path.endswith(
-        ("/pii", "/bancario", "/consentimentos", "/anonimizar")
-    ):
         return True
     return False
 

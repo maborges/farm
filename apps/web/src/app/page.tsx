@@ -20,6 +20,7 @@ import {
   LockKeyhole,
   Map,
   MessagesSquare,
+  PlayCircle,
   Rocket,
   Scale,
   Shield,
@@ -560,8 +561,14 @@ export default async function Home() {
             <nav className="flex flex-wrap items-center gap-2">
               <ProductSwitcher active="gestao" className="lg:hidden" />
               <ThemeToggle />
-              <Button asChild variant="outline" size="sm"><Link href="/login">Entrar</Link></Button>
-              <Button asChild size="sm"><Link href="/register">Começar grátis</Link></Button>
+              <Button asChild variant="outline" size="sm" className="rounded-sm">
+                <Link href="/demonstracao" data-track-event="nav_demo_click">
+                  <PlayCircle className="size-3.5" />
+                  Demonstração
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="sm" className="rounded-sm"><Link href="/login">Entrar</Link></Button>
+              <Button asChild size="sm" className="rounded-sm"><Link href="/register">Começar grátis</Link></Button>
             </nav>
           </header>
 
@@ -591,8 +598,8 @@ export default async function Home() {
                     Começar grátis <ArrowRight className="size-3.5" />
                   </Link>
                 </Button>
-                <Button asChild variant="outline" size="sm">
-                  <Link href="/login" data-track-event="cta_demo_click">
+                <Button asChild variant="outline" size="sm" className="rounded-sm">
+                  <Link href="/demonstracao" data-track-event="cta_demo_click">
                     Ver demonstração <ChevronRight className="size-3.5" />
                   </Link>
                 </Button>

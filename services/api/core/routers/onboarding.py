@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, Request, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timezone, timedelta
@@ -9,6 +9,8 @@ from core.dependencies import get_session, get_current_user_claims, get_tenant_i
 from core.schemas.onboarding_schemas import AssinanteRegisterRequest, ConviteCreateRequest, ConviteResponse
 from core.services.onboarding_service import OnboardingService
 from core.services.auth_service import AuthService
+from core.services.demo_access_service import DemoRequestInput, solicitar_acesso_demonstracao
+from core.services.demo_request_rate_limit import DemoRequestRateLimiter
 from core.schemas.auth_schemas import TokenResponse, UsuarioMeResponse
 from core.services.email_service import email_service
 from core.models.tenant import Tenant
@@ -544,4 +546,65 @@ async def onboarding_status(
         etapa1_produtor=etapa1,
         etapa2_propriedade=etapa2,
         etapa3_equipe=etapa3,
+    )
+
+
+class SolicitarDemonstracaoRequest(BaseModel):
+    """Payload público da landing page para solicitar acesso ao ambiente de demonstração."""
+
+    nome: str = Field(..., min_length=2, max_length=150)
+    email: EmailStr
+    telefone: str | None = Field(None, max_length=30)
+    empresa: str | None = Field(None, max_length=200)
+
+
+class SolicitarDemonstracaoResponse(BaseModel):
+    """Resposta segura da solicitação de demonstração (sem expor token de convite)."""
+
+    ja_cadastrado: bool
+    ja_vinculado_demo: bool
+    convite_reenviado: bool
+    dias_acesso: int
+    mensagem: str
+
+
+@router.post(
+    "/demonstracao/solicitar",
+    response_model=SolicitarDemonstracaoResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Solicita acesso ao ambiente de demonstração pela landing page",
+)
+async def solicitar_demonstracao(
+    request: Request,
+    dados: SolicitarDemonstracaoRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Recebe dados de acesso da landing page, sincroniza lead no CRM e dispara
+    o e-mail de convite ou confirmação para o ambiente de demonstração.
+    """
+    ip_address = request.client.host if request.client else None
+    allowed, retry_after = await DemoRequestRateLimiter.consume(ip_address)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Muitas solicitações de demonstração. Tente novamente em alguns minutos.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    resultado = await solicitar_acesso_demonstracao(
+        session,
+        DemoRequestInput(
+            nome=dados.nome,
+            email=str(dados.email),
+            telefone=dados.telefone,
+            empresa=dados.empresa,
+        ),
+    )
+    return SolicitarDemonstracaoResponse(
+        ja_cadastrado=resultado.ja_cadastrado,
+        ja_vinculado_demo=resultado.ja_vinculado_demo,
+        convite_reenviado=resultado.convite_reenviado,
+        dias_acesso=resultado.dias_acesso,
+        mensagem=resultado.mensagem,
     )

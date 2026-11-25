@@ -205,6 +205,11 @@ export function hasTenantPermission(
     // A API autoriza o proprietário do tenant independentemente do JSON legado do perfil.
     if (role === "owner") return true;
 
+    // Perfil Demonstração nunca acessa cadastros de pessoas/parceiros (LGPD).
+    if (role === "demonstracao" && permission.startsWith("cadastros:pessoas")) {
+        return false;
+    }
+
     const granted = customPermissions?.granted ?? customPermissions?.permissions;
 
     // Formato novo: lista explícita de permissões concedidas.

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, CheckCircle2, LifeBuoy, Loader2, LogOut, Send } from "lucide-react";
+import { ArrowLeft, CalendarClock, CheckCircle2, LifeBuoy, Loader2, LogOut, Send, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { useDemoAccess } from "@/hooks/use-demo-access";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -24,16 +24,31 @@ interface SupportTicketSummary {
     created_at: string;
 }
 
+const DEMO_RESTRICTED_ROUTE_PREFIXES = [
+    "/cadastros/pessoas",
+    "/dashboard/settings/team",
+    "/dashboard/settings/roles",
+    "/dashboard/settings/seguranca",
+    "/dashboard/settings/sessoes",
+    "/dashboard/settings/tenant",
+    "/dashboard/settings/billing",
+    "/dashboard/settings/smtp",
+    "/dashboard/settings/ia",
+    "/dashboard/settings/integracoes",
+    "/dashboard/implantacao/wizard",
+    "/dashboard/configuracoes/globais",
+] as const;
+
 /**
  * Guard que bloqueia módulos operacionais quando a janela de 15 dias de demonstração expirou,
- * direcionando imediatamente para a solicitação de prorrogação (+15 dias) via Suporte.
+ * e impede acesso direto por URL a telas administrativas ou com dados de pessoas/outros usuários.
  */
 export function DemoExpiredGuard({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
     const queryClient = useQueryClient();
     const logout = useAppStore((s) => s.logout);
-    const { isDemoExpired, validadeAcesso, prorrogacoesCount } = useDemoAccess();
+    const { isReadOnly, isDemoVisitor, isDemoExpired, validadeAcesso, prorrogacoesCount } = useDemoAccess();
     const [mensagem, setMensagem] = useState(
         "Gostaria de solicitar a prorrogação de mais 15 dias corridos no ambiente de demonstração DeepFarms."
     );
@@ -72,6 +87,49 @@ export function DemoExpiredGuard({ children }: { children: React.ReactNode }) {
             toast.error(err.message || "Não foi possível enviar a solicitação.");
         },
     });
+
+    const isRestrictedDemoRoute =
+        (isReadOnly || isDemoVisitor) &&
+        !isDemoExpired &&
+        DEMO_RESTRICTED_ROUTE_PREFIXES.some(
+            (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+        );
+
+    if (isRestrictedDemoRoute) {
+        return (
+            <div className="mx-auto flex min-h-[65vh] w-full max-w-lg items-center justify-center p-4 sm:p-6">
+                <Card className="w-full rounded-sm border-border bg-card shadow-md">
+                    <CardHeader className="border-b pb-4">
+                        <Badge
+                            variant="outline"
+                            className="w-fit rounded-sm border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300"
+                        >
+                            Modo Demonstração
+                        </Badge>
+                        <CardTitle className="mt-2 flex items-center gap-2 text-lg">
+                            <ShieldAlert className="size-5 text-amber-600 dark:text-amber-400" />
+                            Área restrita na demonstração
+                        </CardTitle>
+                        <CardDescription className="text-xs">
+                            Por segurança e privacidade (LGPD), informações de pessoas/usuários e configurações administrativas não ficam disponíveis para contas de demonstração.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap items-center justify-between gap-2 pt-4">
+                        <p className="text-xs text-muted-foreground">
+                            Os módulos operacionais (Agrícola, Pecuária, Financeiro, Estoque, Frota e Ambiental) continuam liberados para consulta.
+                        </p>
+                        <Link
+                            href="/dashboard"
+                            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "rounded-sm gap-1.5")}
+                        >
+                            <ArrowLeft className="size-3.5" />
+                            <span>Voltar ao painel</span>
+                        </Link>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
 
     if (!isDemoExpired || isSupportPath) {
         return <>{children}</>;

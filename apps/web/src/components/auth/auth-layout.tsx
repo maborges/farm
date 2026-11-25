@@ -57,7 +57,7 @@ export function AuthLayout({
             <div className="absolute inset-0 z-0 bg-white/40 dark:bg-slate-950/55" />
 
             {/* ── Painel hero à esquerda (sem linha divisória, ocupando 42%–44% no desktop) ─── */}
-            <div className="relative hidden flex-col overflow-hidden bg-transparent lg:flex lg:w-[42%] xl:w-[44%] shrink-0">
+            <div className="relative hidden flex-col overflow-y-auto overflow-x-hidden bg-transparent lg:flex lg:w-[42%] xl:w-[44%] shrink-0">
                 <div className="relative z-10 flex flex-col justify-between h-full p-10 xl:p-12">
                     {/* Logo */}
                     <div className="inline-flex items-center gap-4 rounded-sm border border-primary/20 bg-white/45 px-4 py-3 shadow-sm backdrop-blur-sm w-fit dark:border-white/15 dark:bg-white/8">
@@ -172,7 +172,7 @@ export function AuthLayout({
             </div>
 
             {/* ── Área de Dados à Direita (56%–58% no desktop, com transparência glassmorphism original) ─── */}
-            <div className="relative z-10 flex flex-1 flex-col items-center justify-center overflow-y-auto lg:overflow-hidden px-5 py-6 lg:px-8 lg:py-6">
+            <div className="relative z-10 flex flex-1 flex-col items-center overflow-y-auto overflow-x-hidden px-5 py-6 lg:px-8 lg:py-6">
                 {/* Watermark Logo */}
                 <div
                     className="absolute inset-0 z-0 opacity-5 dark:opacity-10 pointer-events-none"
@@ -188,7 +188,7 @@ export function AuthLayout({
                 <div className="absolute top-[10%] right-[10%] size-64 bg-primary/10 rounded-full blur-3xl -z-10 animate-pulse" />
                 <div className="absolute bottom-[10%] left-[10%] size-96 bg-primary/5 rounded-full blur-3xl -z-10" />
 
-                <div className={`relative w-full ${contentMaxWidthClassName} space-y-3`}>
+                <div className={`relative my-auto w-full ${contentMaxWidthClassName} space-y-3`}>
                     {/* Logo mobile */}
                     <div className="lg:hidden inline-flex items-center gap-4 mb-3 rounded-sm border border-primary/20 bg-white/45 px-4 py-3 shadow-sm backdrop-blur-sm dark:border-white/15 dark:bg-white/8">
                         <div className="flex size-12 shrink-0 items-center justify-center">

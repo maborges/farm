@@ -32,6 +32,7 @@ export function useVisibleNavigation() {
     const user = useAppStore((state) => state.user);
     const activePlanTier = useAppStore((state) => state.activePlanTier());
     const hasModule = useAppStore((state) => state.hasModule);
+    const isReadOnlyDemo = Boolean(user?.is_demo_visitor || user?.is_read_only);
 
     // Módulos principais (Operacionais)
     const moduleGroups = useMemo(() => {
@@ -60,9 +61,14 @@ export function useVisibleNavigation() {
             items: section.items
                 .filter((item) => !item.module || hasModule(item.module as any))
                 .filter((item) => !item.minimumTier || tierAtLeast(activePlanTier, item.minimumTier))
+                .filter(
+                    (item) =>
+                        !isReadOnlyDemo ||
+                        (item.href !== "/cadastros/pessoas" && !item.href.startsWith("/cadastros/pessoas/"))
+                )
                 .filter((item) => canSeeTenantItem(user, item.permission))
         })).filter(section => section.items.length > 0);
-    }, [activePlanTier, user, hasModule]);
+    }, [activePlanTier, user, hasModule, isReadOnlyDemo]);
 
     // Backoffice
     const backofficeSections = useMemo(() => {
@@ -71,8 +77,6 @@ export function useVisibleNavigation() {
             items: section.items.filter((item) => canSeeBackofficeItem(user, item.permission))
         })).filter(section => section.items.length > 0);
     }, [user]);
-
-    const isReadOnlyDemo = Boolean(user?.is_demo_visitor || user?.is_read_only);
 
     // Itens de Acesso rápido e Configurações (footer do tenant — usado no sidebar e no mega menu)
     const accessItems = useMemo(
